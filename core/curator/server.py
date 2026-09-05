@@ -246,6 +246,7 @@ def _session_capture(args: dict) -> str:
     server_log.log("session_capture", stage="gatekeeper",
                    proposed=len(proposed), approved=len(result.approved),
                    rejected=len(result.rejected))
+    saved_count = 0
 
     lines = [f"Получено кандидатов: {len(proposed)}"]
     if errors:
@@ -296,9 +297,24 @@ def _session_capture(args: dict) -> str:
             feedback.record_save(fact.title)
             saved.append(fact.title)
         server_log.log("session_capture", stage="autosave", saved=len(saved))
+        saved_count = len(saved)
         lines.append(f"\nАвто-сохранено: {len(saved)} фактов")
 
+    # Телеметрия кандидатов: одна запись на вызов (preview без сохранения
+    # тоже запись — saved=0), не роняет capture
+    _log_mcp_candidates(result, saved=saved_count, declined_by_human=False)
     return "\n".join(lines)
+
+
+def _log_mcp_candidates(result, saved: int, declined_by_human: bool):
+    """Телеметрия кандидатов для MCP-пути. Не роняет capture."""
+    from curator import candidates_log
+    candidates = [(f, "approved", "") for f in result.approved]
+    candidates += [(f, "rejected", reason) for f, reason in result.rejected]
+    candidates_log.log_capture("mcp", candidates, saved=saved,
+                               final_status="verified" if saved else "preview",
+                               session_id=None,
+                               declined_by_human=declined_by_human)
 
 
 def _routes() -> str:

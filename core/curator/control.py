@@ -194,8 +194,10 @@ def _section_improve_log(cutoff):
         _table(["Время", "Действие", "", "Eval", "Детали"], rows, "Последние события")
 
 
-def cmd_save(auto_yes: bool = False):
-    raw = sys.stdin.read() if not sys.stdin.isatty() else ""
+def cmd_save(auto_yes: bool = False, hypothesis: bool = False,
+             session_id: str | None = None, raw: str | None = None):
+    if raw is None:
+        raw = sys.stdin.read() if not sys.stdin.isatty() else ""
     if not raw.strip():
         print("Ошибка: нет данных. Используйте: curator save < candidates.json")
         print('  Формат: [{"type": "Reference", "title": "...", "content_summary": "...", "tags": ["..."], "evidence": "..."}]')
@@ -213,7 +215,9 @@ def cmd_save(auto_yes: bool = False):
         print('Ошибка: ожидается непустой массив кандидатов (или {"candidates": [...]})')
         return
 
-    _header("Curator Save — кандидаты от агента")
+    status = "hypothesis" if hypothesis else "verified"
+    _header("Curator Save — кандидаты от агента" +
+            (f" (майнинг сессии, статус: {status})" if session_id else ""))
 
     from curator.models import ProposedFact, StructuredFact, parse_tags, resolve_fact_type
     proposed = []
@@ -267,7 +271,7 @@ def cmd_save(auto_yes: bool = False):
         if auto_yes:
             answer = "y"
         else:
-            print(f"\n  Сохранить {len(result.approved)} фактов? [y/N]: ", end="")
+            print(f"\n  Сохранить {len(result.approved)} фактов (статус: {status})? [y/N]: ", end="")
             answer = input().strip().lower()
         if answer == "y":
             from curator.routing import get_router, route_fact_safe
@@ -281,7 +285,8 @@ def cmd_save(auto_yes: bool = False):
             for fact in result.approved:
                 structured = StructuredFact(
                     type=fact.type, title=fact.title, tags=fact.tags,
-                    status="verified", content_summary=fact.content_summary,
+                    status=status,
+                    content_summary=fact.content_summary,
                     source_file=route_fact_safe(router, fact),
                 )
                 backend.store_fact(structured)
@@ -292,9 +297,27 @@ def cmd_save(auto_yes: bool = False):
                     print(f"    ⚠ write-back в .md не удался для '{fact.title[:50]}': {e}")
                 fb.record_save(fact.title)
                 saved += 1
-            print(f"  ✅ Сохранено: {saved} фактов")
+            print(f"  ✅ Сохранено: {saved} фактов (статус: {status})")
+            _log_candidates("mining" if session_id else "cli", result, saved, status,
+                            session_id, declined_by_human=False)
         else:
             print("  Сохранение отменено.")
+            _log_candidates("mining" if session_id else "cli", result, 0, status,
+                            session_id, declined_by_human=True)
+    else:
+        # Все кандидаты отклонены gatekeeper'ом — это тоже данные precision
+        _log_candidates("mining" if session_id else "cli", result, 0, status,
+                        session_id, declined_by_human=False)
+
+
+def _log_candidates(source: str, result, saved: int, status: str,
+                    session_id: str | None, declined_by_human: bool):
+    """Телеметрия: предложил/сохранил/отказал + причина. Не роняет save."""
+    from curator import candidates_log
+    candidates = [(f, "approved", "") for f in result.approved]
+    candidates += [(f, "rejected", reason) for f, reason in result.rejected]
+    candidates_log.log_capture(source, candidates, saved=saved, final_status=status,
+                               session_id=session_id, declined_by_human=declined_by_human)
 
 
 def cmd_get(query: str = ""):
@@ -457,6 +480,95 @@ def cmd_routes():
     _table(["Путь", "Описание", "Правила"], rows)
 
 
+def cmd_sessions():
+    """Реестр и транскрипты сессий OpenCode — источник для майнинга знаний."""
+    args = sys.argv[2:] if len(sys.argv) > 2 else []
+    sub = args[0] if args else "list"
+
+    from curator.session_reader import list_opencode_sessions, read_opencode_session
+
+    if sub == "list":
+        since = None
+        limit = 100
+        if "--since" in args:
+            idx = args.index("--since")
+            if idx + 1 < len(args):
+                since = args[idx + 1]
+        if "--limit" in args:
+            idx = args.index("--limit")
+            if idx + 1 < len(args):
+                limit = int(args[idx + 1])
+        sessions = list_opencode_sessions(since=since, limit=limit)
+        if not sessions:
+            print("  Сессий не найдено (opencode.db пуст или нет по пути по умолчанию).")
+            return
+        _header(f"Curator Sessions — {len(sessions)} сессий (свежие сверху)")
+        rows = []
+        for s in sessions:
+            title = (s.title or s.id)[:60]
+            rows.append([s.created or "—", str(s.messages), f"{s.tokens // 1000}k", title])
+        _table(["Дата", "Сообщ.", "Токены", "Заголовок"], rows)
+        print("\n  Полный транскрипт: curator sessions show <id> [--out файл]")
+        print("  id — полный идентификатор сессии из opencode.db")
+
+    elif sub == "show":
+        if len(args) < 2:
+            print("Использование: curator sessions show <session_id> [--out файл]")
+            return
+        session_id = args[1]
+        out_file = None
+        if "--out" in args:
+            idx = args.index("--out")
+            if idx + 1 < len(args):
+                out_file = args[idx + 1]
+        session = read_opencode_session(session_id)
+        if session is None:
+            print(f"  Сессия не найдена или пуста: {session_id}")
+            return
+        header = (f"# Сессия: {session.name}\n"
+                  f"# Сообщений (parts): {session.messages}, токенов: {session.tokens}\n\n")
+        if out_file:
+            Path(out_file).write_text(header + session.text, encoding="utf-8")
+            print(f"  ✅ Транскрипт записан: {out_file} ({len(session.text)} символов)")
+        else:
+            print(header + session.text)
+    else:
+        print(f"Неизвестная подкоманда sessions: {sub} (доступны list, show)")
+
+
+def cmd_candidates():
+    """Precision-отчёт: что предлагал агент, что сохранилось, почему отказано."""
+    _header("Curator Candidates — точность извлечения")
+    from curator import candidates_log
+    stats = candidates_log.precision_stats()
+    if not stats["calls"]:
+        print("  Нет данных: лог кандидатов пуст (~/.curator/candidates.jsonl).")
+        print("  Заполняется при каждом curator save / curator_session_capture.")
+        return
+
+    print(f"  Вызовов capture: {stats['calls']} "
+          f"(источники: {json.dumps(stats['by_source'], ensure_ascii=False)})")
+    print(f"  Предложено кандидатов: {stats['proposed']}")
+    print(f"  Сохранено: {stats['saved']} (precision {stats['precision_pct']}%)")
+    print(f"  Отклонено gatekeeper: {stats['rejected_by_gatekeeper']}")
+    print(f"  Отказов человека (весь batch): {stats['declined_by_human']}")
+
+    if stats["by_reason"]:
+        print("\n  Отказы по причинам:")
+        for reason, count in sorted(stats["by_reason"].items(), key=lambda x: -x[1]):
+            print(f"    {reason}: {count}")
+
+    if stats["by_type_approved"]:
+        print("\n  Одобренные по типам:")
+        for ftype, count in sorted(stats["by_type_approved"].items(), key=lambda x: -x[1]):
+            print(f"    {ftype}: {count}")
+
+    if stats["top_rejected"]:
+        print("\n  Чаще всего отклоняют:")
+        for title, count in stats["top_rejected"][:5]:
+            print(f"    {count}x {title[:70]}")
+
+
 def _make_backend():
     backend_type = os.getenv("MEMORY_BACKEND", "local")
     if backend_type == "xmemory":
@@ -467,7 +579,9 @@ def _make_backend():
         )
     else:
         from curator.backend.local import LocalBackend
-        return LocalBackend(os.path.expanduser("~/.curator/knowledge.db"))
+        # CURATOR_DB_PATH — переопределение для тестов и песочниц
+        db_path = os.path.expanduser(os.getenv("CURATOR_DB_PATH", "~/.curator/knowledge.db"))
+        return LocalBackend(db_path)
 
 
 def _read_events():
@@ -536,6 +650,8 @@ def main():
         print("  curator improve           — ручной improve цикл")
         print("  curator routes            — правила маршрутизации")
         print("  curator sync              — пуш offline-outbox в xmemory")
+        print("  curator sessions [list|show] — реестр/транскрипты сессий OpenCode (майнинг)")
+        print("  curator candidates        — precision-отчёт: предложено/сохранено/отказано")
         print("  curator install [--opencode|--claude] [--base-dir ПУТЬ] — установка без вопросов (автодетект; флаги — для скриптов)")
         print("  curator demo [--keep] [--backend xmemory] — тур: полный цикл жизни знания")
         print()
@@ -552,7 +668,13 @@ def main():
         cmd_report(days=days)
     elif cmd == "save":
         auto_yes = any(a in ("-y", "--yes") for a in sys.argv[2:])
-        cmd_save(auto_yes=auto_yes)
+        hypothesis = "--hypothesis" in sys.argv[2:]
+        session_id = None
+        if "--session" in sys.argv[2:]:
+            idx = sys.argv[2:].index("--session")
+            if idx + 2 < len(sys.argv):
+                session_id = sys.argv[2:][idx + 2]
+        cmd_save(auto_yes=auto_yes, hypothesis=hypothesis, session_id=session_id)
     elif cmd == "get":
         query = " ".join(sys.argv[2:]) if len(sys.argv) > 2 else ""
         cmd_get(query)
@@ -570,9 +692,13 @@ def main():
         cmd_install()
     elif cmd == "demo":
         cmd_demo()
+    elif cmd == "sessions":
+        cmd_sessions()
+    elif cmd == "candidates":
+        cmd_candidates()
     else:
         print(f"Неизвестная команда: {cmd}")
-        print("Доступные: save, get, start, stop, status, report, improve, routes, sync, demo")
+        print("Доступные: save, get, start, stop, status, report, improve, routes, sync, demo, sessions, candidates")
 
 
 if __name__ == "__main__":
