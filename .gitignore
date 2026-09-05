@@ -27,3 +27,4 @@ reports/
 # IDE
 .idea/
 .vscode/.mcp.json
+.mcp.json

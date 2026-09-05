@@ -217,7 +217,7 @@ interface:
 - [ ] **Step 4: Выполнить статическую проверку**
 
 ```powershell
-python C:/Users/eger1/.codex/skills/.system/skill-creator/scripts/quick_validate.py .agents/skills/mapping-documentation
+python ~/.config/opencode/skills/skill-creator/scripts/quick_validate.py .agents/skills/mapping-documentation
 ```
 
 Ожидается успешная валидация имени, frontmatter и отсутствия scaffold-placeholder-ов.
@@ -292,7 +292,7 @@ baseline без оценки по совпадению конкретных фр
 - [ ] **Step 6: Выполнить финальную валидацию**
 
 ```powershell
-python C:/Users/eger1/.codex/skills/.system/skill-creator/scripts/quick_validate.py .agents/skills/mapping-documentation
+python ~/.config/opencode/skills/skill-creator/scripts/quick_validate.py .agents/skills/mapping-documentation
 rg -n "TBD|TODO|PLACEHOLDER" .agents/skills/mapping-documentation
 git status --short
 ```

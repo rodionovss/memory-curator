@@ -78,7 +78,7 @@ def db(tmp_path):
     conn = _make_db(tmp_path)
     # Две нормальные сессии (ses_a проходит дефолтный min_messages=5),
     # одна архивная, одна мелкая
-    _insert_session(conn, "ses_a", "Compose миграция", "/proj/goldapple", NOW - DAY, [
+    _insert_session(conn, "ses_a", "Compose миграция", "/proj/test-app", NOW - DAY, [
         ("user", "сделай экран корзины на Compose", "text"),
         ("agent", "ок, делаю через MVI паттерн проекта", "text"),
         ("user", "не забудь StateFlow", "text"),
@@ -129,7 +129,7 @@ class TestListSessions:
         sessions = list_opencode_sessions(db_path=str(db), min_messages=1)
         s = next(x for x in sessions if x.id == "ses_a")
         assert s.title == "Compose миграция"
-        assert s.directory == "/proj/goldapple"
+        assert s.directory == "/proj/test-app"
         assert s.messages == 6
         assert s.tokens == 300
 
