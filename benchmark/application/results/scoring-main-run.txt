@@ -1,0 +1,23 @@
+| Задача | A (голый) | B (статика) | C (куратор) |
+|--------|-----------|-------------|--------------|
+| T01 | FAIL | FAIL | PASS |
+| T02 | PASS | PASS | PASS |
+| T03 | PASS | PASS | PASS |
+| T04 | PASS | PASS | PASS |
+| T05 | PASS | PASS | PASS |
+| T06 | FAIL | PASS | PASS |
+| T07 | PASS | PASS | PASS |
+| T08 | PASS | PASS | PASS |
+| T09 | PASS | PASS | PASS |
+| T10 | PASS | PASS | PASS |
+| K1 | PASS | PASS | PASS |
+| K2 | PASS | PASS | PASS |
+
+T01/arm_a: новый метод обёрнут в withContext
+T01/arm_b: новый метод обёрнут в withContext
+T06/arm_a: явный TextAlign.Start задан — не нужен (RTL-aware по умолчанию)
+
+Итог (10 задач): A=8/10  B=9/10  C=10/10
+Контроли arm_a: [True, True]
+Контроли arm_b: [True, True]
+Контроли arm_c: [True, True]

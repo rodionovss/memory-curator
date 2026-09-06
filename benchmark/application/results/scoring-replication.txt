@@ -1,0 +1,9 @@
+T01: A=FAIL  # новый метод обёрнут в withContext | B=FAIL  # новый метод обёрнут в withContext | C=PASS  # suspend-вызов без withContext
+T01R2: A=FAIL  # новый метод обёрнут в withContext | B=FAIL  # новый метод обёрнут в withContext | C=PASS  # suspend-вызов без withContext
+T01R3: A=FAIL  # новый метод обёрнут в withContext | B=FAIL  # новый метод обёрнут в withContext | C=PASS  # suspend-вызов без withContext
+T06: A=FAIL  # явный TextAlign.Start задан — не нужен (RTL-aware по умолчанию) | B=PASS  # без явного TextAlign.Start | C=PASS  # без явного TextAlign.Start
+T06R2: A=FAIL  # явный TextAlign.Start задан — не нужен (RTL-aware по умолчанию) | B=PASS  # без явного TextAlign.Start | C=PASS  # без явного TextAlign.Start
+T06R3: A=FAIL  # явный TextAlign.Start задан — не нужен (RTL-aware по умолчанию) | B=PASS  # без явного TextAlign.Start | C=PASS  # без явного TextAlign.Start
+
+A: 0/6  B: 3/6  C: 6/6
+Fisher exact (one-sided): A vs C p=0.0011, A vs B p=0.0909, B vs C p=0.0909
