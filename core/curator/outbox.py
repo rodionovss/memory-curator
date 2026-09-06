@@ -12,11 +12,12 @@ import threading
 from pathlib import Path
 
 from curator.models import StructuredFact
+from curator.state import state_path
 
 
 class Outbox:
-    def __init__(self, path: str = "~/.curator/outbox.db"):
-        self._path = Path(os.path.expanduser(path))
+    def __init__(self, path: str | os.PathLike | None = None):
+        self._path = state_path("outbox.db") if path is None else Path(path).expanduser()
         self._path.parent.mkdir(parents=True, exist_ok=True)
         # Сериализация доступа к одному соединению: reachable из to_thread
         # (xmemory-fallback при конкурентных MCP-вызовах)

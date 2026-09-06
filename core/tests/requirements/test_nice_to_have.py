@@ -90,10 +90,10 @@ class TestNiceToHave:
         assert allowing.improved, "удаление мусора не роняет метрики — gate обязан разрешить"
 
     def test_N4_human_in_the_loop(self, server_memory):
-        """N4: без подтверждения (auto_approve) ничего не сохраняется."""
-        out = server_mod._session_capture({"candidates": [CANDIDATE]})
-        assert "Одобрено: 1" in out
-        assert "Авто-сохранено" not in out
+        """N4: review требует явного human approval и ничего не сохраняет."""
+        out = json.loads(server_mod._session_capture({"candidates": [CANDIDATE]}))
+        assert out["status"] == "needs_human_approval"
+        assert len(out["eligible"]) == 1
         assert len(server_memory.query_facts(FactQuery())) == 0, "база обязана остаться пустой без approve"
 
     def test_N5_observability_логирует_улучшения(self, iso_observability):

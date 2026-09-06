@@ -59,6 +59,15 @@ class TestRealMap:
         assert path == "example/backend/docs/architecture/overview.md"
         assert "не совпал" in capsys.readouterr().err
 
+    def test_agent_path_cannot_traverse_matching_glob(self, capsys):
+        router = MapRouter(FIXTURE)
+        path = router.route_fact(_fact(
+            tags=["нетема"],
+            source_file="example/backend/docs/domains/../../DOCUMENTATION-MAP.md",
+        ))
+        assert path == "session/reference.md"
+        assert "небезопасный путь" in capsys.readouterr().err
+
     def test_glob_only_topic_not_decided_by_core(self, capsys):
         # в реальной карте может не быть тем с чисто glob-таргетами выше
         # по порядку — проверяем на синтетике ниже; здесь: маршрутизация
@@ -116,11 +125,13 @@ class TestSyntheticMap:
             "  - name: kotlin\n"
             "    targets:\n"
             "      - path: docs/kotlin.md\n"
+            "        captures: [knowledge]\n"
             "        mode: update\n"
             "  - name: other\n"
             "    types: [Reference]\n"
             "    targets:\n"
             "      - path: docs/other.md\n"
+            "        captures: [knowledge]\n"
             "        mode: update\n"
         ))
         router = MapRouter(map_file)
@@ -150,8 +161,68 @@ class TestSyntheticMap:
             "  - name: kotlin\n"
             "    targets:\n"
             "      - path: docs/kotlin.md\n"
+            "        captures: [knowledge]\n"
             "        mode: append\n"
         ))
         routes = MapRouter(map_file).list_routes()
         assert routes and "docs/kotlin.md (mode: append)" == routes[0]["path"]
         assert routes[0]["type"] == "kotlin"
+
+    def test_list_routes_preserves_semantic_map_fields(self, tmp_path):
+        map_file = self._write(tmp_path, (
+            "  - name: kotlin\n"
+            "    watch_for: Изменилось устойчивое правило Kotlin\n"
+            "    targets:\n"
+            "      - path: docs/{style,architecture}.md\n"
+            "        captures: [knowledge, rules]\n"
+            "        mode: update\n"
+            "        instructions: Обнови канонический раздел\n"
+        ))
+
+        route = MapRouter(map_file).list_routes()[0]
+
+        assert route["topic"] == "kotlin"
+        assert route["target"] == "docs/{style,architecture}.md"
+        assert route["captures"] == ["knowledge", "rules"]
+        assert route["watch_for"] == "Изменилось устойчивое правило Kotlin"
+        assert route["instructions"] == "Обнови канонический раздел"
+        assert MapRouter.matches_target("docs/style.md", route["target"])
+        assert not MapRouter.matches_target("docs/other.md", route["target"])
+        assert not MapRouter.matches_target("docs/private/style.md", "docs/*.md")
+        assert not MapRouter.matches_target("docs//style.md", "docs/*/style.md")
+        assert not MapRouter.matches_target("docs/./style.md", "docs/*/style.md")
+
+    def test_exact_topic_and_target_lookup(self, tmp_path):
+        map_file = self._write(tmp_path, (
+            "  - name: kotlin\n"
+            "    targets:\n"
+            "      - path: docs/kotlin.md\n"
+            "        captures: [knowledge]\n"
+            "        mode: update\n"
+        ))
+        router = MapRouter(map_file)
+
+        assert router.target_config("kotlin", "docs/kotlin.md") == {
+            "topic": "kotlin",
+            "target": "docs/kotlin.md",
+            "captures": ["knowledge"],
+            "mode": "update",
+            "watch_for": "",
+            "instructions": "",
+        }
+        assert router.target_config("Kotlin", "docs/kotlin.md") is None
+
+    @pytest.mark.parametrize("target", [
+        "      - path: docs/missing-mode.md\n        captures: [knowledge]\n",
+        "      - path: docs/missing-captures.md\n        mode: update\n",
+        "      - path: docs/empty-captures.md\n        captures: []\n        mode: update\n",
+        "      - path: docs/unknown-capture.md\n        captures: [unknown]\n        mode: update\n",
+    ])
+    def test_incomplete_target_is_not_writable(self, tmp_path, target, capsys):
+        map_file = self._write(tmp_path, "  - name: incomplete\n    targets:\n" + target)
+
+        router = MapRouter(map_file)
+
+        path = target.split("path: ", 1)[1].splitlines()[0]
+        assert router.target_config("incomplete", path) is None
+        assert "ошибок валидации" in capsys.readouterr().err

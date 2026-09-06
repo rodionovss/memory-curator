@@ -95,9 +95,11 @@ class TestHealthCheck:
         be = LocalBackend(str(tmpdir / "test.db"))
         assert be.health_check()
 
-    def test_broken_db_path_fails(self):
+    def test_broken_db_path_fails(self, tmp_path):
+        parent_file = tmp_path / "not-a-directory"
+        parent_file.write_text("")
         with pytest.raises((FileNotFoundError, OSError)):
-            LocalBackend("/dev/null/test.db")
+            LocalBackend(str(parent_file / "test.db"))
 
 
 class TestFindSimilar:

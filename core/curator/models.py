@@ -6,6 +6,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
+from curator.state import state_path
+
 FactType = Literal["Reference", "Style", "Tool", "Spec"]
 FactStatus = Literal["verified", "hypothesis", "deprecated"]
 
@@ -22,8 +24,7 @@ _TYPE_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,29}$")
 
 
 def _registry_path() -> Path:
-    # Path.home() читает HOME при каждом вызове — тесты изолируются через env
-    return Path.home() / ".curator" / "fact_types.json"
+    return state_path("fact_types.json")
 
 
 def _read_registry() -> dict:
@@ -165,7 +166,7 @@ class ProposedFact:
     tags: list[str] = field(default_factory=list)
     evidence: str = ""
     # Путь .md внутри базы, предложенный агентом/скиллом (например, скилл
-    # mapping-documentation разрулил glob-таргет карты). Ядро валидирует
+    # curator-create-map разрулил glob-таргет карты). Ядро валидирует
     # его против маршрутов, а не доверяет слепо.
     source_file: str | None = None
 

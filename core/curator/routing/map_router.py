@@ -1,6 +1,6 @@
 """MapRouter: маршрутизация фактов по карте документации.
 
-Карта — формат скилла mapping-documentation (Егор): frontmatter с
+Карта — формат скилла curator-create-map: frontmatter с
 topics[name, watch_for, targets[path/captures/mode/instructions]].
 Наша попытка интеграции — детерминированная: LLM в ядре нет, prose
 watch_for не парсим (это инструкция агенту).
@@ -29,6 +29,7 @@ from curator.models import ProposedFact
 from curator.routing.default import DefaultRouter
 
 VALID_MODES = ("update", "append", "readonly")
+VALID_CAPTURES = ("knowledge", "rules", "records")
 
 
 def _map_path() -> Path | None:
@@ -56,21 +57,25 @@ def target_modes(map_path: Path) -> list[tuple[str, str]]:
 
 
 class _Target:
-    __slots__ = ("path", "mode", "is_glob")
+    __slots__ = ("path", "mode", "captures", "instructions", "is_glob")
 
-    def __init__(self, path: str, mode: str):
+    def __init__(self, path: str, mode: str, captures: list[str], instructions: str):
         self.path = path
         self.mode = mode
-        self.is_glob = any(ch in path for ch in "*?[")
+        self.captures = captures
+        self.instructions = instructions
+        self.is_glob = any(ch in path for ch in "*?[{")
 
 
 class _Topic:
-    __slots__ = ("name", "tokens", "types", "targets")
+    __slots__ = ("name", "tokens", "types", "watch_for", "targets")
 
-    def __init__(self, name: str, tokens: set[str], types: set[str], targets: list[_Target]):
+    def __init__(self, name: str, tokens: set[str], types: set[str], watch_for: str,
+                 targets: list[_Target]):
         self.name = name
         self.tokens = tokens
         self.types = types
+        self.watch_for = watch_for
         self.targets = targets
 
 
@@ -100,12 +105,15 @@ class MapRouter:
         # 1. Путь от агента: доверяем, если он совпал с таргетом карты
         # (sandbox-безопасность проверяет SyncEngine._resolve_md_path)
         if fact.source_file:
-            if not self._all_targets:
+            if not self._safe_source(fact.source_file):
+                _note(f"небезопасный путь от агента '{fact.source_file}' — маршрутизируем по правилам")
+            elif not self._all_targets:
                 return fact.source_file  # карты нет — sandbox проверит sync
-            if any(self._matches(fact.source_file, t.path) for t in self._all_targets):
+            elif any(self.matches_target(fact.source_file, t.path) for t in self._all_targets):
                 return fact.source_file
-            _note(f"путь от агента '{fact.source_file}' не совпал ни с одним "
-                  f"таргетом карты — маршрутизируем по правилам")
+            else:
+                _note(f"путь от агента '{fact.source_file}' не совпал ни с одним "
+                      f"таргетом карты — маршрутизируем по правилам")
 
         # 2. Теги ∩ токены имени темы
         if fact.tags:
@@ -132,7 +140,7 @@ class MapRouter:
 
         # 4. on_unmatched: report — честный дефолт вместо угадывания
         _note(f"нет темы для '{fact.title[:50]}' — дефолт session/{fact.type.lower()}.md")
-        return self._default.route_fact(fact)
+        return f"session/{fact.type.lower()}.md"
 
     def list_routes(self) -> list[dict]:
         if not self._topics:
@@ -147,15 +155,76 @@ class MapRouter:
                     "path": f"{target.path} (mode: {target.mode})",
                     "type": topic.name,
                     "description": f"тема карты{'; ' + '; '.join(extra) if extra else ''}",
+                    "topic": topic.name,
+                    "target": target.path,
+                    "captures": list(target.captures),
+                    "mode": target.mode,
+                    "watch_for": topic.watch_for,
+                    "instructions": target.instructions,
                 })
         return routes
+
+    def target_config(self, topic_name: str, target_path: str) -> dict | None:
+        """Вернуть target только при точном совпадении topic и path карты."""
+        for topic in self._topics:
+            if topic.name != topic_name:
+                continue
+            for target in topic.targets:
+                if target.path == target_path:
+                    return {
+                        "topic": topic.name,
+                        "target": target.path,
+                        "captures": list(target.captures),
+                        "mode": target.mode,
+                        "watch_for": topic.watch_for,
+                        "instructions": target.instructions,
+                    }
+        return None
 
     def reload(self):
         self.__init__()
 
     @staticmethod
-    def _matches(source: str, pattern: str) -> bool:
-        return fnmatch.fnmatch(source, pattern)
+    def matches_target(source: str, pattern: str) -> bool:
+        if not MapRouter._safe_source(source):
+            return False
+        source_parts = source.replace("\\", "/").split("/")
+        patterns = MapRouter._expand_braces(pattern.replace("\\", "/"))
+        return any(MapRouter._matches_parts(source_parts, expanded.split("/")) for expanded in patterns)
+
+    @staticmethod
+    def _matches_parts(source: list[str], pattern: list[str]) -> bool:
+        if not pattern:
+            return not source
+        if pattern[0] == "**":
+            return (MapRouter._matches_parts(source, pattern[1:])
+                    or bool(source) and MapRouter._matches_parts(source[1:], pattern))
+        return bool(source) and fnmatch.fnmatchcase(source[0], pattern[0]) \
+            and MapRouter._matches_parts(source[1:], pattern[1:])
+
+    @staticmethod
+    def _expand_braces(pattern: str) -> list[str]:
+        start = pattern.find("{")
+        end = pattern.find("}", start + 1)
+        if start == -1 or end == -1:
+            return [pattern]
+        options = pattern[start + 1:end].split(",")
+        if not options:
+            return [pattern]
+        expanded = []
+        for option in options:
+            expanded.extend(MapRouter._expand_braces(pattern[:start] + option + pattern[end + 1:]))
+        return expanded
+
+    @staticmethod
+    def _safe_source(source: str) -> bool:
+        normalized = source.replace("\\", "/")
+        parts = normalized.split("/")
+        return bool(normalized) and not (
+            normalized.startswith("/") or re.match(r"^[a-zA-Z]:", normalized)
+            or any(part in ("", ".", "..") for part in parts)
+            or "\n" in source or "\r" in source or "\0" in source
+        )
 
     @staticmethod
     def _concrete_target(topic: _Topic) -> str | None:
@@ -208,24 +277,36 @@ class MapRouter:
                     errors.append(f"тема '{name}': target#{j} не словарь")
                     continue
                 tp = str(tr.get("path", "")).strip()
-                mode = str(tr.get("mode", "update")).strip()
+                mode_raw = tr.get("mode")
+                mode = str(mode_raw).strip() if isinstance(mode_raw, str) else ""
                 if not tp:
                     errors.append(f"тема '{name}': target#{j} без path")
                     continue
                 # path-safety: таргет строго внутри базы
-                if tp.startswith("/") or ".." in tp or "\n" in tp or "\r" in tp:
+                if not self._safe_source(tp):
                     errors.append(f"тема '{name}': path '{tp}' вне корня/некорректен")
+                    continue
+                if not mode:
+                    errors.append(f"тема '{name}': target#{j} без mode")
                     continue
                 if mode not in VALID_MODES:
                     errors.append(f"тема '{name}': mode '{mode}' не из {VALID_MODES}")
                     continue
-                targets.append(_Target(tp, mode))
+                captures_raw = tr.get("captures")
+                if (not isinstance(captures_raw, list) or not captures_raw
+                        or any(not isinstance(x, str) or x not in VALID_CAPTURES for x in captures_raw)):
+                    errors.append(f"тема '{name}': target#{j} captures должен быть непустым списком из {VALID_CAPTURES}")
+                    continue
+                captures = list(captures_raw)
+                instructions = str(tr.get("instructions", "") or "").strip()
+                targets.append(_Target(tp, mode, captures, instructions))
             types_raw = t.get("types", [])
             if isinstance(types_raw, str):
                 types_raw = [types_raw]
             types = {str(x).strip() for x in types_raw if str(x).strip()} if isinstance(types_raw, list) else set()
             tokens = {tok for tok in re.split(r"[-_]+", name.lower()) if tok}
-            topic = _Topic(name, tokens, types, targets)
+            watch_for = str(t.get("watch_for", "") or "").strip()
+            topic = _Topic(name, tokens, types, watch_for, targets)
             topics.append(topic)
             all_targets.extend(targets)
         return topics, all_targets, errors

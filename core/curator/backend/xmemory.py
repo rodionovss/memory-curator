@@ -1,7 +1,7 @@
 """xmemory REST API backend с offline-fallback (UC6).
 
 Сетевые ошибки (ConnectError/timeout/5xx) при записи:
-    факт → локальная файловая БД (~/.curator/knowledge.db) + outbox-очередь.
+    факт → локальная файловая БД ($CURATOR_STATE_DIR/knowledge.db) + outbox-очередь.
     При восстановлении `curator sync` пушит outbox в xmemory.
 Сетевые ошибки при чтении:
     деградация на локальную БД (может быть не полной — честное поведение).
@@ -14,6 +14,7 @@ import threading
 import httpx
 from curator.models import StructuredFact, FactQuery, FactRef, Relation, GraphData
 from curator.backend.local import LocalBackend
+from curator.state import state_path
 
 
 class XMemoryBackend:
@@ -23,8 +24,8 @@ class XMemoryBackend:
         self,
         api_key: str = "",
         instance_id: str | None = None,
-        local_path: str = "~/.curator/knowledge.db",
-        outbox_path: str = "~/.curator/outbox.db",
+        local_path: str | None = None,
+        outbox_path: str | None = None,
     ):
         self._api_key = api_key
         self._instance_id = instance_id
@@ -35,8 +36,8 @@ class XMemoryBackend:
         self._init_lock = threading.Lock()
 
         # Персистентный fallback при сетевых ошибках (лениво).
-        self._local_path = local_path
-        self._outbox_path = outbox_path
+        self._local_path = local_path or str(state_path("knowledge.db"))
+        self._outbox_path = outbox_path or str(state_path("outbox.db"))
         self._offline: LocalBackend | None = None
         self._outbox = None
 
@@ -198,8 +199,7 @@ class XMemoryBackend:
         tags_str = data.get("tags", "")
         tags = [t.strip() for t in tags_str.split(",") if t.strip()] if tags_str else []
         fact_type = data.get("type", "Reference")
-        if isinstance(fact_type, str):
-            fact_type = fact_type if fact_type in ("Reference", "Style", "Tool", "Spec") else "Reference"
+        fact_type = fact_type if isinstance(fact_type, str) and fact_type else "Reference"
 
         return StructuredFact(
             type=fact_type,
