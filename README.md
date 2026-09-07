@@ -141,6 +141,7 @@ AGENTS.md / CLAUDE.md — база в контексте каждой сесси
 | `core/tests/requirements/` | тесты требований — имя теста = ID требования |
 | `design/` | архитектура: requirements, spec, decision-log, playbook-routing (контракт Router), backlog |
 | `demo/` | демо/защита: чеклист записи видео, сценарий, путеводитель по коду |
+| `benchmark/` | A/B/C-бенчмарк применения знаний: фикстуры, детерминированные чеки, решения, отчёт |
 | `docs/` | day-to-day: getting-started |
 
 ## Статус
