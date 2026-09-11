@@ -83,6 +83,11 @@ class LocalBackend:
         return FactRef(id=row[0], title=fact.title)
 
     def query_facts(self, query: FactQuery) -> list[StructuredFact]:
+        # type/status — узкие эквивалентные фильтры, остаются в SQL.
+        # search и tags — в Python: SQLite LIKE регистронезависим только
+        # для ASCII (кириллица не матчилась), а tags вообще не входили в
+        # search (бенчмарк T09: факт, опознаваемый только тегами, не
+        # находился). Персональная база — сотни строк, полный скан дешев.
         conditions = []
         params = []
         if query.type:
@@ -91,20 +96,25 @@ class LocalBackend:
         if query.status:
             conditions.append("status = ?")
             params.append(query.status)
-        if query.search:
-            conditions.append("(title LIKE ? OR content_summary LIKE ?)")
-            params.extend([f"%{query.search}%", f"%{query.search}%"])
 
         where = " AND ".join(conditions) if conditions else "1=1"
         sql = f"SELECT * FROM facts WHERE {where} ORDER BY created_at DESC"
         with self._lock:
             rows = self._conn.execute(sql, params).fetchall()
 
+        search = query.search.casefold() if query.search else None
+        wanted_tags = {t.casefold() for t in query.tags} if query.tags else None
+
         result = []
         for row in rows:
             tags = json.loads(row[3])
-            if query.tags:
-                if not any(t in tags for t in query.tags):
+            if search:
+                haystacks = [row[2].casefold(), row[5].casefold()]
+                haystacks += [t.casefold() for t in tags]
+                if not any(search in h for h in haystacks):
+                    continue
+            if wanted_tags is not None:
+                if not wanted_tags.intersection({t.casefold() for t in tags}):
                     continue
             result.append(StructuredFact(
                 type=row[1], title=row[2], tags=tags,
