@@ -2,13 +2,16 @@
 
 Карта — формат скилла mapping-documentation (Егор): frontmatter с
 topics[name, watch_for, targets[path/captures/mode/instructions]].
-Наша попытка интеграции — детерминированная: LLM в ядре нет, prose
-watch_for не парсим (это инструкция агенту).
+Наша попытка интеграции — детерминированная: LLM в ядре нет, prose-сегменты
+watch_for (с пробелами) не парсим (это инструкция агенту); сегменты
+БЕЗ пробелов — теги-токены и участвуют в матчинге (теги ∩ токены).
 
 Порядок решения:
 1. source_file, предложенный агентом (скилл разрулил glob-таргет):
    валидируем против таргетов карты (fnmatch); не совпал — не верим.
-2. Теги факта ∩ токены имени темы (без and/or-семантики, просто токены).
+2. Теги факта ∩ токены темы (имя темы + watch_for-сегменты без пробелов,
+   без and/or-семантики, просто токены). При равенстве пересечений
+   побеждает тема, объявленная раньше в карте.
 3. Явное поле types в теме (наш словарь фактов) — расширение формата,
    «явное вместо выведенного»: карта сама говорит, каким типам сюда.
 4. Тема с glob-таргетами — ядро не угадывает, какой файл «подходящий»:
@@ -184,7 +187,12 @@ class MapRouter:
         if not isinstance(data, dict):
             return [], [], ["frontmatter не словарь"]
 
-        topics_raw = data.get("topics", [])
+        if "topics" not in data:
+            # структурно битая карта (например, topics в теле после frontmatter)
+            # — это маршрутная карта, молчать нельзя: 0 тем были бы тихим откатом
+            return [], [], ["frontmatter без ключа topics — карта не маршрутная "
+                            "(topics должны быть ВНУТРИ frontmatter)"]
+        topics_raw = data["topics"]
         if not isinstance(topics_raw, list):
             return [], [], ["topics не список"]
 
@@ -225,6 +233,12 @@ class MapRouter:
                 types_raw = [types_raw]
             types = {str(x).strip() for x in types_raw if str(x).strip()} if isinstance(types_raw, list) else set()
             tokens = {tok for tok in re.split(r"[-_]+", name.lower()) if tok}
+            # watch_for: сегменты без пробелов — теги-токены (наш формат карты);
+            # prose-сегменты (с пробелами) — инструкция агенту, в матчинге не участвуют
+            for seg in str(t.get("watch_for", "") or "").strip().split(","):
+                seg = seg.strip().lower()
+                if seg and " " not in seg:
+                    tokens.add(seg)
             topic = _Topic(name, tokens, types, targets)
             topics.append(topic)
             all_targets.extend(targets)

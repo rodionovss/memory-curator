@@ -141,6 +141,56 @@ class TestSyntheticMap:
         assert "ошибок валидации" in err
         assert "вне корня" in err and "не из" in err
 
+    def test_watch_for_tokens_route_tags(self, tmp_path):
+        map_file = self._write(tmp_path, (
+            "  - name: mvi\n"
+            "    watch_for: mvi, state, viewmodel, effect\n"
+            "    targets:\n"
+            "      - path: session/mvi.md\n"
+            "        mode: update\n"
+            "  - name: compose\n"
+            "    watch_for: compose, composable, modifier\n"
+            "    targets:\n"
+            "      - path: session/compose.md\n"
+            "        mode: update\n"
+        ))
+        router = MapRouter(map_file)
+        # два пересечения по watch_for-токенам бьют одно по name-токену
+        assert router.route_fact(_fact(tags=["viewmodel", "mvi", "compose"])) == "session/mvi.md"
+        # пересечение только по watch_for-токену
+        assert router.route_fact(_fact(tags=["effect"])) == "session/mvi.md"
+        # name-токен по-прежнему работает
+        assert router.route_fact(_fact(tags=["compose"])) == "session/compose.md"
+
+    def test_watch_for_prose_segments_ignored(self, tmp_path):
+        map_file = self._write(tmp_path, (
+            "  - name: prose-topic\n"
+            "    watch_for: >-\n"
+            "      Появляется знание о предметной области, состояние UI меняется.\n"
+            "    targets:\n"
+            "      - path: docs/prose.md\n"
+            "        mode: update\n"
+        ))
+        router = MapRouter(map_file)
+        # все prose-сегменты (с пробелами) — инструкция агенту, не токены:
+        # тег «состояние» из prose-текста не матчится
+        assert router.route_fact(_fact(tags=["состояние"])) == "session/reference.md"
+
+    def test_topics_in_body_is_visible_degradation(self, tmp_path, capsys):
+        # регресс инцидента 11.09: topics в теле (после закрытия frontmatter)
+        # раньше давали 0 тем БЕЗ единой ошибки — тихий откат на дефолт
+        map_file = tmp_path / "MAP.md"
+        map_file.write_text(
+            "---\ntitle: Карта без topics в frontmatter\n---\n\n"
+            "# Карта\n\ntopics:\n  - name: mvi\n    targets:\n"
+            "      - path: session/mvi.md\n        mode: update\n",
+            encoding="utf-8",
+        )
+        router = MapRouter(map_file)
+        assert router.route_fact(_fact(tags=["mvi"])) == "session/reference.md"
+        err = capsys.readouterr().err
+        assert "без ключа topics" in err, "структурно битая карта — не молчим"
+
     def test_no_map_default(self, tmp_path, capsys):
         router = MapRouter(tmp_path / "nonexistent.md")
         assert router.route_fact(_fact()) == "session/reference.md"
