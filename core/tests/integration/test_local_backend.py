@@ -145,6 +145,66 @@ class TestUpsertSemantics:
         assert facts[0].source_session == "s1"
 
 
+class TestRetrievalTagSearch:
+    """Регрессия бенчмарка (T09/F73, benchmark/application/results/report.md):
+    retrieval не находил факт, опознаваемый только по тегам — search не
+    индексировал tags, LIKE не регистронезависим для кириллицы, hyphen-теги
+    не матчились поиском."""
+
+    def _be_with_f73_like_fact(self, tmpdir):
+        be = LocalBackend(str(tmpdir / "test.db"))
+        be.store_fact(StructuredFact(
+            type="Reference",
+            title="Дорогие объекты в цикле",
+            tags=["performance", "null-safety"],
+            status="verified",
+            content_summary="Аллокации внутри цикла — выносить создание ключей и подписей наружу.",
+        ))
+        be.store_fact(StructuredFact(
+            type="Reference",
+            title="Посторонний факт",
+            tags=["compose"],
+            status="verified",
+            content_summary="Ровная раскладка в Column.",
+        ))
+        return be
+
+    def test_search_finds_fact_by_tag(self, tmpdir):
+        """Факт опознаваем только тегом performance — search обязан его найти."""
+        be = self._be_with_f73_like_fact(tmpdir)
+        results = be.query_facts(FactQuery(search="performance"))
+        titles = [f.title for f in results]
+        assert "Дорогие объекты в цикле" in titles
+
+    def test_search_case_insensitive_cyrillic(self, tmpdir):
+        """SQLite LIKE регистронезависим только для ASCII: «аллокации» не
+        матчил «Аллокации». Поиск обязан быть регистронезависимым."""
+        be = self._be_with_f73_like_fact(tmpdir)
+        results = be.query_facts(FactQuery(search="аллокации"))
+        titles = [f.title for f in results]
+        assert "Дорогие объекты в цикле" in titles
+
+    def test_search_finds_hyphen_tag(self, tmpdir):
+        """Hyphen-тег null-safety не матчился поиском вообще."""
+        be = self._be_with_f73_like_fact(tmpdir)
+        results = be.query_facts(FactQuery(search="null-safety"))
+        titles = [f.title for f in results]
+        assert "Дорогие объекты в цикле" in titles
+
+    def test_tag_filter_case_insensitive(self, tmpdir):
+        """Фильтр по тегам обязан матчить без учёта регистра."""
+        be = self._be_with_f73_like_fact(tmpdir)
+        results = be.query_facts(FactQuery(tags=["Null-Safety"]))
+        titles = [f.title for f in results]
+        assert titles == ["Дорогие объекты в цикле"]
+
+    def test_search_still_filters_out_irrelevant(self, tmpdir):
+        """Расширение поиска не должно ронять точность: посторонний факт
+        не находится по чужому тегу."""
+        be = self._be_with_f73_like_fact(tmpdir)
+        assert be.query_facts(FactQuery(search="compose"))[0].title == "Посторонний факт"
+
+
 class TestLegacySchemaMigration:
     """Dogfooding (живая БД): таблица, созданная старой схемой (title без
     UNIQUE), ломала весь write-путь — ON CONFLICT(title) не находил
