@@ -1,4 +1,0 @@
-[console_scripts]
-curator = curator.control:main
-curator-mcp-server = curator.server:main
-curator-worker = curator.worker:main
