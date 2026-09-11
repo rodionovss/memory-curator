@@ -145,6 +145,8 @@ AGENTS.md / CLAUDE.md — база в контексте каждой сесси
 читают) → финальный статус. `--keep` оставит файлы для осмотра.
 
 Подробный гайд: [docs/getting-started.md](docs/getting-started.md).
+Самоулучшение в фоне (баг-репорты от агентов → беклог → мейнтейнер):
+[docs/self-improvement-loop.md](docs/self-improvement-loop.md).
 
 ## Два варианта развёртывания
 
