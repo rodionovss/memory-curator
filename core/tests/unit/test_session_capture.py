@@ -1,14 +1,17 @@
-"""Тесты нового контракта curator_session_capture: candidates на входе.
+"""Контракт review -> approve -> complete для MCP capture tools."""
 
-Извлечение делает агент — сервер валидирует, фильтрует и сохраняет.
-"""
+import asyncio
+import json
+from pathlib import Path
 
 import pytest
+
 import curator.server as server_mod
 from curator.backend.local import LocalBackend
 from curator.gatekeeper import Gatekeeper
-from curator.retrieval_feedback import RetrievalFeedback
 from curator.models import FactQuery
+from curator.retrieval_feedback import RetrievalFeedback
+
 
 VALID_FACT = {
     "type": "Reference",
@@ -26,155 +29,341 @@ VALID_FACT_2 = {
 }
 
 
+def _write_map(root: Path) -> Path:
+    for relative in ("docs/knowledge.md", "docs/history.md", "docs/readonly.md"):
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("# Existing\n", encoding="utf-8")
+    map_path = root / "DOCUMENTATION-MAP.md"
+    map_path.write_text(
+        """---
+topics:
+  - name: knowledge
+    watch_for: Устойчивые знания
+    targets:
+      - path: docs/knowledge.md
+        captures: [knowledge, rules]
+        mode: update
+        instructions: Обнови существующий раздел
+      - path: docs/readonly.md
+        captures: [knowledge]
+        mode: readonly
+  - name: history
+    watch_for: Исторические записи
+    targets:
+      - path: docs/history.md
+        captures: [records]
+        mode: append
+---
+""",
+        encoding="utf-8",
+    )
+    return map_path
+
+
 @pytest.fixture
 def memory_server(monkeypatch, tmp_path):
     be = LocalBackend(":memory:")
+    usage_path = tmp_path / "usage.json"
     monkeypatch.setattr(server_mod, "backend", be)
     monkeypatch.setattr(server_mod, "gatekeeper", Gatekeeper(be))
-    monkeypatch.setattr(server_mod, "feedback", RetrievalFeedback(storage_path=str(tmp_path / "usage.json")))
+    monkeypatch.setattr(server_mod, "feedback", RetrievalFeedback(storage_path=str(usage_path)))
     monkeypatch.setattr(server_mod, "base_dir", tmp_path)
+    monkeypatch.setenv("CURATOR_BASE_DIR", str(tmp_path))
+    monkeypatch.setenv("CURATOR_MAP", str(_write_map(tmp_path)))
     monkeypatch.delenv("AUTO_MODE", raising=False)
-    return be
+    with server_mod._captures_lock:
+        server_mod._pending_captures.clear()
+    return be, usage_path
 
 
-class TestCandidatesIntake:
-    def test_valid_candidates_preview(self, memory_server):
-        out = server_mod._session_capture({"candidates": [VALID_FACT, VALID_FACT_2]})
-        assert "Получено кандидатов: 2" in out
-        assert VALID_FACT["title"] in out
-        assert VALID_FACT_2["title"] in out
-        assert "Авто-сохранено" not in out
-
-    def test_empty_candidates_error(self, memory_server):
-        out = server_mod._session_capture({"candidates": []})
-        assert "Ошибка" in out
-
-    def test_missing_title_reported(self, memory_server):
-        broken = dict(VALID_FACT)
-        broken["title"] = ""
-        out = server_mod._session_capture({"candidates": [broken]})
-        assert "нет title" in out
-
-    def test_missing_summary_reported(self, memory_server):
-        broken = dict(VALID_FACT)
-        broken["content_summary"] = ""
-        out = server_mod._session_capture({"candidates": [broken]})
-        assert "нет content_summary" in out
-
-    def test_candidates_as_json_string(self, memory_server):
-        import json
-        out = server_mod._session_capture({"candidates": json.dumps([VALID_FACT])})
-        assert "Получено кандидатов: 1" in out
-
-    def test_invalid_json_string(self, memory_server):
-        out = server_mod._session_capture({"candidates": "{not json"})
-        assert "Ошибка" in out
+def _review(candidates):
+    return json.loads(server_mod._session_capture({"candidates": candidates}))
 
 
-class TestCandidatesSave:
-    def test_auto_approve_saves_to_backend(self, memory_server, tmp_path):
-        out = server_mod._session_capture({"candidates": [VALID_FACT], "auto_approve": True})
-        assert "Авто-сохранено: 1" in out
-        facts = memory_server.query_facts(FactQuery(search="JvmInline"))
-        assert len(facts) == 1
+def _approve(capture_id, selected):
+    return json.loads(server_mod._capture_approve({
+        "capture_id": capture_id,
+        "selected_candidate_ids": selected,
+    }))
 
-    def test_auto_approve_writes_md(self, memory_server, tmp_path):
-        server_mod._session_capture({"candidates": [VALID_FACT], "auto_approve": True})
-        md = tmp_path / "session" / "reference.md"
-        assert md.exists()
-        content = md.read_text(encoding="utf-8")
-        assert "### " + VALID_FACT["title"] in content
 
-    def test_no_autosave_without_flag(self, memory_server, tmp_path):
-        server_mod._session_capture({"candidates": [VALID_FACT]})
+def _complete(capture_id, placements):
+    return json.loads(server_mod._capture_complete({
+        "capture_id": capture_id,
+        "placements": placements,
+    }))
+
+
+def _placement(candidate_id="fact_1", **overrides):
+    placement = {
+        "candidate_id": candidate_id,
+        "topic": "knowledge",
+        "target": "docs/knowledge.md",
+        "capture": "knowledge",
+        "canonical_file": "docs/knowledge.md",
+        "changed_files": ["docs/knowledge.md"],
+    }
+    placement.update(overrides)
+    return placement
+
+
+class TestReview:
+    def test_returns_json_preview_without_side_effects(self, memory_server, tmp_path):
+        be, usage_path = memory_server
+
+        out = _review([VALID_FACT, VALID_FACT_2])
+
+        assert out["status"] == "needs_human_approval"
+        assert out["capture_id"].startswith("cap_")
+        assert [fact["candidate_id"] for fact in out["eligible"]] == ["fact_1", "fact_2"]
+        assert out["eligible"][0]["evidence"] == VALID_FACT["evidence"]
+        assert out["rejected"] == []
+        assert be.query_facts(FactQuery()) == []
+        assert not usage_path.exists()
         assert not (tmp_path / "session").exists()
 
+    def test_auto_mode_and_legacy_auto_approve_are_ignored(self, memory_server, monkeypatch):
+        be, _ = memory_server
+        monkeypatch.setenv("AUTO_MODE", "true")
 
-class TestCandidatesGatekeeper:
-    def test_noise_rejected(self, memory_server):
-        noisy = dict(VALID_FACT)
-        noisy["title"] = "Поправить верстку кнопки на экране входа"
-        out = server_mod._session_capture({"candidates": [noisy, VALID_FACT_2]})
-        assert "Отклонено: 1" in out
-        assert "фичевую" in out
+        out = json.loads(server_mod._session_capture({
+            "candidates": [VALID_FACT],
+            "auto_approve": True,
+        }))
 
-    def test_duplicate_rejected(self, memory_server):
-        server_mod._session_capture({"candidates": [VALID_FACT], "auto_approve": True})
-        similar = dict(VALID_FACT)
-        similar["title"] = "JvmInline value class внутри sealed interface вызывает бокс"
-        out = server_mod._session_capture({"candidates": [similar]})
-        assert "дубликат" in out.lower()
+        assert out["status"] == "needs_human_approval"
+        assert be.query_facts(FactQuery()) == []
 
+    def test_source_file_is_not_part_of_reviewed_fact(self, memory_server):
+        candidate = {**VALID_FACT, "source_file": "docs/knowledge.md"}
+        out = _review([candidate])
+        assert "source_file" not in out["eligible"][0]
 
-class TestBatchTolerance:
-    """Регрессии код-ревью: один битый кандидат резал весь батч — валидные
-    обязаны сохраняться; auto_approve='false' (строка) не должна включать autosave."""
+    def test_rejected_contains_input_and_gatekeeper_errors(self, memory_server):
+        broken = {**VALID_FACT, "title": ""}
+        noisy = {**VALID_FACT, "title": "Поправить верстку кнопки на экране входа"}
 
-    def test_one_broken_candidate_does_not_kill_batch(self, memory_server):
-        broken = dict(VALID_FACT)
-        broken["title"] = ""
-        out = server_mod._session_capture({"candidates": [broken, VALID_FACT_2], "auto_approve": True})
-        assert "нет title" in out
-        assert "Одобрено: 1" in out
-        assert "Авто-сохранено: 1" in out
-        assert len(memory_server.query_facts(FactQuery(search="Коммиты"))) == 1
+        out = _review([broken, noisy, VALID_FACT_2])
 
-    def test_all_broken_reports_each_error(self, memory_server):
-        out = server_mod._session_capture({"candidates": [{"title": "", "content_summary": ""}, "not-a-dict"]})
-        assert "нет title" in out
-        assert "должен быть объектом" in out
+        assert [fact["candidate_id"] for fact in out["eligible"]] == ["fact_3"]
+        assert len(out["rejected"]) == 2
+        assert "нет title" in out["rejected"][0]["reason"]
+        assert "фичевую" in out["rejected"][1]["reason"]
 
-    def test_auto_approve_string_false_is_false(self, memory_server):
-        out = server_mod._session_capture({"candidates": [VALID_FACT], "auto_approve": "false"})
-        assert "Авто-сохранено" not in out
-        assert len(memory_server.query_facts(FactQuery())) == 0
+    @pytest.mark.parametrize("candidate, reason", [
+        ({key: value for key, value in VALID_FACT.items() if key != "type"}, "нет type"),
+        ({**VALID_FACT, "tags": 1}, "tags должен быть массивом строк"),
+        ({**VALID_FACT, "tags": ["kotlin", 1]}, "tags должен быть массивом строк"),
+    ])
+    def test_malformed_candidate_is_rejected_as_json(self, memory_server, candidate, reason):
+        out = _review([candidate])
+        assert out["eligible"] == []
+        assert reason in out["rejected"][0]["reason"]
 
-    def test_tags_as_comma_string(self, memory_server):
-        candidate = dict(VALID_FACT)
-        candidate["tags"] = "kotlin, jvm"
-        out = server_mod._session_capture({"candidates": [candidate]})
-        assert "Получено кандидатов: 1" in out
-        assert "Теги: kotlin, jvm" in out
+    def test_duplicate_title_in_same_batch_is_rejected(self, memory_server):
+        duplicate = {**VALID_FACT, "content_summary": "Другая достаточно длинная формулировка того же факта."}
 
+        out = _review([VALID_FACT, duplicate])
 
-class TestTypeRegistryCapture:
-    """Честный capture: неизвестный тип — отказ со словарём (агент видит
-    семантику и идёт к человеку), new_type с описанием — регистрация.
-    Молчаливый Reference-фолбэк запрещён — это ложь о сохранённом."""
+        assert [fact["candidate_id"] for fact in out["eligible"]] == ["fact_1"]
+        assert "дублирует title" in out["rejected"][0]["reason"]
 
-    def _capture(self, candidates, auto_approve=False):
-        from curator.server import _session_capture
-        return _session_capture({"candidates": candidates, "auto_approve": auto_approve})
+    def test_candidates_json_string_and_invalid_input_return_json(self, memory_server):
+        assert _review(json.dumps([VALID_FACT]))["status"] == "needs_human_approval"
+        out = json.loads(server_mod._session_capture({"candidates": "{not json"}))
+        assert out["status"] == "error"
 
-    def test_unknown_type_rejected_with_dictionary(self, memory_server, tmp_path, monkeypatch):
-        monkeypatch.setenv("HOME", str(tmp_path))
-        out = self._capture([{
-            "type": "Note", "title": "Заметка об инструменте multica",
+    def test_pending_capture_limit_is_100(self, memory_server):
+        for index in range(101):
+            candidate = {**VALID_FACT, "title": f"Устойчивый заголовок знания номер {index}"}
+            _review([candidate])
+        with server_mod._captures_lock:
+            assert len(server_mod._pending_captures) == 100
+
+    def test_confirmed_new_type_is_registered_but_not_saved(self, memory_server, monkeypatch, tmp_path):
+        be, _ = memory_server
+        monkeypatch.setenv("CURATOR_STATE_DIR", str(tmp_path / ".curator"))
+        candidate = {
+            "type": "Note",
+            "title": "Заметка об инструменте multica",
             "content_summary": "Наблюдение после недели использования инструмента.",
             "tags": ["tools"],
-        }])
-        assert "неизвестный тип 'Note'" in out
-        assert "Reference —" in out, "словарь типов с описаниями обязан быть в отказе"
+            "new_type": True,
+            "type_description": "Заметки об инструментах после практического использования",
+        }
 
-    def test_new_type_registered_and_saved(self, memory_server, tmp_path, monkeypatch):
-        monkeypatch.setenv("HOME", str(tmp_path))
-        out = self._capture([{
-            "type": "Note", "title": "Заметка об инструменте multica",
-            "content_summary": "Наблюдение после недели использования инструмента.",
-            "tags": ["tools"], "new_type": True,
-            "type_description": "Заметки об инструментах: статус, наблюдения после проб",
-        }], auto_approve=True)
-        assert "неизвестный тип" not in out
-        assert "Авто-сохранено: 1" in out
-        facts = memory_server.query_facts(FactQuery())
-        assert facts[0].type == "Note", "тип факта обязан сохраниться как Note"
-        assert (tmp_path / ".curator" / "fact_types.json").exists()
+        out = _review([candidate])
 
-    def test_new_type_without_description_rejected(self, memory_server, tmp_path, monkeypatch):
-        monkeypatch.setenv("HOME", str(tmp_path))
-        out = self._capture([{
-            "type": "Note", "title": "Заметка об инструменте multica",
-            "content_summary": "Наблюдение после недели использования инструмента.",
-            "tags": ["tools"], "new_type": True, "type_description": "",
-        }])
-        assert "описание" in out
+        assert out["eligible"][0]["type"] == "Note"
+        assert be.query_facts(FactQuery()) == []
+        assert (tmp_path / ".curator" / "fact_types.json").is_file()
+
+
+class TestApprove:
+    def test_freezes_selected_subset_and_returns_manifest(self, memory_server, tmp_path, monkeypatch):
+        candidates = [dict(VALID_FACT), dict(VALID_FACT_2)]
+        reviewed = _review(candidates)
+        candidates[0]["title"] = "Изменено после review"
+
+        out = _approve(reviewed["capture_id"], ["fact_1"])
+
+        assert out == {
+            "status": "update_project_docs",
+            "next_action": "curator-update-docs",
+            "capture_id": reviewed["capture_id"],
+            "base_dir": str(tmp_path.resolve()),
+            "map_path": str((tmp_path / "DOCUMENTATION-MAP.md").resolve()),
+            "facts": [{"candidate_id": "fact_1", **VALID_FACT}],
+        }
+
+        changed = _approve(reviewed["capture_id"], ["fact_2"])
+        assert changed["status"] == "error"
+        assert "зафиксирован" in changed["error"]
+
+        cancelled = _approve(reviewed["capture_id"], [])
+        assert cancelled["status"] == "error"
+        assert "зафиксирован" in cancelled["error"]
+
+        same = _approve(reviewed["capture_id"], ["fact_1"])
+        assert same["facts"][0]["title"] == VALID_FACT["title"]
+
+    def test_unknown_candidate_id_is_rejected(self, memory_server):
+        reviewed = _review([VALID_FACT])
+        out = _approve(reviewed["capture_id"], ["fact_404"])
+        assert out["status"] == "error"
+
+    def test_empty_selection_cancels_and_removes_capture(self, memory_server, monkeypatch):
+        reviewed = _review([VALID_FACT])
+        monkeypatch.delenv("CURATOR_MAP")
+        assert _approve(reviewed["capture_id"], []) == {
+            "status": "cancelled",
+            "capture_id": reviewed["capture_id"],
+        }
+        assert _approve(reviewed["capture_id"], ["fact_1"])["status"] == "error"
+
+
+class TestComplete:
+    @pytest.mark.parametrize(
+        ("topic", "target", "capture", "canonical_file"),
+        [
+            ("knowledge", "docs/knowledge.md", "knowledge", "docs/knowledge.md"),
+            ("history", "docs/history.md", "records", "docs/history.md"),
+        ],
+    )
+    def test_writable_placement_saves_canonical_source(
+        self, memory_server, topic, target, capture, canonical_file
+    ):
+        be, usage_path = memory_server
+        reviewed = _review([VALID_FACT])
+        _approve(reviewed["capture_id"], ["fact_1"])
+
+        out = _complete(reviewed["capture_id"], [_placement(
+            topic=topic,
+            target=target,
+            capture=capture,
+            canonical_file=canonical_file,
+            changed_files=[canonical_file],
+        )])
+
+        assert out == {
+            "status": "completed",
+            "capture_id": reviewed["capture_id"],
+            "saved": 1,
+            "documents": [canonical_file],
+        }
+        facts = be.query_facts(FactQuery())
+        assert len(facts) == 1
+        assert facts[0].source_file == canonical_file
+        assert VALID_FACT["title"] in json.loads(usage_path.read_text(encoding="utf-8"))
+        assert _complete(reviewed["capture_id"], [])["status"] == "error"
+
+    @pytest.mark.parametrize(
+        ("overrides", "message"),
+        [
+            ({"topic": "missing"}, "topic/target"),
+            ({"target": "docs/missing.md"}, "topic/target"),
+            ({"capture": "records"}, "capture"),
+            ({"target": "docs/readonly.md", "canonical_file": "docs/readonly.md",
+              "changed_files": ["docs/readonly.md"]}, "readonly"),
+            ({"changed_files": []}, "changed_files"),
+            ({"changed_files": ["docs/history.md"]}, "canonical_file"),
+            ({"canonical_file": "../outside.md", "changed_files": ["../outside.md"]}, "безопасным"),
+            ({"canonical_file": "docs/not-created.md", "changed_files": ["docs/not-created.md"]}, "существовать"),
+        ],
+    )
+    def test_invalid_placement_is_rejected_before_store(self, memory_server, overrides, message):
+        be, _ = memory_server
+        reviewed = _review([VALID_FACT])
+        _approve(reviewed["capture_id"], ["fact_1"])
+
+        out = _complete(reviewed["capture_id"], [_placement(**overrides)])
+
+        assert out["status"] == "error"
+        assert message in out["error"]
+        assert be.query_facts(FactQuery()) == []
+
+    def test_requires_exactly_one_placement_per_selected_fact(self, memory_server):
+        reviewed = _review([VALID_FACT, VALID_FACT_2])
+        _approve(reviewed["capture_id"], ["fact_1", "fact_2"])
+        out = _complete(reviewed["capture_id"], [_placement("fact_1")])
+        assert out["status"] == "error"
+        assert "ровно один placement" in out["error"]
+
+    def test_malformed_candidate_id_returns_json_error(self, memory_server):
+        reviewed = _review([VALID_FACT])
+        _approve(reviewed["capture_id"], ["fact_1"])
+        out = _complete(reviewed["capture_id"], [_placement(candidate_id=[])])
+        assert out["status"] == "error"
+
+    def test_symlink_is_checked_by_resolved_project_path(self, memory_server, tmp_path):
+        map_path = tmp_path / "DOCUMENTATION-MAP.md"
+        map_path.write_text(
+            "---\ntopics:\n  - name: docs\n    targets:\n"
+            "      - path: docs/*.md\n        captures: [knowledge]\n        mode: update\n---\n",
+            encoding="utf-8",
+        )
+        private = tmp_path / "private" / "secret.md"
+        private.parent.mkdir()
+        private.write_text("# Private\n", encoding="utf-8")
+        link = tmp_path / "docs" / "link.md"
+        try:
+            link.symlink_to(private)
+        except OSError:
+            pytest.skip("symlink недоступен в этом окружении")
+        reviewed = _review([VALID_FACT])
+        _approve(reviewed["capture_id"], ["fact_1"])
+
+        out = _complete(reviewed["capture_id"], [_placement(
+            topic="docs",
+            target="docs/*.md",
+            canonical_file="docs/link.md",
+            changed_files=["docs/link.md"],
+        )])
+
+        assert out["status"] == "error"
+        assert "не совпадает" in out["error"]
+
+
+def test_mcp_schema_exposes_three_step_capture_without_legacy_fields(memory_server):
+    result = asyncio.run(server_mod.handle_list_tools(None, None))
+    tools = {tool.name: tool for tool in result.tools}
+
+    capture_schema = tools["curator_session_capture"].input_schema
+    candidate_properties = capture_schema["properties"]["candidates"]["items"]["properties"]
+    assert "auto_approve" not in capture_schema["properties"]
+    assert "source_file" not in candidate_properties
+    assert {"curator_capture_approve", "curator_capture_complete"} <= tools.keys()
+    assert tools["curator_session_capture"].output_schema["required"] == ["status"]
+
+
+def test_capture_tool_returns_structured_content(memory_server):
+    result = asyncio.run(server_mod.handle_call_tool(None, {
+        "params": {
+            "name": "curator_session_capture",
+            "arguments": {"candidates": [VALID_FACT]},
+        },
+    }))
+
+    assert result.structured_content["status"] == "needs_human_approval"
+    assert json.loads(result.content[0].text) == result.structured_content

@@ -1,6 +1,6 @@
 """Управление фоновым worker-демоном (improve loop).
 
-pid-файл и лог живут в ~/.curator/. Инвариант: worker жив, пока жив
+pid-файл и лог живут в CURATOR_STATE_DIR (default: ~/.curator). Инвариант: worker жив, пока жив
 MCP-сервер — server.main() зовёт ensure_worker(). `curator start` —
 тот же ensure (идемпотентный): живой наш worker → ничего не делает,
 мёртвый/чужой/отсутствующий pid → подчистка pid-файла и запуск.
@@ -13,14 +13,15 @@ import sys
 import time
 from pathlib import Path
 
+from curator.state import state_path
+
 
 def _pid_file() -> Path:
-    # Path.home() читает HOME при каждом вызове — тесты изолируются через env
-    return Path.home() / ".curator" / "worker.pid"
+    return state_path("worker.pid")
 
 
 def _worker_log() -> Path:
-    return Path.home() / ".curator" / "worker.log"
+    return state_path("worker.log")
 
 
 def read_pid() -> int | None:
@@ -34,6 +35,26 @@ def read_pid() -> int | None:
 
 
 def is_running(pid: int) -> bool:
+    if os.name == "nt":
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        kernel32.OpenProcess.restype = wintypes.HANDLE
+        kernel32.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+        kernel32.GetExitCodeProcess.restype = wintypes.BOOL
+        kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+
+        handle = kernel32.OpenProcess(0x1000, False, pid)
+        if not handle:
+            return False
+        try:
+            exit_code = wintypes.DWORD()
+            return bool(kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code))) and exit_code.value == 259
+        finally:
+            kernel32.CloseHandle(handle)
+
     try:
         os.kill(pid, 0)
         return True
@@ -48,18 +69,32 @@ def pid_is_curator_worker(pid: int) -> bool:
     (как запускает start_worker) и entrypoint `curator-worker`. Подстрочные
     совпадения (`rg curator.worker`, `tail -f curator.worker.log`) — нет.
     """
+    if os.name == "nt":
+        command = [
+            "powershell.exe",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            f"(Get-CimInstance Win32_Process -Filter 'ProcessId = {int(pid)}').CommandLine",
+        ]
+    else:
+        command = ["ps", "-p", str(pid), "-o", "command="]
+
     try:
         out = subprocess.run(
-            ["ps", "-p", str(pid), "-o", "command="],
+            command,
             capture_output=True, text=True, timeout=5,
         )
     except Exception:
         return False
-    tokens = out.stdout.split()
+    tokens = [token.strip('"') for token in out.stdout.split()]
     for i, tok in enumerate(tokens):
         if tok == "-m" and i + 1 < len(tokens) and tokens[i + 1] == "curator.worker":
             return True
-        if tok == "curator-worker" or tok.endswith("/curator-worker"):
+        normalized = tok.replace("\\", "/").lower()
+        if normalized == "curator-worker" or normalized.endswith("/curator-worker"):
+            return True
+        if normalized == "curator-worker.exe" or normalized.endswith("/curator-worker.exe"):
             return True
     return False
 

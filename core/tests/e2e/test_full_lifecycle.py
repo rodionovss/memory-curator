@@ -1,8 +1,7 @@
 """E2E: полный жизненный цикл знания — всё заявленное, один связный сценарий.
 
-Сценарий = скрипт демо: capture (валидные + мусор) → query → improve
-(дубликаты + противоречия + eval-гейт) → жизненный цикл отражается в .md →
-rebuild из .md не воскрешает устаревшее. Отдельно: decay по usage и
+Сценарий = capture review → approval → semantic docs → complete → query →
+improve (дубликаты + противоречия + eval-гейт). Отдельно: decay по usage и
 offline-fallback xmemory → outbox → sync (реальный HTTP, не моки путей).
 
 Изоляция: HOME → tmp. Все ~/.curator/... пути (usage, outbox, логи) и базы
@@ -44,16 +43,38 @@ def _wire_server(monkeypatch, be: LocalBackend, md_dir: Path, usage_path: Path):
     monkeypatch.setattr(server_mod, "gatekeeper", Gatekeeper(be))
     monkeypatch.setattr(server_mod, "base_dir", md_dir)
     monkeypatch.setattr(server_mod, "feedback", RetrievalFeedback(str(usage_path)))
+    monkeypatch.setenv("CURATOR_BASE_DIR", str(md_dir))
+    map_path = md_dir / "DOCUMENTATION-MAP.md"
+    if map_path.is_file():
+        monkeypatch.setenv("CURATOR_MAP", str(map_path))
+    else:
+        monkeypatch.delenv("CURATOR_MAP", raising=False)
+    with server_mod._captures_lock:
+        server_mod._pending_captures.clear()
     return server_mod
 
 
 class TestDeclaredLifecycle:
-    """Один сценарий — вся заявка: capture, query, improve, write-back,
-    rebuild из .md. Каждый шаг идёт через продакшен-путь (server-хендлеры)."""
+    """Capture, semantic write-back, query и backend improve через server seams."""
 
     def test_full_story(self, tmp_path, monkeypatch):
         home = tmp_path
         md_dir = home / "learnings"
+        md_dir.mkdir()
+        (md_dir / "DOCUMENTATION-MAP.md").write_text(
+            """---
+topics:
+  - name: durable-knowledge
+    watch_for: Устойчивые знания и правила
+    targets:
+      - path: docs/knowledge.md
+        captures: [knowledge, rules]
+        mode: update
+        instructions: Обнови документ в его существующем стиле
+---
+""",
+            encoding="utf-8",
+        )
         be = LocalBackend(str(home / "db" / "knowledge.db"))
         usage_path = home / "usage.json"
         server_mod = _wire_server(monkeypatch, be, md_dir, usage_path)
@@ -84,23 +105,44 @@ class TestDeclaredLifecycle:
             {"type": "Reference", "title": "Заголовок достаточно длинный",
              "content_summary": "*Тип:* Reference подделка", "tags": ["x"]},
         ]
-        out = server_mod._session_capture({"candidates": candidates, "auto_approve": True})
+        reviewed = json.loads(server_mod._session_capture({"candidates": candidates}))
+        assert reviewed["status"] == "needs_human_approval"
+        assert len(reviewed["eligible"]) == 5
+        assert len(reviewed["rejected"]) == 2
+        assert "Слишком короткий заголовок" in reviewed["rejected"][0]["reason"]
+        assert be.query_facts(FactQuery()) == [], "review не пишет backend"
 
-        assert "Отклонено: 2" in out, f"мусор обязан отклоняться gatekeeper'ом:\n{out}"
-        assert "Авто-сохранено: 5 фактов" in out
-        assert "Слишком короткий заголовок" in out
+        selected_ids = [fact["candidate_id"] for fact in reviewed["eligible"]]
+        approved = json.loads(server_mod._capture_approve({
+            "capture_id": reviewed["capture_id"],
+            "selected_candidate_ids": selected_ids,
+        }))
+        assert approved["status"] == "update_project_docs"
+        assert approved["next_action"] == "curator-update-docs"
+        assert be.query_facts(FactQuery()) == [], "approval не пишет backend"
 
-        # upsert-инвариант: 5 фактов в базе, а не 10 — повторный вызов того
-        # же батча не плодит строки (title = natural key)
-        server_mod._session_capture({"candidates": candidates[:5], "auto_approve": True})
+        semantic_doc = md_dir / "docs" / "knowledge.md"
+        semantic_doc.parent.mkdir()
+        semantic_doc.write_text(
+            "# Знания проекта\n\n" + "\n".join(f"- {fact['title']}" for fact in approved["facts"]) + "\n",
+            encoding="utf-8",
+        )
+        placements = [{
+            "candidate_id": fact["candidate_id"],
+            "topic": "durable-knowledge",
+            "target": "docs/knowledge.md",
+            "capture": "knowledge",
+            "canonical_file": "docs/knowledge.md",
+            "changed_files": ["docs/knowledge.md"],
+        } for fact in approved["facts"]]
+        completed = json.loads(server_mod._capture_complete({
+            "capture_id": reviewed["capture_id"],
+            "placements": placements,
+        }))
+        assert completed["status"] == "completed"
+        assert completed["saved"] == 5
         assert len(be.query_facts(FactQuery())) == 5
-
-        # write-back: факты легли в .md через роутинг session/{type}.md
-        reference_md = (md_dir / "session" / "reference.md").read_text(encoding="utf-8")
-        style_md = (md_dir / "session" / "style.md").read_text(encoding="utf-8")
-        assert f"### {A_TITLE}" in reference_md
-        assert f"### {B_TITLE}" in reference_md
-        assert f"### {STYLE_TITLE}" in style_md
+        assert not (md_dir / "session").exists(), "semantic flow не использует fallback"
 
         # ---- Шаг 2: query находит, usage-телеметрия пишется
         out = server_mod._query({"search": "kotlin"})
@@ -117,8 +159,8 @@ class TestDeclaredLifecycle:
         out = server_mod._feedback()
         assert "kotlin" in out or A_TITLE in out, "телеметрия запросов живая"
 
-        # ---- Шаг 3: improve — дубликат консолидирован (eval-гейт одобрил:
-        # покрытие запросов не упало), противоречие разрешено, .md отражает
+        # ---- Шаг 3: improve меняет backend, но не semantic project docs.
+        semantic_before_improve = semantic_doc.read_text(encoding="utf-8")
         out = server_mod._improve()
         assert "Найдено дубликатов: 1" in out
         assert "Противоречия" in out
@@ -130,35 +172,8 @@ class TestDeclaredLifecycle:
         assert by_title[A_TITLE].status == "verified"
         assert by_title[LOSER_TITLE].status == "deprecated", "проигравший противоречия устаревает"
         assert by_title[WINNER_TITLE].status == "verified"
-
-        # жизненный цикл отражён в .md: устаревшие помечены, rebuild из .md
-        # их не воскрешает
-        reference_md = (md_dir / "session" / "reference.md").read_text(encoding="utf-8")
-        assert f"### {B_TITLE} [УСТАРЕЛО]" in reference_md
-        assert f"### {LOSER_TITLE} [УСТАРЕЛО]" in reference_md
-        # A_TITLE — префикс B_TITLE: считаем точные строки-заголовки, не подстроки
-        a_headers = [line for line in reference_md.splitlines() if line == f"### {A_TITLE}"]
-        assert len(a_headers) == 1, "секция A не должна дублироваться"
-
-        # ---- Шаг 4: rebuild из .md в чистую базу — раунд-трип заявки
-        be2 = LocalBackend(str(home / "db2" / "knowledge.db"))
-        from curator.analyzers.ingest import ingest_directory
-        saved = ingest_directory(md_dir, be2, Gatekeeper(be2, check_duplicates=False))
-
-        assert saved == 3, "A, winner и Style; устаревшие секции ingest пропускает"
-        rebuilt = {f.title: f for f in be2.query_facts(FactQuery())}
-        assert set(rebuilt) == {A_TITLE, WINNER_TITLE, STYLE_TITLE}
-        assert rebuilt[A_TITLE].type == "Reference"
-        assert rebuilt[A_TITLE].tags == ["kotlin"]
-        assert rebuilt[STYLE_TITLE].type == "Style"
-
-        # ---- Шаг 5: навигация: автогенерируемый index.md отражает живое
-        index = (md_dir / "index.md").read_text(encoding="utf-8")
-        assert SyncEngine.INDEX_MARKER in index
-        assert f"- [{A_TITLE}](session/reference.md)" in index
-        assert f"- [{WINNER_TITLE}](session/reference.md)" in index
-        assert f"- [{STYLE_TITLE}](session/style.md)" in index
-        assert B_TITLE not in index, "устаревшие не попадают в навигацию"
+        assert semantic_doc.read_text(encoding="utf-8") == semantic_before_improve
+        assert not (md_dir / "index.md").exists()
 
 
 class TestUsageTelemetry:
@@ -298,9 +313,7 @@ class TestOfflineOutbox:
 
 
 class TestMapRoutingE2E:
-    """Сквозная интеграция с картой Егора: capture → MapRouter →
-    таргеты карты, mode в write-back (readonly — честный ⚠), routes
-    показывает темы, OKF-тип факта не мутируется маршрутизацией."""
+    """Semantic placement проверяется по карте до сохранения в backend."""
 
     def test_capture_routes_via_map(self, tmp_path, monkeypatch):
         home = tmp_path
@@ -351,10 +364,35 @@ class TestMapRoutingE2E:
              "content_summary": "Этот факт попадает в readonly таргет и не пишется в .md.",
              "tags": ["context"]},
         ]
-        out = server_mod._session_capture({"candidates": candidates, "auto_approve": True})
+        reviewed = json.loads(server_mod._session_capture({"candidates": candidates}))
+        approved = json.loads(server_mod._capture_approve({
+            "capture_id": reviewed["capture_id"],
+            "selected_candidate_ids": ["fact_1", "fact_2"],
+        }))
+        assert be.query_facts(FactQuery()) == []
 
-        assert "Авто-сохранено: 3" in out
-        assert "readonly" in out, "readonly — видимый отказ записи в .md, не молчание"
+        docs = md_dir / "docs"
+        docs.mkdir()
+        (docs / "kotlin.md").write_text("# Kotlin\n\nInline-классы боксируются в sealed API.\n", encoding="utf-8")
+        (docs / "journal.md").write_text("# Журнал\n\nВыбран JUnit 5.\n", encoding="utf-8")
+        completed = json.loads(server_mod._capture_complete({
+            "capture_id": reviewed["capture_id"],
+            "placements": [
+                {
+                    "candidate_id": "fact_1", "topic": "kotlin", "target": "docs/kotlin.md",
+                    "capture": "knowledge", "canonical_file": "docs/kotlin.md",
+                    "changed_files": ["docs/kotlin.md"],
+                },
+                {
+                    "candidate_id": "fact_2", "topic": "journal", "target": "docs/journal.md",
+                    "capture": "records", "canonical_file": "docs/journal.md",
+                    "changed_files": ["docs/journal.md"],
+                },
+            ],
+        }))
+        assert completed["status"] == "completed"
+        assert completed["saved"] == 2
+        assert [fact["candidate_id"] for fact in approved["facts"]] == ["fact_1", "fact_2"]
 
         by_title = {f.title: f for f in be.query_facts(FactQuery())}
         assert by_title["Правило про kotlin inline классы и sealed"].source_file == "docs/kotlin.md"
@@ -363,9 +401,9 @@ class TestMapRoutingE2E:
         assert by_title["Правило про kotlin inline классы и sealed"].type == "Reference"
         assert by_title["Решение журнала про стек тестирования"].type == "Spec"
 
-        assert (md_dir / "docs" / "kotlin.md").exists()
-        assert (md_dir / "docs" / "journal.md").exists()
+        assert "Контекстный факт readonly таргета" not in by_title
         assert not (md_dir / "docs" / "context.md").exists(), "readonly не пишет .md"
+        assert not (md_dir / "session").exists(), "semantic flow не использует fallback"
 
         # routes: темы карты с mode видны до сохранения
         out = server_mod._routes()

@@ -4,18 +4,23 @@
 
 Извлечение знаний делает сам агент (LLM) — opencode сейчас, любой MCP-клиент
 (Claude Code) по тому же контракту. Скилл передаёт готовых кандидатов через
-`candidates`. Бэкенд управляет данными: валидация (gatekeeper),
-хранение, write-back в .md, improve loop.
+`candidates`. Python управляет gatekeeper и memory backend; отдельный
+нейронный skill делает смысловой write-back в документацию проекта.
 
 Конфигурация через переменные окружения:
     MEMORY_BACKEND: "xmemory" | "local" (default: "local")
+    CURATOR_STATE_DIR: SQLite, outbox, логи и worker state (default: ~/.curator)
     CURATOR_BASE_DIR: директория с .md файлами
-    AUTO_MODE: "true" | "false" (default: "false")
+    CURATOR_MAP: путь к карте документации проекта
 """
 
 import os
 import json
 import asyncio
+import threading
+import uuid
+from collections import OrderedDict
+from dataclasses import dataclass
 from pathlib import Path
 
 from mcp.server import Server
@@ -46,11 +51,15 @@ def _get_backend() -> MemoryBackend:
             instance_id=os.getenv("XMEMORY_INSTANCE_ID", ""),
         )
     else:
-        db_path = os.path.expanduser("~/.curator/knowledge.db")
-        return LocalBackend(db_path)
+        return LocalBackend()
 
 
 _FACT_TYPES_DOC = "тип факта — известные типы с описаниями: см. curator_status; новый тип только после подтверждения человеком (new_type=true + type_description)"
+_CAPTURE_OUTPUT_SCHEMA = {
+    "type": "object",
+    "properties": {"status": {"type": "string"}},
+    "required": ["status"],
+}
 
 
 def _as_bool(value) -> bool:
@@ -71,43 +80,137 @@ improve = ImproveLoop(backend)
 feedback = RetrievalFeedback()
 
 
+@dataclass(frozen=True)
+class ReviewedCandidate:
+    candidate_id: str
+    type: str
+    title: str
+    content_summary: str
+    tags: tuple[str, ...]
+    evidence: str
+
+    def as_dict(self) -> dict:
+        return {
+            "candidate_id": self.candidate_id,
+            "type": self.type,
+            "title": self.title,
+            "content_summary": self.content_summary,
+            "tags": list(self.tags),
+            "evidence": self.evidence,
+        }
+
+
+@dataclass
+class PendingCapture:
+    candidates: tuple[ReviewedCandidate, ...]
+    state: str = "reviewed"
+    selected_candidate_ids: frozenset[str] = frozenset()
+
+
+@dataclass(frozen=True)
+class Placement:
+    candidate_id: str
+    topic: str
+    target: str
+    capture: str
+    canonical_file: str
+    changed_files: tuple[str, ...]
+
+
+_captures_lock = threading.Lock()
+_pending_captures: OrderedDict[str, PendingCapture] = OrderedDict()
+
+
+def _json_response(**payload) -> str:
+    return json.dumps(payload, ensure_ascii=False)
+
+
 async def handle_list_tools(ctx, request):
     tools = [
         Tool(
             name="curator_session_capture",
-            description="Сохранить готовые кандидаты знаний (извлекает сам агент): валидация gatekeeper → preview → сохранение",
+            description="Проверить кандидаты знаний и вернуть preview для подтверждения человеком",
             inputSchema={
                 "type": "object",
+                "additionalProperties": False,
                 "properties": {
                     "candidates": {
                         "type": "array",
+                        "minItems": 1,
                         "description": ("Кандидаты: [{type, title, content_summary, tags: [], evidence, "
-                                         "source_file (опционально: путь .md внутри базы, предложенный агентом/скиллом), "
                                          "new_type (опционально: true если пользователь подтвердил новый тип), "
                                          "type_description (описание нового типа, обязательно при new_type)}]"),
                         "items": {
                             "type": "object",
+                            "additionalProperties": False,
                             "properties": {
                                 "type": {"type": "string", "description": _FACT_TYPES_DOC},
                                 "title": {"type": "string"},
                                 "content_summary": {"type": "string"},
                                 "tags": {"type": "array", "items": {"type": "string"}},
                                 "evidence": {"type": "string"},
-                                "source_file": {"type": "string", "description": "path внутри CURATOR_BASE_DIR (не absolute, без ..)"},
                                 "new_type": {"type": "boolean", "description": "пользователь подтвердил заведение нового типа"},
                                 "type_description": {"type": "string", "description": "что значит новый тип — контракт для агента"},
                             },
                             "required": ["type", "title", "content_summary", "tags"],
                         },
                     },
-                    "auto_approve": {
-                        "type": "boolean",
-                        "description": "Автоматически сохранять одобренных кандидатов без подтверждения (агент вызывает после показа preview)",
-                        "default": False,
-                    },
                 },
                 "required": ["candidates"],
             },
+            outputSchema=_CAPTURE_OUTPUT_SCHEMA,
+        ),
+        Tool(
+            name="curator_capture_approve",
+            description="Зафиксировать выбранное человеком подмножество проверенных кандидатов",
+            inputSchema={
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "capture_id": {"type": "string"},
+                    "selected_candidate_ids": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                },
+                "required": ["capture_id", "selected_candidate_ids"],
+            },
+            outputSchema=_CAPTURE_OUTPUT_SCHEMA,
+        ),
+        Tool(
+            name="curator_capture_complete",
+            description="Проверить размещение в документации и сохранить поисковую копию фактов",
+            inputSchema={
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "capture_id": {"type": "string"},
+                    "placements": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "properties": {
+                                "candidate_id": {"type": "string"},
+                                "topic": {"type": "string"},
+                                "target": {"type": "string"},
+                                "capture": {"type": "string"},
+                                "canonical_file": {"type": "string"},
+                                "changed_files": {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                },
+                            },
+                            "required": [
+                                "candidate_id", "topic", "target", "capture",
+                                "canonical_file", "changed_files",
+                            ],
+                        },
+                    },
+                },
+                "required": ["capture_id", "placements"],
+            },
+            outputSchema=_CAPTURE_OUTPUT_SCHEMA,
         ),
         Tool(
             name="curator_query",
@@ -161,6 +264,10 @@ async def handle_call_tool(ctx, request):
 
     if name == "curator_session_capture":
         text = await asyncio.to_thread(_session_capture, arguments)
+    elif name == "curator_capture_approve":
+        text = await asyncio.to_thread(_capture_approve, arguments)
+    elif name == "curator_capture_complete":
+        text = await asyncio.to_thread(_capture_complete, arguments)
     elif name == "curator_routes":
         text = await asyncio.to_thread(_routes)
     elif name == "curator_query":
@@ -174,7 +281,13 @@ async def handle_call_tool(ctx, request):
     else:
         text = f"Unknown tool: {name}"
 
-    return CallToolResult(content=[TextContent(type="text", text=text)])
+    structured = json.loads(text) if name in {
+        "curator_session_capture", "curator_capture_approve", "curator_capture_complete",
+    } else None
+    return CallToolResult(
+        content=[TextContent(type="text", text=text)],
+        structuredContent=structured,
+    )
 
 
 class _AnyParams(BaseModel):
@@ -185,125 +298,307 @@ app.add_request_handler("tools/call", _AnyParams, handle_call_tool)
 
 
 def _session_capture(args: dict) -> str:
-    """Принять готовых кандидатов (извлёк агент), провалидировать, показать preview, сохранить."""
-    auto_approve = _as_bool(args.get("auto_approve", False)) or os.getenv("AUTO_MODE", "false").lower() == "true"
-
+    """Проверить кандидатов и создать process-local capture без сохранения."""
     raw = args.get("candidates", [])
     if isinstance(raw, str):
         try:
             raw = json.loads(raw)
         except json.JSONDecodeError as e:
-            return f"Ошибка: candidates не является валидным JSON ({e})"
+            return _json_response(status="error", error=f"candidates не является валидным JSON ({e})")
     if not isinstance(raw, list) or not raw:
-        return "Ошибка: candidates — непустой массив фактов."
+        return _json_response(status="error", error="candidates должен быть непустым массивом фактов")
 
-    proposed = []
-    errors = []
+    proposed: list[tuple[str, ProposedFact]] = []
+    rejected: list[dict] = []
+    seen_titles: set[str] = set()
     for i, c in enumerate(raw, 1):
+        candidate_id = f"fact_{i}"
         if not isinstance(c, dict):
-            errors.append(f"{i}: кандидат должен быть объектом")
+            rejected.append({"candidate_id": candidate_id, "reason": "кандидат должен быть объектом"})
             continue
-        title = str(c.get("title", "")).strip()
-        summary = str(c.get("content_summary", "")).strip()
+        if not isinstance(c.get("type"), str) or not c["type"].strip():
+            rejected.append({"candidate_id": candidate_id, "reason": "нет type"})
+            continue
+        if not isinstance(c.get("title"), str):
+            rejected.append({"candidate_id": candidate_id, "reason": "title должен быть строкой"})
+            continue
+        if not isinstance(c.get("content_summary"), str):
+            rejected.append({"candidate_id": candidate_id, "reason": "content_summary должен быть строкой"})
+            continue
+        tags = c.get("tags")
+        if not isinstance(tags, list) or any(not isinstance(tag, str) for tag in tags):
+            rejected.append({"candidate_id": candidate_id, "reason": "tags должен быть массивом строк"})
+            continue
+        title = c["title"].strip()
+        summary = c["content_summary"].strip()
         if not title:
-            errors.append(f"{i}: нет title")
+            rejected.append({"candidate_id": candidate_id, "reason": "нет title"})
             continue
         if not summary:
-            errors.append(f"{i}: нет content_summary")
+            rejected.append({"candidate_id": candidate_id, "title": title,
+                             "reason": "нет content_summary"})
             continue
-        # Тип: известный / новый с подтверждением человека / отказ со словарём.
-        # Молчаливый фолбэк на Reference — ложь о сохранённом, запрещён.
         fact_type, type_error = resolve_fact_type(
-            str(c.get("type", "Reference")).strip(),
+            c["type"].strip(),
             new_type=_as_bool(c.get("new_type", False)),
             type_description=str(c.get("type_description", "") or ""),
         )
         if fact_type is None:
-            errors.append(f"{i}: {type_error}")
+            rejected.append({"candidate_id": candidate_id, "title": title, "reason": type_error})
             continue
-        source_file = str(c.get("source_file", "") or "").strip() or None
-        proposed.append(ProposedFact(
+        if title in seen_titles:
+            rejected.append({"candidate_id": candidate_id, "title": title,
+                             "reason": "кандидат дублирует title в этом capture"})
+            continue
+        seen_titles.add(title)
+        proposed.append((candidate_id, ProposedFact(
             type=fact_type,
             title=title,
             content_summary=summary,
-            tags=parse_tags(c.get("tags")),
+            tags=parse_tags(tags),
             evidence=str(c.get("evidence", "") or ""),
-            source_file=source_file,
-        ))
+        )))
 
     from curator import server_log
     server_log.log("session_capture", stage="intake", received=len(raw), parsed=len(proposed))
-
-    error_lines = []
-    if errors:
-        error_lines.append("Кандидаты с ошибками (не сохранены):")
-        error_lines.extend(f"  {e}" for e in errors)
-
-    if not proposed:
-        return "\n".join(["Кандидаты пусты."] + error_lines)
-
-    result = gatekeeper.filter(proposed)
+    result = gatekeeper.filter([fact for _, fact in proposed])
     server_log.log("session_capture", stage="gatekeeper",
-                   proposed=len(proposed), approved=len(result.approved),
-                   rejected=len(result.rejected))
-    saved_count = 0
+                    proposed=len(proposed), approved=len(result.approved),
+                    rejected=len(result.rejected))
 
-    lines = [f"Получено кандидатов: {len(proposed)}"]
-    if errors:
-        lines.extend(error_lines)
-    lines.append(f"Отклонено: {len(result.rejected)}")
+    ids_by_identity = {id(fact): candidate_id for candidate_id, fact in proposed}
+    eligible = tuple(
+        ReviewedCandidate(
+            candidate_id=ids_by_identity[id(fact)],
+            type=fact.type,
+            title=fact.title,
+            content_summary=fact.content_summary,
+            tags=tuple(fact.tags),
+            evidence=fact.evidence,
+        )
+        for fact in result.approved
+    )
+    rejected.extend({
+        **ReviewedCandidate(
+            candidate_id=ids_by_identity[id(fact)],
+            type=fact.type,
+            title=fact.title,
+            content_summary=fact.content_summary,
+            tags=tuple(fact.tags),
+            evidence=fact.evidence,
+        ).as_dict(),
+        "reason": reason,
+    } for fact, reason in result.rejected)
 
-    if result.rejected:
-        lines.append("\nОтклонённые:")
-        for fact, reason in result.rejected:
-            lines.append(f"  ❌ {fact.title} — {reason}")
-
-    if result.approved:
-        lines.append(f"\nОдобрено: {len(result.approved)}")
-        for i, fact in enumerate(result.approved, 1):
-            lines.append(f"\n{i}. [{fact.type}] {fact.title}")
-            lines.append(f"   {fact.content_summary}")
-            if fact.tags:
-                lines.append(f"   Теги: {', '.join(fact.tags)}")
-            if fact.evidence:
-                lines.append(f"   Источник: {fact.evidence[:200]}")
-
-    if auto_approve and result.approved:
-        from curator.sync_engine import SyncEngine
-        from curator.routing import route_fact_safe
-        sync = SyncEngine(backend, base_dir)
-        saved = []
-        for fact in result.approved:
-            structured = StructuredFact(
-                type=fact.type,
-                title=fact.title,
-                tags=fact.tags,
-                status="verified",
-                content_summary=fact.content_summary,
-                source_file=route_fact_safe(router, fact),
-            )
-            try:
-                backend.store_fact(structured)
-            except Exception as e:
-                server_log.log("session_capture", stage="store_error",
-                               fact=fact.title, error=str(e)[:200])
-                lines.append(f"\n  ⚠ не сохранён '{fact.title[:50]}': {str(e)[:100]}")
-                continue
-            try:
-                sync.write_fact_to_md(structured)
-            except Exception as e:
-                server_log.log("session_capture", stage="writeback_error",
-                               fact=fact.title, error=str(e)[:200])
-            feedback.record_save(fact.title)
-            saved.append(fact.title)
-        server_log.log("session_capture", stage="autosave", saved=len(saved))
-        saved_count = len(saved)
-        lines.append(f"\nАвто-сохранено: {len(saved)} фактов")
+    capture_id = f"cap_{uuid.uuid4().hex}"
+    with _captures_lock:
+        _pending_captures[capture_id] = PendingCapture(eligible)
+        while len(_pending_captures) > 100:
+            _pending_captures.popitem(last=False)
 
     # Телеметрия кандидатов: одна запись на вызов (preview без сохранения
     # тоже запись — saved=0), не роняет capture
-    _log_mcp_candidates(result, saved=saved_count, declined_by_human=False)
-    return "\n".join(lines)
+    _log_mcp_candidates(result, saved=0, declined_by_human=False)
+    return _json_response(
+        status="needs_human_approval",
+        capture_id=capture_id,
+        eligible=[candidate.as_dict() for candidate in eligible],
+        rejected=rejected,
+    )
+
+
+def _project_paths() -> tuple[Path, Path] | tuple[None, str]:
+    root = Path(os.getenv("CURATOR_BASE_DIR", str(base_dir))).expanduser().resolve()
+    configured_map = os.getenv("CURATOR_MAP", "").strip()
+    if not configured_map:
+        return None, "CURATOR_MAP не задан"
+    map_path = Path(configured_map).expanduser().resolve()
+    if not map_path.is_file():
+        return None, f"CURATOR_MAP не существует: {map_path}"
+    return root, map_path
+
+
+def _approval_manifest(capture_id: str, capture: PendingCapture, root: Path,
+                       map_path: Path) -> str:
+    return _json_response(
+        status="update_project_docs",
+        next_action="curator-update-docs",
+        capture_id=capture_id,
+        base_dir=str(root),
+        map_path=str(map_path),
+        facts=[candidate.as_dict() for candidate in capture.candidates
+               if candidate.candidate_id in capture.selected_candidate_ids],
+    )
+
+
+def _capture_approve(args: dict) -> str:
+    capture_id = str(args.get("capture_id", "")).strip()
+    selected = args.get("selected_candidate_ids")
+    if not capture_id or not isinstance(selected, list) or any(not isinstance(x, str) for x in selected):
+        return _json_response(status="error", error="capture_id и selected_candidate_ids обязательны")
+    selected_ids = frozenset(selected)
+    if len(selected_ids) != len(selected):
+        return _json_response(status="error", error="selected_candidate_ids не должен содержать дубликаты")
+
+    with _captures_lock:
+        capture = _pending_captures.get(capture_id)
+        if capture is None:
+            return _json_response(status="error", error="capture_id не найден")
+        if capture.state == "approved":
+            if capture.selected_candidate_ids != selected_ids:
+                return _json_response(status="error", error="выбранный набор уже зафиксирован")
+            paths = _project_paths()
+            if paths[0] is None:
+                return _json_response(status="error", error=paths[1])
+            return _approval_manifest(capture_id, capture, paths[0], paths[1])
+        if capture.state != "reviewed":
+            return _json_response(status="error", error=f"capture имеет состояние {capture.state}")
+        if not selected_ids:
+            del _pending_captures[capture_id]
+            return _json_response(status="cancelled", capture_id=capture_id)
+        eligible_ids = {candidate.candidate_id for candidate in capture.candidates}
+        unknown = selected_ids - eligible_ids
+        if unknown:
+            return _json_response(status="error", error=f"неизвестные candidate_id: {sorted(unknown)}")
+        paths = _project_paths()
+        if paths[0] is None:
+            return _json_response(status="error", error=paths[1])
+        root, map_path = paths
+        capture.state = "approved"
+        capture.selected_candidate_ids = selected_ids
+        return _approval_manifest(capture_id, capture, root, map_path)
+
+
+def _relative_existing_file(root: Path, raw_path, target: str) -> tuple[str | None, str | None]:
+    from curator.routing.map_router import MapRouter
+
+    if not isinstance(raw_path, str) or not raw_path.strip() or not MapRouter._safe_source(raw_path):
+        return None, f"путь '{raw_path}' должен быть безопасным root-relative путём"
+    relative = raw_path.replace("\\", "/")
+    resolved = (root / relative).resolve()
+    try:
+        resolved_relative = resolved.relative_to(root).as_posix()
+    except ValueError:
+        return None, f"путь '{raw_path}' находится вне CURATOR_BASE_DIR"
+    if not resolved.is_file():
+        return None, f"файл '{relative}' должен существовать"
+    if not MapRouter.matches_target(resolved_relative, target):
+        return None, f"файл '{relative}' не совпадает с target '{target}'"
+    return resolved_relative, None
+
+
+def _capture_complete(args: dict) -> str:
+    from curator.routing.map_router import MapRouter
+
+    capture_id = str(args.get("capture_id", "")).strip()
+    placements = args.get("placements")
+    if not capture_id or not isinstance(placements, list):
+        return _json_response(status="error", error="capture_id и placements обязательны")
+    paths = _project_paths()
+    if paths[0] is None:
+        return _json_response(status="error", error=paths[1])
+    root, map_path = paths
+    map_router = MapRouter(map_path)
+
+    with _captures_lock:
+        capture = _pending_captures.get(capture_id)
+        if capture is None or capture.state != "approved":
+            return _json_response(status="error", error="capture_id не найден или не approved")
+
+        selected_ids = capture.selected_candidate_ids
+        valid_placements = all(
+            isinstance(placement, dict) and isinstance(placement.get("candidate_id"), str)
+            for placement in placements
+        )
+        placement_ids = [placement["candidate_id"] for placement in placements] if valid_placements else []
+        if (not valid_placements or len(placement_ids) != len(selected_ids)
+                or set(placement_ids) != selected_ids or len(set(placement_ids)) != len(placement_ids)):
+            return _json_response(status="error", error="для каждого выбранного факта нужен ровно один placement")
+
+        canonical_by_id = {}
+        documents = []
+        for raw_placement in placements:
+            placement = Placement(
+                candidate_id=raw_placement["candidate_id"],
+                topic=str(raw_placement.get("topic", "")),
+                target=str(raw_placement.get("target", "")),
+                capture=str(raw_placement.get("capture", "")),
+                canonical_file=raw_placement.get("canonical_file"),
+                changed_files=tuple(raw_placement.get("changed_files"))
+                if isinstance(raw_placement.get("changed_files"), list) else (),
+            )
+            candidate_id = placement.candidate_id
+            config = map_router.target_config(placement.topic, placement.target)
+            if config is None:
+                return _json_response(status="error", error=f"неизвестная точная пара topic/target для {candidate_id}")
+            if placement.capture not in config["captures"]:
+                return _json_response(status="error", error=f"capture '{placement.capture}' не разрешён target для {candidate_id}")
+            if config["mode"] not in ("update", "append"):
+                return _json_response(status="error", error=f"target для {candidate_id} имеет readonly mode")
+
+            if not placement.changed_files:
+                return _json_response(status="error", error=f"changed_files для {candidate_id} должен быть непустым")
+            if not isinstance(placement.canonical_file, str) or placement.canonical_file.replace("\\", "/") not in {
+                    str(path).replace("\\", "/") for path in placement.changed_files}:
+                return _json_response(status="error", error=f"changed_files должен содержать canonical_file для {candidate_id}")
+
+            normalized_changed = []
+            for changed_file in placement.changed_files:
+                normalized, error = _relative_existing_file(root, changed_file, placement.target)
+                if error:
+                    return _json_response(status="error", error=error)
+                normalized_changed.append(normalized)
+            canonical, error = _relative_existing_file(root, placement.canonical_file, placement.target)
+            if error:
+                return _json_response(status="error", error=error)
+            canonical_by_id[candidate_id] = canonical
+            for changed_file in normalized_changed:
+                if changed_file not in documents:
+                    documents.append(changed_file)
+
+        candidates = {candidate.candidate_id: candidate for candidate in capture.candidates}
+        capture.state = "completing"
+
+    saved = 0
+    try:
+        for candidate_id in placement_ids:
+            candidate = candidates[candidate_id]
+            backend.store_fact(StructuredFact(
+                type=candidate.type,
+                title=candidate.title,
+                tags=list(candidate.tags),
+                status="verified",
+                content_summary=candidate.content_summary,
+                source_file=canonical_by_id[candidate_id],
+            ))
+            feedback.record_save(candidate.title)
+            saved += 1
+    except Exception as e:
+        with _captures_lock:
+            if _pending_captures.get(capture_id) is capture:
+                capture.state = "approved"
+        return _json_response(status="error", error=f"backend store failed: {e}", saved=saved)
+
+    with _captures_lock:
+        if _pending_captures.get(capture_id) is capture:
+            del _pending_captures[capture_id]
+    # Телеметрия: complete-вызов закрывает цикл записи (saved=N, verified)
+    from curator import candidates_log
+    candidates_log.log_capture(
+        "mcp",
+        [(candidate, "approved", "") for candidate in capture.candidates
+         if candidate.candidate_id in selected_ids],
+        saved=saved,
+        final_status="verified" if saved else "preview",
+        session_id=None,
+        declined_by_human=False,
+    )
+    return _json_response(
+        status="completed",
+        capture_id=capture_id,
+        saved=saved,
+        documents=documents,
+    )
 
 
 def _log_mcp_candidates(result, saved: int, declined_by_human: bool):
@@ -356,6 +651,8 @@ def _query(args: dict) -> str:
 
 
 def _status() -> str:
+    from curator.state import state_dir
+
     all_facts = backend.query_facts(FactQuery())
     by_type = {}
     by_status = {}
@@ -367,6 +664,7 @@ def _status() -> str:
     lines = [
         f"Всего фактов: {len(all_facts)}",
         f"База знаний: {base_dir}",
+        f"Состояние: {state_dir()}",
         f"По типам: {json.dumps(by_type, ensure_ascii=False)}",
         f"По статусам: {json.dumps(by_status, ensure_ascii=False)}",
         "",
@@ -380,18 +678,18 @@ def _status() -> str:
 def _improve() -> str:
     report = improve.run()
 
-    # Жизненный цикл обязан отражаться в .md: задеприкейтнутые факты
-    # получают маркер [УСТАРЕЛО], иначе человеко-читаемый слой врёт
-    # и rebuild из .md воскрешает устаревшее
-    from curator import server_log
-    from curator.sync_engine import SyncEngine
-    sync = SyncEngine(backend, base_dir)
-    for f in report.deprecated:
-        try:
-            sync.rewrite_status(f)
-        except Exception as e:
-            server_log.log("improve", stage="writeback_error",
-                            fact=f.title, error=str(e)[:200])
+    # Semantic project docs меняет нейронный write-back. Без project map
+    # сохраняем legacy lifecycle-синхронизацию Curator-секций.
+    if not os.getenv("CURATOR_MAP", "").strip():
+        from curator import server_log
+        from curator.sync_engine import SyncEngine
+        sync = SyncEngine(backend, base_dir)
+        for f in report.deprecated:
+            try:
+                sync.rewrite_status(f)
+            except Exception as e:
+                server_log.log("improve", stage="writeback_error",
+                               fact=f.title, error=str(e)[:200])
 
     lines = [
         "=== Отчёт цикла улучшения ===",

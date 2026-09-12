@@ -1,4 +1,4 @@
-"""Лог сервера: JSONL в ~/.curator/server.log.
+"""Лог сервера: JSONL в $CURATOR_STATE_DIR/server.log.
 
 Каждая строка — один вызов/этап:
   {"ts": "2026-08-25T10:00:00", "event": "session_capture", "stage": "analyze",
@@ -12,10 +12,11 @@ import os
 import time
 from pathlib import Path
 
+from curator.state import env_path
+
 
 def _path() -> Path:
-    base = os.getenv("CURATOR_LOG_PATH", "~/.curator/server.log")
-    return Path(base).expanduser()
+    return env_path("CURATOR_LOG_PATH", "server.log")
 
 
 def log(event: str, **fields):
@@ -27,7 +28,7 @@ def log(event: str, **fields):
             "event": event,
         }
         rec.update(fields)
-        with open(p, "a") as f:
+        with open(p, "a", encoding="utf-8") as f:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
     except Exception:
         pass

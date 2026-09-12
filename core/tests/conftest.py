@@ -1,8 +1,6 @@
 """Общие фикстуры."""
 
 import pytest
-import tempfile
-from pathlib import Path
 
 
 @pytest.fixture(autouse=True)
@@ -17,6 +15,5 @@ def isolated_curator_logs(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def tmpdir():
-    with tempfile.TemporaryDirectory() as tmp:
-        yield Path(tmp)
+def tmpdir(tmp_path):
+    return tmp_path
