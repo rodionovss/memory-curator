@@ -159,11 +159,13 @@ class TestSyntheticMap:
             "    targets:\n"
             "      - path: session/mvi.md\n"
             "        mode: update\n"
+            "        captures: [knowledge]\n"
             "  - name: compose\n"
             "    watch_for: compose, composable, modifier\n"
             "    targets:\n"
             "      - path: session/compose.md\n"
             "        mode: update\n"
+            "        captures: [knowledge]\n"
         ))
         router = MapRouter(map_file)
         # два пересечения по watch_for-токенам бьют одно по name-токену
