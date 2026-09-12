@@ -369,7 +369,7 @@ class TestIndexRegeneration:
 
 
 class TestSymlinkEscape:
-    """Security-trace по матрице скилла curator-create-map: symlink
+    """Security-trace по матрице скилла mapping-documentation: symlink
     внутри base_dir, ведущий наружу, не может вывести запись за sandbox —
     resolve() разворачивает symlink до проверки принадлежности корню."""
 

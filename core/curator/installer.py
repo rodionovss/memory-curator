@@ -47,8 +47,8 @@ def _repo_root() -> Path:
 
 
 def _install_skills(dest_root: Path) -> list[Path]:
-    """Скопировать ВСЕ скиллы из репо (curator-save, curator-create-map
-    и будущие) в <dest_root>/. wheel-установка без репо — пусто."""
+    """Скопировать ВСЕ скиллы из репо (curator-save, mapping-documentation,
+    curator-update-docs и будущие) в <dest_root>/. wheel-установка без репо — пусто."""
     for name in _RETIRED_SKILLS:
         retired = dest_root / name
         if retired.is_symlink() or retired.is_file():

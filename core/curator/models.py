@@ -166,7 +166,7 @@ class ProposedFact:
     tags: list[str] = field(default_factory=list)
     evidence: str = ""
     # Путь .md внутри базы, предложенный агентом/скиллом (например, скилл
-    # curator-create-map разрулил glob-таргет карты). Ядро валидирует
+    # mapping-documentation разрулил glob-таргет карты). Ядро валидирует
     # его против маршрутов, а не доверяет слепо.
     source_file: str | None = None
 

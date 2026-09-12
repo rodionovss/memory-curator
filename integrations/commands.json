@@ -5,7 +5,7 @@
   },
   "curator-create-map": {
     "description": "Построить или обновить карту документации текущего проекта",
-    "template": "Следуй скиллу curator-create-map. Построй карту документации внутри текущего project workspace. После записи карты предложи запустить /curator-setup, чтобы привязать к проекту MCP, CURATOR_STATE_DIR, CURATOR_BASE_DIR и CURATOR_MAP."
+    "template": "Следуй скиллу mapping-documentation. Построй карту документации внутри текущего project workspace. После записи карты предложи запустить /curator-setup, чтобы привязать к проекту MCP, CURATOR_STATE_DIR, CURATOR_BASE_DIR и CURATOR_MAP."
   },
   "curator-setup": {
     "description": "Подключить Memory Curator к текущему репозиторию",

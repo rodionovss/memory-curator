@@ -14,7 +14,7 @@ cd memory-curator
 install`, который сам найдёт opencode и Claude Code на машине и впишет
 в них всё: MCP-сервер (тулзы `curator_*`), команды `/curator-*`, три
 скилла для настройки и нейронного write-back (`curator-save`,
-`curator-create-map`, `curator-update-docs`) и worker. Перезапусти
+`mapping-documentation`, `curator-update-docs`) и worker. Перезапусти
 opencode / Claude Code — готово.
 
 ### Шаг 1 — установи, шаг 2 — настрой
@@ -93,7 +93,7 @@ LLM-вызовов в сервере нет.
 **Проектный флоу:**
 
 1. В opencode открой проект с документацией и набери `/curator-create-map`.
-2. Скилл curator-create-map построит карту: сам спросит границы
+2. Скилл mapping-documentation построит карту: сам спросит границы
    поиска и куда сохранить внутри проекта.
 3. Набери `/curator-setup`. Команда настроит project-local MCP, добавит
    `.curator/` в `.gitignore` и свяжет сервер с найденной картой.

@@ -189,8 +189,9 @@ AGENTS.md / CLAUDE.md — база в контексте каждой сесси
 - **Read-side — готово**: правила памяти в глобальном AGENTS.md / CLAUDE.md
   (база в контексте каждой сессии), плагин session.idle → `/curator-save`,
   `curator status` показывает, что сделал последний improve
-- **Карта документации (Егор) — готова и интегрирована**: `curator-create-map`
-  генерирует карту проекта, нейронный `curator-update-docs` следует её
+- **Карта документации (Егор) — готова и интегрирована**: команда
+  `/curator-create-map` (скилл mapping-documentation) генерирует карту проекта,
+  нейронный `curator-update-docs` следует её
   `watch_for`, `captures`, `mode` и `instructions`, а Python проверяет placement;
   команды `/curator-create-map` и `/curator-setup`
 - **Установка — одна команда**: `./install.sh` / `install.bat`, без
@@ -214,7 +215,7 @@ AGENTS.md / CLAUDE.md — база в контексте каждой сесси
 | Блок | Кто | Зона |
 |------|-----|------|
 | Ядро | Сергей ([@rodionovss](https://github.com/rodionovss)) | backend, gatekeeper, improve loop, MCP, CLI |
-| Карта | Егор ([@eger1393](https://github.com/eger1393)) | curator-create-map: карта проекта, скиллы |
+| Карта | Егор ([@eger1393](https://github.com/eger1393)) | карта проекта, скиллы, трёхфазный capture |
 
 ## Ссылки
 

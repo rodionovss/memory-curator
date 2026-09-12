@@ -1,6 +1,6 @@
 """MapRouter: маршрутизация фактов по карте документации.
 
-Карта — формат скилла curator-create-map: frontmatter с
+Карта — формат скилла mapping-documentation: frontmatter с
 topics[name, watch_for, targets[path/captures/mode/instructions]].
 Наша попытка интеграции — детерминированная: LLM в ядре нет, prose-сегменты
 watch_for (с пробелами) не парсим (это инструкция агенту); сегменты

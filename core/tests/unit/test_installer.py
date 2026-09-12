@@ -162,9 +162,12 @@ class TestIdempotencyAndSafety:
         _opencode_dir(tmp_path)
         installer.install_all()
         skills = {p.name for p in (tmp_path / ".config" / "opencode" / "skills").iterdir()}
-        assert {"curator-save", "curator-create-map", "curator-update-docs",
+        assert {"curator-save", "curator-update-docs",
                 "mapping-documentation"} <= skills
         assert "curator-project-save" not in skills
+        # дубль-скилл curator-create-map удалён: живой оригинал —
+        # mapping-documentation, команда /curator-create-map осталась
+        assert "curator-create-map" not in skills
 
     @pytest.mark.parametrize("target", ["opencode", "claude"])
     def test_upgrade_removes_installed_project_save(self, tmp_path, monkeypatch, target):
