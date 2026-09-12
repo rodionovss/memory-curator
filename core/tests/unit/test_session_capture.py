@@ -127,18 +127,26 @@ class TestReview:
         be, _ = memory_server
         monkeypatch.setenv("AUTO_MODE", "true")
 
+        # AUTO_MODE env больше не существует как режим: обычный review
+        out = _review([VALID_FACT])
+        assert out["status"] == "needs_human_approval"
+        assert be.query_facts(FactQuery()) == []
+
+        # legacy auto_approve от старого скилла — не тихий preview,
+        # а явный отказ с инструкцией обновить скиллы
         out = json.loads(server_mod._session_capture({
             "candidates": [VALID_FACT],
             "auto_approve": True,
         }))
-
-        assert out["status"] == "needs_human_approval"
+        assert out["status"] == "legacy_skill"
+        assert "curator install" in out["error"]
         assert be.query_facts(FactQuery()) == []
 
-    def test_source_file_is_not_part_of_reviewed_fact(self, memory_server):
+    def test_legacy_source_file_in_candidate_is_rejected(self, memory_server):
         candidate = {**VALID_FACT, "source_file": "docs/knowledge.md"}
         out = _review([candidate])
-        assert "source_file" not in out["eligible"][0]
+        assert out["status"] == "legacy_skill"
+        assert "curator install" in out["error"]
 
     def test_rejected_contains_input_and_gatekeeper_errors(self, memory_server):
         broken = {**VALID_FACT, "title": ""}

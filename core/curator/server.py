@@ -299,6 +299,25 @@ app.add_request_handler("tools/call", _AnyParams, handle_call_tool)
 
 def _session_capture(args: dict) -> str:
     """Проверить кандидатов и создать process-local capture без сохранения."""
+    # Гейт миграции: скиллы до трёхфазного флоу присылали auto_approve /
+    # source_file — сервер их игнорирует, сохранение тихо не происходит.
+    # Ловим маркеры устаревшего контракта и отправляет обновлять скиллы.
+    legacy_keys = [k for k in ("auto_approve", "source_file") if k in args]
+    if not legacy_keys and isinstance(args.get("candidates"), list):
+        legacy_keys += [
+            f"candidates[{i}].source_file"
+            for i, c in enumerate(args["candidates"], 1)
+            if isinstance(c, dict) and "source_file" in c
+        ]
+    if legacy_keys:
+        return _json_response(
+            status="legacy_skill",
+            error=(
+                f"устаревший контракт скилла ({', '.join(legacy_keys)}). "
+                "Сохранение теперь: curator_session_capture → curator_capture_approve → "
+                "правка документации → curator_capture_complete. Обнови скиллы: `curator install`"
+            ),
+        )
     raw = args.get("candidates", [])
     if isinstance(raw, str):
         try:
