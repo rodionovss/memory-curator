@@ -17,11 +17,19 @@ install`, который сам найдёт opencode и Claude Code на маш
 `curator-create-map`, `curator-update-docs`) и worker. Перезапусти
 opencode / Claude Code — готово.
 
-### Настройка после установки
+### Шаг 1 — установи, шаг 2 — настрой
 
-- **Для `/curator-save`** — создай карту через `/curator-create-map`, затем
-  выполни `/curator-setup` и перезапусти клиент. Без настроенного существующего
-  `CURATOR_MAP` approval остановится до записи.
+- **Шаг 1.** `./install.sh` — ставит всё, кроме карты.
+- **Шаг 2.** Создай карту: `/curator-create-map`, затем `/curator-setup`
+  и перезапуск клиента. Без карты `/curator-save` дойдёт до approve и
+  остановится с подсказкой «карта не настроена — вызови /curator-setup».
+
+**Как сервер находит карту (приоритет):**
+
+1. env `CURATOR_MAP` — явное указание, всегда главное;
+2. `DOCUMENTATION-MAP.md` в корне базы (`CURATOR_BASE_DIR`) — конвенция,
+   работает без env: достаточно положить карту в корень базы;
+3. нет нигде — сохранение останавливается с подсказкой настроить.
 - **Где legacy-база CLI?** — `curator status` (или `/curator-status` в
   opencode). По умолчанию `~/memory-curator`; путь можно было указать при
   установке флагом `--base-dir ПУТЬ`.
@@ -79,9 +87,8 @@ LLM-вызовов в сервере нет.
 
 Хочешь, чтобы знания раскладывались не по типам, а по темам проекта
 («архитектура → docs/architecture.md», «стиль → style/…»)? Это делает
-**карта документации**. Для `/curator-save` она обязательна и должна быть
-явно настроена через `CURATOR_MAP`; автоматического поиска и fallback без карты
-нет.
+**карта документации**. Для `/curator-save` она обязательна: явный
+`CURATOR_MAP` или `DOCUMENTATION-MAP.md` в корне базы (шаг 2 установки).
 
 **Проектный флоу:**
 
@@ -198,7 +205,8 @@ export MEMORY_BACKEND=local
 # Все служебные файлы в одном каталоге
 export CURATOR_STATE_DIR=/path/to/project/.curator
 
-# Корень semantic write-back и обязательная карта для /curator-save
+# Корень semantic write-back; карта для /curator-save ищется цепочкой:
+# CURATOR_MAP (явно) → $CURATOR_BASE_DIR/DOCUMENTATION-MAP.md (конвенция)
 export CURATOR_BASE_DIR=/path/to/project
 export CURATOR_MAP=/path/to/project/docs/documentation-map.md
 

@@ -475,7 +475,8 @@ def cmd_improve():
 
     # Semantic project docs меняет нейронный write-back. Без project map
     # сохраняем legacy lifecycle-синхронизацию Curator-секций.
-    if not os.getenv("CURATOR_MAP", "").strip():
+    from curator.routing.map_router import find_map_path
+    if find_map_path() is None:
         base_dir = Path(os.getenv("CURATOR_BASE_DIR", os.path.expanduser("~/Documents/AI/personal/learnings")))
         from curator.sync_engine import SyncEngine
         sync = SyncEngine(backend, base_dir)

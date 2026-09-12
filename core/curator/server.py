@@ -408,14 +408,25 @@ def _session_capture(args: dict) -> str:
 
 
 def _project_paths() -> tuple[Path, Path] | tuple[None, str]:
+    from curator.routing.map_router import find_map_path
     root = Path(os.getenv("CURATOR_BASE_DIR", str(base_dir))).expanduser().resolve()
+    # 1. Явный CURATOR_MAP всегда главный («установил, задал и всё»)
     configured_map = os.getenv("CURATOR_MAP", "").strip()
-    if not configured_map:
-        return None, "CURATOR_MAP не задан"
-    map_path = Path(configured_map).expanduser().resolve()
-    if not map_path.is_file():
-        return None, f"CURATOR_MAP не существует: {map_path}"
-    return root, map_path
+    if configured_map:
+        map_path = Path(configured_map).expanduser().resolve()
+        if not map_path.is_file():
+            return None, f"CURATOR_MAP не существует: {map_path}"
+        return root, map_path
+    # 2. Конвенция: DOCUMENTATION-MAP.md в корне базы — работает без env
+    found = find_map_path()
+    if found is not None:
+        return root, found.expanduser().resolve()
+    # 3. Карты нет вообще — ведём человека к настройке, а не сухой ошибкой
+    return None, (
+        "карта документации не настроена: создай DOCUMENTATION-MAP.md в корне базы "
+        "(CURATOR_BASE_DIR) или задай CURATOR_MAP, затем вызови /curator-setup — "
+        "шаги настройки в docs/getting-started.md"
+    )
 
 
 def _approval_manifest(capture_id: str, capture: PendingCapture, root: Path,
@@ -680,7 +691,8 @@ def _improve() -> str:
 
     # Semantic project docs меняет нейронный write-back. Без project map
     # сохраняем legacy lifecycle-синхронизацию Curator-секций.
-    if not os.getenv("CURATOR_MAP", "").strip():
+    from curator.routing.map_router import find_map_path
+    if find_map_path() is None:
         from curator import server_log
         from curator.sync_engine import SyncEngine
         sync = SyncEngine(backend, base_dir)

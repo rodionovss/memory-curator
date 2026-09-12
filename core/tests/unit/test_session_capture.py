@@ -242,6 +242,24 @@ class TestApprove:
         }
         assert _approve(reviewed["capture_id"], ["fact_1"])["status"] == "error"
 
+    def test_approve_autodiscovers_map_in_base_root(self, memory_server, monkeypatch):
+        # Конвенция: карта в корне базы работает без CURATOR_MAP —
+        # апгрейд/установка без правки конфига не ломает сохранение
+        reviewed = _review([VALID_FACT])
+        monkeypatch.delenv("CURATOR_MAP")
+        out = _approve(reviewed["capture_id"], ["fact_1"])
+        assert out["status"] == "update_project_docs"
+        assert out["map_path"].endswith("DOCUMENTATION-MAP.md")
+
+    def test_approve_without_map_points_to_setup(self, memory_server, monkeypatch, tmp_path):
+        # Карты нет нигде — человеко-понятная ошибка, ведущая к настройке
+        reviewed = _review([VALID_FACT])
+        monkeypatch.delenv("CURATOR_MAP")
+        monkeypatch.setenv("CURATOR_BASE_DIR", str(tmp_path / "nowhere"))
+        out = _approve(reviewed["capture_id"], ["fact_1"])
+        assert out["status"] == "error"
+        assert "/curator-setup" in out["error"]
+
 
 class TestComplete:
     @pytest.mark.parametrize(

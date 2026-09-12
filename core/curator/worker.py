@@ -52,7 +52,8 @@ def run_improve_cycle(backend, report_dir: Path, base_dir: Path | None = None) -
     # feedback / report), автоматика по ней не действует.
 
     # Жизненный цикл в .md: задеприкейтнутые improve-циклом → [УСТАРЕЛО]
-    if base_dir is not None and report.deprecated and not os.getenv("CURATOR_MAP", "").strip():
+    from curator.routing.map_router import find_map_path
+    if base_dir is not None and report.deprecated and find_map_path() is None:
         from curator.sync_engine import SyncEngine
         sync = SyncEngine(backend, base_dir)
         for fact in report.deprecated:

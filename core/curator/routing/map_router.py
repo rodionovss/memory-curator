@@ -35,7 +35,12 @@ VALID_MODES = ("update", "append", "readonly")
 VALID_CAPTURES = ("knowledge", "rules", "records")
 
 
-def _map_path() -> Path | None:
+def find_map_path() -> Path | None:
+    """Цепочка поиска карты: явный env → конвенция (корень базы).
+
+    Явное всегда выигрывает; без env карта ищется как DOCUMENTATION-MAP.md
+    в CURATOR_BASE_DIR — апгрейд/установка без правки конфига работает.
+    """
     env = os.getenv("CURATOR_MAP", "").strip()
     if env:
         return Path(env).expanduser()
@@ -88,7 +93,7 @@ class MapRouter:
 
     def __init__(self, map_path: Path | None = None):
         self._default = DefaultRouter()
-        path = map_path if map_path is not None else _map_path()
+        path = map_path if map_path is not None else find_map_path()
         if path is None or not path.exists():
             if path is not None:
                 _note(f"карта не найдена: {path} — дефолт session/{{type}}.md")
