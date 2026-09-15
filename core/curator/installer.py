@@ -20,6 +20,10 @@ import sys
 from pathlib import Path
 
 
+_RETIRED_COMMANDS = ("curator-project-save",)
+_RETIRED_SKILLS = ("curator-project-save",)
+
+
 def _server_command() -> tuple[str, list[str]]:
     """(command, args) запуска MCP-сервера из этого окружения.
 
@@ -43,8 +47,14 @@ def _repo_root() -> Path:
 
 
 def _install_skills(dest_root: Path) -> list[Path]:
-    """Скопировать ВСЕ скиллы из репо (curator-save, mapping-documentation
-    и будущие) в <dest_root>/. wheel-установка без репо — пусто."""
+    """Скопировать ВСЕ скиллы из репо (curator-save, mapping-documentation,
+    curator-update-docs и будущие) в <dest_root>/. wheel-установка без репо — пусто."""
+    for name in _RETIRED_SKILLS:
+        retired = dest_root / name
+        if retired.is_symlink() or retired.is_file():
+            retired.unlink()
+        elif retired.exists():
+            shutil.rmtree(retired)
     skills_root = _repo_root() / ".agents" / "skills"
     if not skills_root.is_dir():
         return []
@@ -139,7 +149,7 @@ def _write_json_config(config_path: Path, config: dict) -> None:
     config_path.write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
-def _mcp_entry_opencode(base_dir: str) -> dict:
+def _mcp_entry_opencode(base_dir: str, existing_env: dict | None = None) -> dict:
     """MCP-секция по официальной схеме opencode (opencode.ai/docs/mcp-servers):
     command — МАССИВ (команда и аргументы), переменные окружения — ключ
     environment (не env), type/enabled обязательны. Отклонение от схемы =
@@ -149,29 +159,31 @@ def _mcp_entry_opencode(base_dir: str) -> dict:
         "type": "local",
         "enabled": True,
         "command": [command, *args],
-        "environment": _mcp_env(base_dir),
+        "environment": _mcp_env(base_dir, existing_env),
     }
 
 
-def _mcp_entry_claude(base_dir: str) -> dict:
+def _mcp_entry_claude(base_dir: str, existing_env: dict | None = None) -> dict:
     """Формат Claude Code (.mcp.json): command (строка) + args + env —
     своя схема, type/environment не нужны."""
     command, args = _server_command()
     return {
         "command": command,
         **({"args": args} if args else {}),
-        "env": _mcp_env(base_dir),
+        "env": _mcp_env(base_dir, existing_env),
     }
 
 
-def _mcp_env(base_dir: str) -> dict:
-    return {
-        "MEMORY_BACKEND": "local",
+def _mcp_env(base_dir: str, existing_env: dict | None = None) -> dict:
+    env = dict(existing_env or {})
+    env.setdefault("MEMORY_BACKEND", "local")
+    env.update({
         "CURATOR_BASE_DIR": base_dir,
         # MapRouter без карты молча = дефолт (session/{type}.md);
         # карта появится в базе — маршрутизация по темам включится сама
         "ROUTER_CLASS": "curator.routing.map_router.MapRouter",
-    }
+    })
+    return env
 
 
 def detect_harnesses() -> tuple[bool, bool]:
@@ -248,10 +260,15 @@ def _install_opencode_steps(base_dir: str | None) -> list[str]:
     if config is None:
         return [f"⛔ opencode: {error}"]
     base = _effective_base(config, "mcp", "memory-curator", base_dir)
-    config.setdefault("mcp", {})["memory-curator"] = _mcp_entry_opencode(base)
+    previous = config.get("mcp", {}).get("memory-curator", {})
+    previous_env = previous.get("environment") or previous.get("env") or {}
+    config.setdefault("mcp", {})["memory-curator"] = _mcp_entry_opencode(base, previous_env)
     commands = _commands_source()
+    installed_commands = config.setdefault("command", {})
+    for name in _RETIRED_COMMANDS:
+        installed_commands.pop(name, None)
     if commands:
-        config.setdefault("command", {}).update(commands)
+        installed_commands.update(commands)
     _write_json_config(config_path, config)
     steps = [f"✅ opencode: MCP-сервер и {len(commands)} команд /curator-*: {config_path} (остальное не тронуто)",
              f"✅ opencode: база знаний: {base}"]
@@ -285,13 +302,20 @@ def _install_claude_steps(base_dir: str | None) -> list[str]:
     if config is None:
         return [f"⛔ Claude Code: {error}"]
     base = _effective_base(config, "mcpServers", "memory-curator", base_dir)
-    config.setdefault("mcpServers", {})["memory-curator"] = _mcp_entry_claude(base)
+    previous = config.get("mcpServers", {}).get("memory-curator", {})
+    previous_env = previous.get("env") or previous.get("environment") or {}
+    config.setdefault("mcpServers", {})["memory-curator"] = _mcp_entry_claude(base, previous_env)
     _write_json_config(mcp_path, config)
     steps = [f"✅ Claude Code: MCP-сервер: {mcp_path}",
              f"✅ Claude Code: база знаний: {base}"]
 
     commands = _commands_source()
     commands_dir = home / ".claude" / "commands"
+    if commands_dir.exists():
+        for name in _RETIRED_COMMANDS:
+            retired = commands_dir / f"{name}.md"
+            if retired.exists():
+                retired.unlink()
     if commands:
         commands_dir.mkdir(parents=True, exist_ok=True)
         for name, spec in commands.items():

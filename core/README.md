@@ -7,24 +7,20 @@
 ```
 Агент (opencode / Claude Code) извлекает знания из сессии
     ↓ candidates (JSON: type, title, content_summary, tags, evidence)
-MCP-сервер: curator_session_capture
+curator_session_capture → gatekeeper.py → preview
+    ↓ выбор человека: candidate_id
+curator_capture_approve → immutable manifest + CURATOR_MAP
     ↓
-gatekeeper.py (6 правил: длина, теги, шум, дубликаты) = self-review бэкенда
-    ↓
-backend: xmemory (primary, schema-enforced) / SQLite (local)
-    ↓                                    ↘ сетевой сбой (UC6):
-sync_engine.py → .md (через Router)        локальная БД + outbox
-    ↓                                    ↘ восстановление: curator sync
-improve_loop.py (автономно: дубликаты, stale, противоречия)
-    ↓
-eval_runner.py (gate: изменение только если метрики улучшились)
-    ↓
-observability.py (JSONL лог всех действий)
+нейронный curator-update-docs → смысловые патчи в документацию проекта
+    ↓ placements
+curator_capture_complete → проверка карты → project-local backend
 ```
 
 **Ключевое решение:** извлечение знаний делает сам агент (LLM уже есть там),
-бэкенд управляет данными: валидация, хранение, write-back, improve. В бэкенде
-нет LLM-вызовов — нет внешних зависимостей на критическом пути.
+а Python валидирует кандидатов, фиксирует выбранный набор и проверяет placement.
+Документацию в локальном стиле меняет нейронный `curator-update-docs`; только
+после этого Python сохраняет поисковую копию в backend. В бэкенде нет
+LLM-вызовов.
 
 ## Установка
 
@@ -50,7 +46,9 @@ MEMORY_BACKEND=xmemory XMEMORY_API_KEY=your-key curator-mcp-server
 
 | Тул | Описание |
 |-----|----------|
-| `curator_session_capture` | Принять кандидатов от агента → gatekeeper → preview → сохранение (auto_approve) |
+| `curator_session_capture` | Review: проверить кандидатов и вернуть preview с неизменяемыми `candidate_id`; ничего не сохраняет |
+| `curator_capture_approve` | Approve: зафиксировать выбранные человеком ID и вернуть manifest для `curator-update-docs` |
+| `curator_capture_complete` | Complete: проверить placements по карте и сохранить поисковую копию фактов |
 | `curator_query` | Поиск фактов по типу / тегам / статусу / тексту |
 | `curator_status` | Статистика: total_facts, by_type, by_status |
 | `curator_improve` | Запуск автономного improve: дубликаты + stale + противоречия + eval gate |
@@ -59,13 +57,24 @@ MEMORY_BACKEND=xmemory XMEMORY_API_KEY=your-key curator-mcp-server
 
 ## Approval Flow (как работает подтверждение)
 
-1. Агент извлекает кандидатов из сессии, делает self-review (вызывает `curator_query`, убирает известное)
-2. `curator_session_capture(candidates=[...])` без `auto_approve` → gatekeeper фильтрует
-3. Сервер показывает preview: approved (✅ с типом/сводкой/тегами) и rejected (⛔ с причинами)
-4. **НЕ сохраняет автоматически** — пользователь решает: всё / выборочно / отказ
-5. Для сохранения: повторный вызов с теми же (или выбранными) candidates и `auto_approve: true`
+1. Агент извлекает кандидатов, вызывает `curator_query` и убирает известное.
+2. `curator_session_capture(candidates=[...])` запускает gatekeeper и возвращает `capture_id`, `eligible` и `rejected`. Backend и документы не меняются.
+3. Пользователь выбирает все, часть или ни одного `candidate_id`.
+4. `curator_capture_approve(capture_id, selected_candidate_ids)` фиксирует выбранный набор. Содержимое candidates повторно не отправляется.
+5. При `status=update_project_docs` нейронный skill `curator-update-docs` читает настроенный `CURATOR_MAP`, выбирает writable target по `watch_for`, `captures`, `mode` и `instructions` и сначала меняет документацию проекта.
+6. `curator_capture_complete(capture_id, placements)` проверяет размещение по карте и только затем пишет факты с каноническим `source_file` в project-local backend.
 
-## CLI
+Для `/curator-save` карта обязательна: `CURATOR_MAP` должен быть настроен и
+указывать на существующий файл. Unmatched, ambiguous и `readonly` останавливают
+весь набор; fallback в `session/{type}.md` в этом flow отсутствует. `AUTO_MODE`
+не обходит review и human approval.
+
+## CLI и legacy SyncEngine
+
+CLI `curator save`, ingest, demo и `SyncEngine` остаются отдельным legacy-
+контуром. Они не используют review/approve/complete и не выполняют нейронный
+project write-back. Их шаблонные Curator-секции и default route
+`session/{type}.md` не описывают поведение `/curator-save`.
 
 ```bash
 curator save      # кандидаты (JSON из stdin) → gatekeeper → y/N → БД + .md
@@ -113,10 +122,13 @@ ignore:
 ```
 > Заменяется «картой» Егора (watch_for/targets) — единый конфиг проекта.
 
-### Router Protocol (модульная маршрутизация)
-`curator/routing/interface.py` — контракт `Router`. Участник 1 реализует свой `RoutingRouter` с чтением `routing.yaml`. Подключение: `ROUTER_CLASS=your.module.YourRouter`.
+### Router Protocol (legacy-маршрутизация)
+`curator/routing/interface.py` — контракт маршрутизации для `SyncEngine`, CLI и
+ingest. Подключение: `ROUTER_CLASS=your.module.YourRouter`.
 
-DefaultRouter (по умолчанию): сохраняет всё в `session/{type}.md`.
+`DefaultRouter` сохраняет всё в `session/{type}.md`, но только в legacy-контуре.
+В `/curator-save` нейронный `curator-update-docs` работает по обязательному
+`CURATOR_MAP`, а Python проверяет заявленные placements.
 
 ## Демо-режимы
 
@@ -142,9 +154,10 @@ DefaultRouter (по умолчанию): сохраняет всё в `session/{
     "memory-curator": {
       "command": "curator-mcp-server",
       "env": {
-        "MEMORY_BACKEND": "xmemory",
-        "CURATOR_BASE_DIR": "~/Documents/AI/personal/learnings",
-        "AUTO_MODE": "false"
+        "MEMORY_BACKEND": "local",
+        "CURATOR_STATE_DIR": "/path/to/project/.curator",
+        "CURATOR_BASE_DIR": "/path/to/project",
+        "CURATOR_MAP": "/path/to/project/docs/documentation-map.md"
       }
     }
   }

@@ -13,6 +13,8 @@ import time
 from pathlib import Path
 from dataclasses import dataclass, field, asdict
 
+from curator.state import env_path
+
 
 @dataclass
 class ObserveEvent:
@@ -33,13 +35,13 @@ class Observability:
     def __init__(self, path: str | None = None):
         # Тесты и демо изолируют лог через CURATOR_OBS_PATH — инвариант:
         # ничего, кроме прод-кода, не пишет в ~/.curator/ пользователя
-        self.path = Path(path or os.environ.get("CURATOR_OBS_PATH", "~/.curator/improve_events.jsonl")).expanduser()
+        self.path = Path(path).expanduser() if path else env_path("CURATOR_OBS_PATH", "improve_events.jsonl")
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
     def log(self, event: ObserveEvent):
         d = asdict(event)
         d["ts"] = event.ts or time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime())
-        with open(self.path, "a") as f:
+        with open(self.path, "a", encoding="utf-8") as f:
             f.write(json.dumps(d, ensure_ascii=False) + "\n")
 
     def _iter_events(self):
@@ -47,7 +49,7 @@ class Observability:
         строка не должна валить improve-цикл после применения действий."""
         if not self.path.exists():
             return
-        with open(self.path) as f:
+        with open(self.path, encoding="utf-8", errors="replace") as f:
             for line in f:
                 line = line.strip()
                 if not line:

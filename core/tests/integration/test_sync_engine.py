@@ -426,6 +426,7 @@ class TestMapModeWriteBack:
             "  - name: context\n"
             "    targets:\n"
             "      - path: docs/context.md\n"
+            "        captures: [knowledge]\n"
             "        mode: readonly\n"
         ))
         be = LocalBackend(":memory:")
@@ -439,6 +440,7 @@ class TestMapModeWriteBack:
             "  - name: journal\n"
             "    targets:\n"
             "      - path: docs/journal.md\n"
+            "        captures: [records]\n"
             "        mode: append\n"
         ))
         be = LocalBackend(":memory:")
@@ -459,6 +461,7 @@ class TestMapModeWriteBack:
             "  - name: living\n"
             "    targets:\n"
             "      - path: docs/living.md\n"
+            "        captures: [knowledge]\n"
             "        mode: update\n"
         ))
         be = LocalBackend(":memory:")

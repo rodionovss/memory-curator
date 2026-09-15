@@ -16,6 +16,7 @@ observability для человека, автоматика по ней не д�
     XMEMORY_API_KEY / XMEMORY_INSTANCE_ID
     IMPROVE_INTERVAL_MINUTES: интервал между прогонами (default: 1440 = сутки)
     IMPROVE_REPORT_DIR: куда писать отчёты (default: ~/.curator/reports/)
+    CURATOR_STATE_DIR: общий каталог состояния (default: ~/.curator)
     CURATOR_BASE_DIR: директория с .md файлами
 """
 
@@ -51,7 +52,8 @@ def run_improve_cycle(backend, report_dir: Path, base_dir: Path | None = None) -
     # feedback / report), автоматика по ней не действует.
 
     # Жизненный цикл в .md: задеприкейтнутые improve-циклом → [УСТАРЕЛО]
-    if base_dir is not None and report.deprecated:
+    from curator.routing.map_router import find_map_path
+    if base_dir is not None and report.deprecated and find_map_path() is None:
         from curator.sync_engine import SyncEngine
         sync = SyncEngine(backend, base_dir)
         for fact in report.deprecated:
@@ -145,8 +147,13 @@ def _base_dir_from_env() -> Path:
     return Path(os.getenv("CURATOR_BASE_DIR", os.path.expanduser("~/Documents/AI/personal/learnings")))
 
 
+def _report_dir_from_env() -> Path:
+    from curator.state import env_path
+    return env_path("IMPROVE_REPORT_DIR", "reports")
+
+
 def main():
-    report_dir = Path(os.getenv("IMPROVE_REPORT_DIR", os.path.expanduser("~/.curator/reports/")))
+    report_dir = _report_dir_from_env()
     backend = get_backend()
 
     if "--watch" in sys.argv:

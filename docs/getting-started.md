@@ -12,17 +12,28 @@ cd memory-curator
 
 Без вопросов и флагов: скрипт поставит python-пакет и запустит `curator
 install`, который сам найдёт opencode и Claude Code на машине и впишет
-в них всё: MCP-сервер (тулзы `curator_*`), команды `/curator-*`, оба
-скилла (curator-save и mapping-documentation) и worker. Перезапусти
+в них всё: MCP-сервер (тулзы `curator_*`), команды `/curator-*`, три
+скилла для настройки и нейронного write-back (`curator-save`,
+`mapping-documentation`, `curator-update-docs`) и worker. Перезапусти
 opencode / Claude Code — готово.
 
-### Настройка после установки
+### Шаг 1 — установи, шаг 2 — настрой
 
-- **Где база?** — `curator status` (или `/curator-status` в opencode).
-  По умолчанию `~/memory-curator` — просто папка с `.md`, создастся при
-  первом сохранении. Можно было указать при установке флагом
-  `--base-dir ПУТЬ` — но проще поменять потом:
-- **Сменить базу** — попроси агента в opencode: «смени базу знаний на
+- **Шаг 1.** `./install.sh` — ставит всё, кроме карты.
+- **Шаг 2.** Создай карту: `/curator-create-map`, затем `/curator-setup`
+  и перезапуск клиента. Без карты `/curator-save` дойдёт до approve и
+  остановится с подсказкой «карта не настроена — вызови /curator-setup».
+
+**Как сервер находит карту (приоритет):**
+
+1. env `CURATOR_MAP` — явное указание, всегда главное;
+2. `DOCUMENTATION-MAP.md` в корне базы (`CURATOR_BASE_DIR`) — конвенция,
+   работает без env: достаточно положить карту в корень базы;
+3. нет нигде — сохранение останавливается с подсказкой настроить.
+- **Где legacy-база CLI?** — `curator status` (или `/curator-status` в
+  opencode). По умолчанию `~/memory-curator`; путь можно было указать при
+  установке флагом `--base-dir ПУТЬ`.
+- **Сменить legacy-базу** — попроси агента в opencode: «смени базу знаний на
   D:/kb» — агент поправит `CURATOR_BASE_DIR` в конфиге (спросит
   подтверждение) и попросит перезапустить. Руками: env `CURATOR_BASE_DIR`
   в секции `mcp.memory-curator` конфига opencode (или `.mcp.json`
@@ -49,8 +60,9 @@ curator start
 
 | Команда | Что делает |
 |---------|-----------|
-| `/curator-save` | Извлечь знания из сессии → self-review → gatekeeper → preview → сохранить |
-| `/curator-create-map` | Построить карту документации проекта (скилл mapping-documentation) и подключить маршрутизацию |
+| `/curator-save` | Review → выбор человека → нейронный write-back в проектные документы → project-local backend |
+| `/curator-create-map` | Построить карту документации проекта и подключить маршрутизацию |
+| `/curator-setup` | Привязать MCP, состояние и карту к текущему репозиторию |
 | `/curator-status` | Сколько фактов, по типам (с описаниями-словарём) и статусам |
 | `/curator-query "kotlin"` | Поиск фактов перед работой |
 | `/curator-report` | Статус + топ запросов + improve-лог |
@@ -61,49 +73,85 @@ LLM-вызовов в сервере нет.
 
 ## 2а. Куда кладутся знания
 
-База — `~/memory-curator` по умолчанию (см. «Настройка после установки»
-выше — смена через агента). Внутри: `session/{type}.md` с фактами и
-`index.md`-навигация. `.md` читаются человеком и git'ом.
+Для `/curator-save` source of truth — существующая документация текущего
+проекта. Нейронный `curator-update-docs` сначала обновляет разрешённые картой
+файлы в их локальном формате. После успешной проверки placement Python пишет
+поисковую копию в project-local backend, обычно
+`<project>/.curator/knowledge.db`.
+
+Общая база `~/memory-curator`, шаблонные секции, `index.md` и
+`session/{type}.md` относятся к legacy CLI/`SyncEngine`/ingest. Успешный
+`/curator-save` generic session-файл не создаёт.
 
 ## 2б. Карта документации проекта (маршрутизация по темам)
 
 Хочешь, чтобы знания раскладывались не по типам, а по темам проекта
 («архитектура → docs/architecture.md», «стиль → style/…»)? Это делает
-**карта документации** — и она уже подключена: при установке пишется
-`ROUTER_CLASS=MapRouter`, без карты он молча работает как дефолт.
+**карта документации**. Для `/curator-save` она обязательна: явный
+`CURATOR_MAP` или `DOCUMENTATION-MAP.md` в корне базы (шаг 2 установки).
 
-**Флоу — без настройки:**
+**Проектный флоу:**
 
 1. В opencode открой проект с документацией и набери `/curator-create-map`.
-2. Скилл mapping-documentation (Егора) построит карту: сам спросит границы
-   поиска и куда сохранить — укажи `DOCUMENTATION-MAP.md` внутри базы.
-3. Готово: факты из сессий едут по темам карты.
+2. Скилл mapping-documentation построит карту: сам спросит границы
+   поиска и куда сохранить внутри проекта.
+3. Набери `/curator-setup`. Команда настроит project-local MCP, добавит
+   `.curator/` в `.gitignore` и свяжет сервер с найденной картой.
+4. Полностью перезапусти opencode. `/curator-save` сначала обновляет
+   writable-targets карты, затем сохраняет поисковую копию в проектную SQLite.
+
+Итоговая project-local MCP-конфигурация:
+
+```json
+{
+  "MEMORY_BACKEND": "local",
+  "CURATOR_STATE_DIR": "<project>/.curator",
+  "CURATOR_BASE_DIR": "<project>",
+  "CURATOR_MAP": "<project>/docs/documentation-map.md",
+  "ROUTER_CLASS": "curator.routing.map_router.MapRouter"
+}
+```
+
+`CURATOR_STATE_DIR` хранит SQLite, outbox, логи, usage, reports, реестр типов
+и состояние worker. `CURATOR_BASE_DIR` остаётся sandbox-корнем путей карты.
+`ROUTER_CLASS` нужен legacy `SyncEngine`; новый `/curator-save` маршрутизирует
+нейронный skill и проверяет Python по `CURATOR_MAP`.
 
 Карта — Markdown с YAML-темами:
 
 ```yaml
 ---
 topics:
-  - name: architecture          # имя = теги для матчинга (короче — лучше)
-    types: [Reference]          # опционально: какие типы фактов сюда
+  - name: architecture-and-decisions
+    watch_for: Архитектурные решения, границы модулей и их обоснования
     targets:
-      - path: docs/architecture.md
-        mode: update            # update = перезапись | append = не трогать существущее | readonly = не писать
+      - path: docs/architecture/*.md
+        captures: [knowledge, rules]
+        mode: update
+        instructions: Обновляй существующий раздел в локальном формате
 ---
 ```
 
-Порядок маршрутизации: путь от агента (скилл разрулил glob-таргет, поле
-`source_file` кандидата) → теги ∩ токены имени темы → явное `types:` →
-нет матча: честный дефолт `session/{type}.md`. `on_unmatched` виден в
-stderr сервера.
+После preview пользователь выбирает `candidate_id`, а не отправляет candidates
+повторно. `curator_capture_approve` возвращает неизменяемый manifest и точный
+`map_path`. Нейронный skill `curator-update-docs` до первой правки выбирает
+маршруты для всего набора по `watch_for`, `captures`, `mode` и `instructions`, делает
+смысловые патчи и передаёт placements в `curator_capture_complete`. Python
+проверяет topic, target, capture и пути; backend обновляется только после
+документации. Unmatched, ambiguous и `readonly` останавливают весь набор.
+
 ## 2в. Демонстрация заявленного
 
-E2E-сценарий `core/tests/e2e/test_full_lifecycle.py` — связный прогон всей
-заявки (capture с мусором, upsert, query, improve с eval-гейтом, жизненный
-цикл в .md, rebuild, decay, offline-fallback): полный скрипт демо. Прогон с
-выводом: `pytest tests/e2e/test_full_lifecycle.py -v`.
+E2E-сценарий `core/tests/e2e/test_full_lifecycle.py` проверяет новый capture
+`review → approve → semantic docs → complete`, query, backend improve,
+телеметрию и offline-fallback. Legacy `SyncEngine` и rebuild проверяются
+отдельными integration-тестами. Прогон: `pytest tests/e2e/test_full_lifecycle.py -v`.
 
-## 3. Все команды (TERMINAL)
+## 3. Все команды (TERMINAL, legacy-контур)
+
+Терминальные `curator save`, `curator sync`, ingest и demo не являются
+эквивалентом `/curator-save`: они сохраняют старый CLI/`SyncEngine` flow и не
+запускают `curator-update-docs`.
 
 | Команда | Что делает |
 |---------|-----------|
@@ -154,6 +202,14 @@ Worker делает всё в фоне. Ты только смотришь `cura
 # Локальный бэкенд (SQLite) — для разработки
 export MEMORY_BACKEND=local
 
+# Все служебные файлы в одном каталоге
+export CURATOR_STATE_DIR=/path/to/project/.curator
+
+# Корень semantic write-back; карта для /curator-save ищется цепочкой:
+# CURATOR_MAP (явно) → $CURATOR_BASE_DIR/DOCUMENTATION-MAP.md (конвенция)
+export CURATOR_BASE_DIR=/path/to/project
+export CURATOR_MAP=/path/to/project/docs/documentation-map.md
+
 # xmemory бэкенд — для прода
 export MEMORY_BACKEND=xmemory
 export XMEMORY_API_KEY=<your-key>
@@ -168,9 +224,11 @@ export IMPROVE_INTERVAL_MINUTES=1440  # сутки
 | Что | Где |
 |-----|-----|
 | `curator` CLI | `.venv/bin/curator` |
-| Worker лог | `~/.curator/worker.log` |
-| Offline-outbox | `~/.curator/outbox.db` |
-| Improve-лог | `~/.curator/improve_events.jsonl` |
-| Usage-статистика | `~/.curator/usage.json` |
-| Worker отчёты | `~/.curator/reports/improve_*.json` |
-| База SQLite (local) | `~/.curator/knowledge.db` |
+| Worker лог | `$CURATOR_STATE_DIR/worker.log` |
+| Offline-outbox | `$CURATOR_STATE_DIR/outbox.db` |
+| Improve-лог | `$CURATOR_STATE_DIR/improve_events.jsonl` |
+| Usage-статистика | `$CURATOR_STATE_DIR/usage.json` |
+| Worker отчёты | `$CURATOR_STATE_DIR/reports/improve_*.json` |
+| База SQLite (local) | `$CURATOR_STATE_DIR/knowledge.db` |
+
+Если `CURATOR_STATE_DIR` не задан, используется `~/.curator`.

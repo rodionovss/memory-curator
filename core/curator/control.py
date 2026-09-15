@@ -12,6 +12,7 @@
 
 Конфигурация:
     MEMORY_BACKEND: "local" | "xmemory"
+    CURATOR_STATE_DIR: SQLite, outbox, логи и worker state (default: ~/.curator)
     IMPROVE_INTERVAL_MINUTES: интервал daemon (default: 1440 = сутки)
     XMEMORY_API_KEY / XMEMORY_INSTANCE_ID
 """
@@ -23,9 +24,48 @@ import time
 from pathlib import Path
 from datetime import datetime, timedelta
 
-REPORT_DIR = Path.home() / ".curator" / "reports"
-IMPROVE_LOG = Path.home() / ".curator" / "improve_events.jsonl"
-USAGE_JSON = Path.home() / ".curator" / "usage.json"
+def _report_dir() -> Path:
+    from curator.state import env_path
+    return env_path("IMPROVE_REPORT_DIR", "reports")
+
+
+def _improve_log() -> Path:
+    from curator.state import env_path
+    return env_path("CURATOR_OBS_PATH", "improve_events.jsonl")
+
+
+def _usage_json() -> Path:
+    from curator.state import env_path
+    return env_path("CURATOR_USAGE_PATH", "usage.json")
+
+
+def _project_root() -> Path:
+    current = Path.cwd().resolve()
+    return next((path for path in (current, *current.parents) if (path / ".git").exists()), current)
+
+
+def _project_mcp_env() -> dict:
+    root = _project_root()
+    candidates = [
+        (root / ".opencode" / "opencode.json", "mcp"),
+        (root / "opencode.json", "mcp"),
+        (root / ".mcp.json", "mcpServers"),
+    ]
+    for path, section in candidates:
+        try:
+            config = json.loads(path.read_text(encoding="utf-8"))
+            entry = config.get(section, {}).get("memory-curator", {})
+            environment = entry.get("environment") or entry.get("env") or {}
+            if environment:
+                return environment
+        except (OSError, json.JSONDecodeError, AttributeError):
+            continue
+    return {}
+
+
+def _apply_project_mcp_env() -> None:
+    for name, value in _project_mcp_env().items():
+        os.environ.setdefault(str(name), str(value))
 
 
 def _header(title: str):
@@ -60,8 +100,12 @@ def _table(headers: list[str], rows: list[list], title: str = ""):
 def _configured_base_dir() -> str | None:
     """База из установленного конфига (opencode.json / .mcp.json), env или None."""
     import json
+    home = Path(os.environ.get("HOME") or Path.home())
+    configured = os.getenv("CURATOR_BASE_DIR")
+    if configured:
+        return configured
     candidates = [
-        (Path.home() / ".config" / "opencode" / "opencode.json", ("mcp", "memory-curator")),
+        (home / ".config" / "opencode" / "opencode.json", ("mcp", "memory-curator")),
         (Path.cwd() / ".mcp.json", ("mcpServers", "memory-curator")),
     ]
     for path, (section, key) in candidates:
@@ -74,7 +118,7 @@ def _configured_base_dir() -> str | None:
                 return base
         except (OSError, json.JSONDecodeError, AttributeError):
             continue
-    return os.getenv("CURATOR_BASE_DIR")
+    return None
 
 
 def cmd_status():
@@ -90,6 +134,8 @@ def cmd_status():
     base = _configured_base_dir()
     if base:
         print(f"  База знаний: {base}")
+    from curator.state import state_dir
+    print(f"  Состояние: {state_dir()}")
 
     backend = _make_backend()
     try:
@@ -110,7 +156,7 @@ def cmd_status():
     if last_report:
         print(f"\n  Последний improve: {last_report}")
 
-    if IMPROVE_LOG.exists():
+    if _improve_log().exists():
         events = _read_events()
         today = [e for e in events if _is_today(e.get("ts", ""))]
         applied = sum(1 for e in today if e.get("applied"))
@@ -134,12 +180,13 @@ def cmd_report(days: int = 0):
 
 
 def _section_usage(cutoff):
-    if not USAGE_JSON.exists():
+    usage_json = _usage_json()
+    if not usage_json.exists():
         print("  Нет данных об использовании.")
         return
 
     try:
-        data = json.loads(USAGE_JSON.read_text())
+        data = json.loads(usage_json.read_text())
     except Exception:
         return
 
@@ -426,15 +473,18 @@ def cmd_improve():
     loop = ImproveLoop(backend)
     report = loop.run()
 
-    # Жизненный цикл в .md: задеприкейтнутые → маркер [УСТАРЕЛО]
-    base_dir = Path(os.getenv("CURATOR_BASE_DIR", os.path.expanduser("~/Documents/AI/personal/learnings")))
-    from curator.sync_engine import SyncEngine
-    sync = SyncEngine(backend, base_dir)
-    for f in report.deprecated:
-        try:
-            sync.rewrite_status(f)
-        except Exception as e:
-            print(f"  ⚠ write-back в .md не удался для '{f.title[:50]}': {e}")
+    # Semantic project docs меняет нейронный write-back. Без project map
+    # сохраняем legacy lifecycle-синхронизацию Curator-секций.
+    from curator.routing.map_router import find_map_path
+    if find_map_path() is None:
+        base_dir = Path(os.getenv("CURATOR_BASE_DIR", os.path.expanduser("~/Documents/AI/personal/learnings")))
+        from curator.sync_engine import SyncEngine
+        sync = SyncEngine(backend, base_dir)
+        for f in report.deprecated:
+            try:
+                sync.rewrite_status(f)
+            except Exception as e:
+                print(f"  ⚠ write-back в .md не удался для '{f.title[:50]}': {e}")
 
     print(f"  Фактов: {report.stats['total_facts']}")
     print(f"  Дубликатов: {report.stats['duplicates_found']}")
@@ -579,16 +629,15 @@ def _make_backend():
         )
     else:
         from curator.backend.local import LocalBackend
-        # CURATOR_DB_PATH — переопределение для тестов и песочниц
-        db_path = os.path.expanduser(os.getenv("CURATOR_DB_PATH", "~/.curator/knowledge.db"))
-        return LocalBackend(db_path)
+        return LocalBackend()
 
 
 def _read_events():
-    if not IMPROVE_LOG.exists():
+    improve_log = _improve_log()
+    if not improve_log.exists():
         return []
     events = []
-    with open(IMPROVE_LOG) as f:
+    with open(improve_log) as f:
         for line in f:
             line = line.strip()
             if line:
@@ -605,9 +654,10 @@ def _is_today(ts: str) -> bool:
 
 def _last_report_summary():
     """Последний improve-отчёт: время + суть (что нашёл worker), не только дата."""
-    if not REPORT_DIR.exists():
+    report_dir = _report_dir()
+    if not report_dir.exists():
         return None
-    reports = sorted(REPORT_DIR.glob("improve_*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    reports = sorted(report_dir.glob("improve_*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
     if not reports:
         return None
     when = datetime.fromtimestamp(reports[0].stat().st_mtime).strftime("%d.%m.%Y %H:%M")
@@ -638,6 +688,11 @@ def _human_interval(minutes: int) -> str:
 
 
 def main():
+    _apply_project_mcp_env()
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="replace")
+
     if len(sys.argv) < 2:
         print("curator — Memory Curator CLI")
         print("Использование:")

@@ -3,14 +3,16 @@ import json
 import threading
 import uuid
 import os
+from pathlib import Path
 from curator.models import StructuredFact, FactQuery, FactRef, Relation, GraphData
+from curator.state import env_path
 
 
 class LocalBackend:
     """SQLite backend. Персистентный файл или :memory:, без API-ключей."""
 
-    def __init__(self, db_path: str = "~/.curator/knowledge.db"):
-        db_path = os.path.expanduser(db_path)
+    def __init__(self, db_path: str | os.PathLike | None = None):
+        db_path = str(env_path("CURATOR_DB_PATH", "knowledge.db") if db_path is None else Path(db_path).expanduser())
         self._memory = False
         # Сериализация доступа к одному соединению: MCP-хендлеры уходят в
         # asyncio.to_thread и могут выполняться конкурентно

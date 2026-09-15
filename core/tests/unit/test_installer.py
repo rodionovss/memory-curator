@@ -120,7 +120,26 @@ class TestIdempotencyAndSafety:
         assert data["model"] == "gpt-test"
         assert data["mcp"]["other"] == {"command": "x"}
         assert data["command"]["my-command"]["description"] == "моя"
+        assert "curator-save" in data["command"]
         assert "curator-create-map" in data["command"]
+        assert "curator-project-save" not in data["command"]
+        assert "curator-setup" in data["command"]
+
+    def test_curator_save_command_points_to_skill(self):
+        command = installer._commands_source()["curator-save"]
+        assert "curator-save" in command["template"]
+        assert "status=update_project_docs" in command["template"]
+        assert "next_action=curator-update-docs" in command["template"]
+        assert "CURATOR_MAP" not in command["template"]
+        assert "curator_session_capture" not in command["template"]
+        assert "curator-project-save" not in installer._commands_source()
+
+    def test_project_setup_command_documents_project_paths(self):
+        setup = installer._commands_source()["curator-setup"]["template"]
+        assert "CURATOR_STATE_DIR" in setup
+        assert "CURATOR_BASE_DIR" in setup
+        assert "CURATOR_MAP" in setup
+        assert "/curator-create-map" in setup
 
     def test_idempotent_rerun(self, tmp_path):
         _opencode_dir(tmp_path)
@@ -143,7 +162,51 @@ class TestIdempotencyAndSafety:
         _opencode_dir(tmp_path)
         installer.install_all()
         skills = {p.name for p in (tmp_path / ".config" / "opencode" / "skills").iterdir()}
-        assert {"curator-save", "mapping-documentation"} <= skills
+        assert {"curator-save", "curator-update-docs",
+                "mapping-documentation"} <= skills
+        assert "curator-project-save" not in skills
+        # дубль-скилл curator-create-map удалён: живой оригинал —
+        # mapping-documentation, команда /curator-create-map осталась
+        assert "curator-create-map" not in skills
+
+    @pytest.mark.parametrize("target", ["opencode", "claude"])
+    def test_upgrade_removes_installed_project_save(self, tmp_path, monkeypatch, target):
+        if target == "opencode":
+            harness = _opencode_dir(tmp_path)
+            (harness / "opencode.json").write_text(json.dumps({
+                "command": {"curator-project-save": {"template": "old"}},
+            }), encoding="utf-8")
+            command = harness / "opencode.json"
+        else:
+            harness = _claude_dir(tmp_path)
+            project = tmp_path / "proj"
+            project.mkdir()
+            monkeypatch.chdir(project)
+            command = harness / "commands" / "curator-project-save.md"
+            command.parent.mkdir()
+            command.write_text("old", encoding="utf-8")
+        retired_skill = harness / "skills" / "curator-project-save"
+        retired_skill.mkdir(parents=True)
+        (retired_skill / "SKILL.md").write_text("old", encoding="utf-8")
+
+        installer.install_all(target=target)
+
+        if target == "opencode":
+            config = json.loads(command.read_text(encoding="utf-8"))
+            assert "curator-project-save" not in config["command"]
+        else:
+            assert not command.exists()
+        assert not retired_skill.exists()
+
+    def test_unrelated_legacy_named_skill_is_preserved(self, tmp_path):
+        _opencode_dir(tmp_path)
+        legacy = tmp_path / ".config" / "opencode" / "skills" / "mapping-documentation"
+        legacy.mkdir(parents=True)
+        (legacy / "SKILL.md").write_text("пользовательский скилл", encoding="utf-8")
+
+        installer.install_all()
+
+        assert legacy.exists()
 
 
 class TestConfiguredBaseDir:
@@ -165,6 +228,7 @@ class TestConfiguredBaseDir:
         server_mod.improve = ImproveLoop(server_mod.backend)
         out = server_mod._status()
         assert "База знаний:" in out
+        assert "Состояние:" in out
 
 
 class TestServerCommand:
@@ -184,7 +248,12 @@ class TestPatchPreservesBase:
         config_path.write_text(json.dumps({
             "mcp": {"memory-curator": {
                 "command": "old-server",
-                "env": {"MEMORY_BACKEND": "local", "CURATOR_BASE_DIR": base},
+                "env": {
+                    "MEMORY_BACKEND": "local",
+                    "CURATOR_BASE_DIR": base,
+                    "CURATOR_STATE_DIR": "/home/user/project/.curator",
+                    "CURATOR_MAP": "/home/user/project/DOCUMENTATION-MAP.md",
+                },
             }},
         }), encoding="utf-8")
         return config_path
@@ -197,6 +266,8 @@ class TestPatchPreservesBase:
             "патч обязан сохранять существующую базу — молчаливый сброс = потеря базы"
         assert "ROUTER_CLASS" in data["mcp"]["memory-curator"]["environment"], \
             "остальное при патче обновляется"
+        assert data["mcp"]["memory-curator"]["environment"]["CURATOR_STATE_DIR"] == "/home/user/project/.curator"
+        assert data["mcp"]["memory-curator"]["environment"]["CURATOR_MAP"] == "/home/user/project/DOCUMENTATION-MAP.md"
 
     def test_base_dir_flag_overrides_existing(self, tmp_path):
         self._existing_config(tmp_path, "/home/user/old-kb")

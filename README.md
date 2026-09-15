@@ -47,26 +47,29 @@ project: Memory Curator
 
 ## Как работает
 
-Извлечение знаний делает сам агент (opencode сейчас, любой MCP-клиент —
-Claude Code — по тому же контракту). Агент и есть LLM с полным контекстом
-сессии, бэкенд управляет данными: валидация, хранение, write-back, автономное
-улучшение. LLM-вызовов в бэкенде нет — критический путь не зависит от внешних сервисов.
+Извлечение знаний делает сам агент (opencode сейчас, любой MCP-клиент,
+включая Claude Code, по тому же контракту). Python валидирует кандидатов и
+фиксирует выбор человека. Затем нейронный skill `curator-update-docs` смыслово
+обновляет документацию по обязательной карте проекта, а Python проверяет
+placement и только после этого пишет поисковую копию в project-local backend.
+LLM-вызовов в бэкенде нет.
 
 ```
-Агент (opencode сейчас · любой MCP-клиент по тому же контракту)
+Агент (opencode сейчас; любой MCP-клиент по тому же контракту)
     │  candidates: готовые факты (type, title, summary, tags, evidence)
     ▼
-MCP-сервер / CLI — единый контракт candidates
-    ├─ gatekeeper    валидация: качество, шум-паттерны, дубликаты
-    ├─ backend       xmemory (primary) / SQLite (offline + outbox)
-    ├─ write-back    approved-факт возвращается в .md (по типам или
-    │                по темам карты проекта — MapRouter)
-    └─ improve loop  автономно (worker, раз в сутки):
-                    дубликаты → консолидация · stale → deprecation ·
-                    противоречия → resolution (verified > hypothesis) ·
-                    телеметрия использования (совет человеку, не приговор) ·
-                    eval gate перед изменениями
+curator_session_capture: gatekeeper + preview, без записи
+    ↓ выбранные человеком candidate_id
+curator_capture_approve: неизменяемый manifest + настроенный CURATOR_MAP
+    ↓
+curator-update-docs: смысловые патчи в локальном формате проекта
+    ↓ placements
+curator_capture_complete: проверка карты → project-local backend
 ```
+
+CLI, ingest, demo и `SyncEngine` остаются отдельным legacy-контуром с
+шаблонными Curator-секциями. Их fallback `session/{type}.md` и флаги
+автоподтверждения не действуют в `/curator-save`.
 
 Offline-fallback (UC6): при недоступности xmemory (сеть / VPN / 5xx) записи
 уходят в локальную SQLite + offline-outbox, чтения деградируют на локальную
@@ -135,10 +138,17 @@ cd core && python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 `./install.sh` — без вопросов: сам найдёт opencode / Claude Code, впишет
 MCP-сервер, команды `/curator-*`, скиллы, worker, правила памяти (глобальный
 AGENTS.md / CLAUDE.md — база в контексте каждой сессии) и плагин-реминдер
-`session.idle`. Перезапусти харнес — готово. База — `~/memory-curator`
-(см. `curator status`).
+`session.idle`. Перезапусти харнес — готово. Legacy-база CLI и demo —
+`~/memory-curator` (см. `curator status`).
 
-`curator demo` прогоняет на изолированной tmp-базе весь жизненный цикл —
+Для отдельной памяти текущего репозитория вызови `/curator-create-map`, затем
+`/curator-setup`. Команда подключит project-local MCP: служебные файлы и SQLite
+будут жить в `<project>/.curator`, а `CURATOR_MAP` будет указывать на карту
+внутри проекта. Для `/curator-save` настроенная существующая карта обязательна:
+сначала меняются её writable targets, затем обновляется backend.
+
+`curator demo` прогоняет на изолированной tmp-базе legacy CLI/`SyncEngine`
+жизненный цикл —
 **реальными вызовами** (те же функции, что в проде): кандидаты → gatekeeper
 (7 принято / 3 отклонено с причинами) → write-back в .md → query → improve
 (дубликат консолидирован, противоречие разрешено) → телеметрия (что реально
@@ -154,7 +164,7 @@ AGENTS.md / CLAUDE.md — база в контексте каждой сесси
 |--|-----------|-------------------|
 | Что нужно | ничего — SQLite идёт в комплекте | `XMEMORY_API_KEY` + `XMEMORY_INSTANCE_ID` |
 | Включение | `MEMORY_BACKEND=local` | `MEMORY_BACKEND=xmemory` |
-| Хранение | `~/.curator/knowledge.db` | облако xmemory, schema-enforced |
+| Хранение | `$CURATOR_STATE_DIR/knowledge.db` | облако xmemory, локальный fallback в `$CURATOR_STATE_DIR` |
 | Сеть | не нужна | нужна; сбой (сеть/VPN/5xx) → авто-fallback на локальную SQLite + offline-outbox |
 | Восстановление | — | `curator sync` допушивает outbox, идемпотентно по title |
 
@@ -162,7 +172,7 @@ AGENTS.md / CLAUDE.md — база в контексте каждой сесси
 
 | Папка | Что |
 |-------|-----|
-| `core/` | ядро (Python): backend/ (xmemory + SQLite + outbox), gatekeeper, improve_loop, sync_engine, MCP-сервер, CLI |
+| `core/` | ядро (Python): backend/ (xmemory + SQLite + outbox), gatekeeper, improve_loop, MCP-сервер; CLI и legacy sync_engine |
 | `core/tests/requirements/` | тесты требований — имя теста = ID требования |
 | `design/` | архитектура: requirements, spec, decision-log, playbook-routing (контракт Router), backlog |
 | `demo/` | демо/защита: чеклист записи видео, сценарий, путеводитель по коду |
@@ -171,17 +181,19 @@ AGENTS.md / CLAUDE.md — база в контексте каждой сесси
 
 ## Статус
 
-- **Ядро — готово**: candidates-контракт, gatekeeper, xmemory + SQLite
-  fallback с offline-outbox, write-back в .md, improve loop с eval-гейтом,
+- **Ядро — готово**: трёхфазный MCP capture, gatekeeper, xmemory + SQLite
+  fallback с offline-outbox, project write-back сначала в документацию,
+  затем в backend, improve loop с eval-гейтом,
   реестр типов с описаниями, демо-тур. **300+ тестов**, включая 21
   тест-требование
 - **Read-side — готово**: правила памяти в глобальном AGENTS.md / CLAUDE.md
   (база в контексте каждой сессии), плагин session.idle → `/curator-save`,
   `curator status` показывает, что сделал последний improve
-- **Карта документации (Егор) — готова и интегрирована**: скилл
-  mapping-documentation генерирует карту проекта, ядро читает её
-  (`MapRouter`): маршрутизация фактов по темам, `mode`-дисциплина записи
-  (update/append/readonly), команда `/curator-create-map`
+- **Карта документации (Егор) — готова и интегрирована**: команда
+  `/curator-create-map` (скилл mapping-documentation) генерирует карту проекта,
+  нейронный `curator-update-docs` следует её
+  `watch_for`, `captures`, `mode` и `instructions`, а Python проверяет placement;
+  команды `/curator-create-map` и `/curator-setup`
 - **Установка — одна команда**: `./install.sh` / `install.bat`, без
   вопросов, автодетект opencode / Claude Code
 
@@ -203,7 +215,7 @@ AGENTS.md / CLAUDE.md — база в контексте каждой сесси
 | Блок | Кто | Зона |
 |------|-----|------|
 | Ядро | Сергей ([@rodionovss](https://github.com/rodionovss)) | backend, gatekeeper, improve loop, MCP, CLI |
-| Карта | Егор ([@eger1393](https://github.com/eger1393)) | mapping-documentation: карта проекта, скиллы |
+| Карта | Егор ([@eger1393](https://github.com/eger1393)) | карта проекта, скиллы, трёхфазный capture |
 
 ## Ссылки
 

@@ -13,6 +13,8 @@ backend Protocol) — рефакторинг внутренностей не м�
 | R6 | Демонстрация дельты «до/после» | requirements.md #6 |
 """
 
+import json
+
 from curator.analyzers.ingest import ingest_directory
 from curator.backend.local import LocalBackend
 from curator.demo import run_demo
@@ -44,19 +46,53 @@ class TestMustHave:
         assert len(found) == 1
         assert found[0].source_file == "kotlin.md", "факт обязан знать свой источник"
 
-    def test_R2_цикл_выполнил_оценил_извлёк_урок(self, server_memory):
-        """R2: кандидаты → gatekeeper (оценка) → сохранение; шум отсечён."""
+    def test_R2_цикл_выполнил_оценил_извлёк_урок(self, server_memory, tmp_path, monkeypatch):
+        """R2: review → human approval → semantic docs → backend; шум отсечён."""
         noise = {
             "type": "Reference",
             "title": "Поправить верстку кнопки на экране входа",
             "content_summary": "Мелкая правка интерфейса в рамках задачи.",
             "tags": ["ui"],
         }
-        out = server_mod._session_capture({"candidates": [CANDIDATE, noise], "auto_approve": True})
-        assert "Одобрено: 1" in out
-        assert "Отклонено: 1" in out, "шум-кандидат обязан быть отклонён gatekeeper-ом"
-        assert "Авто-сохранено: 1" in out
+        map_path = tmp_path / "DOCUMENTATION-MAP.md"
+        map_path.write_text(
+            """---
+topics:
+  - name: mcp
+    targets:
+      - path: docs/mcp.md
+        captures: [knowledge]
+        mode: update
+---
+""",
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("CURATOR_MAP", str(map_path))
+
+        reviewed = json.loads(server_mod._session_capture({"candidates": [CANDIDATE, noise]}))
+        assert len(reviewed["eligible"]) == 1
+        assert len(reviewed["rejected"]) == 1, "шум-кандидат обязан быть отклонён gatekeeper-ом"
+        assert server_memory.query_facts(FactQuery()) == []
+
+        approved = json.loads(server_mod._capture_approve({
+            "capture_id": reviewed["capture_id"],
+            "selected_candidate_ids": ["fact_1"],
+        }))
+        assert approved["status"] == "update_project_docs"
+        target = tmp_path / "docs" / "mcp.md"
+        target.parent.mkdir()
+        target.write_text("# MCP\n\nХендлеры принимают ctx и request.\n", encoding="utf-8")
+        completed = json.loads(server_mod._capture_complete({
+            "capture_id": reviewed["capture_id"],
+            "placements": [{
+                "candidate_id": "fact_1", "topic": "mcp", "target": "docs/mcp.md",
+                "capture": "knowledge", "canonical_file": "docs/mcp.md",
+                "changed_files": ["docs/mcp.md"],
+            }],
+        }))
+        assert completed["status"] == "completed"
         assert len(server_memory.query_facts(FactQuery(search="MCP"))) == 1
+        assert not (tmp_path / "session").exists()
 
     def test_R3_поведение_меняется_на_основе_опыта(self, iso_observability):
         """R3: improve loop сам находит дубликаты и консолидирует их."""

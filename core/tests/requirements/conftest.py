@@ -47,7 +47,11 @@ def server_memory(tmp_path, monkeypatch):
     monkeypatch.setattr(server_mod, "gatekeeper", Gatekeeper(be))
     monkeypatch.setattr(server_mod, "feedback", RetrievalFeedback(storage_path=str(tmp_path / "usage.json")))
     monkeypatch.setattr(server_mod, "base_dir", tmp_path)
+    monkeypatch.setenv("CURATOR_BASE_DIR", str(tmp_path))
+    monkeypatch.delenv("CURATOR_MAP", raising=False)
     monkeypatch.delenv("AUTO_MODE", raising=False)
+    with server_mod._captures_lock:
+        server_mod._pending_captures.clear()
     return be
 
 
