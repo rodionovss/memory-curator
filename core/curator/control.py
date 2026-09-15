@@ -427,7 +427,13 @@ def cmd_install():
         if idx + 1 < len(args):
             base_dir = args[idx + 1]
 
-    steps = installer.install_all(target=target, base_dir=base_dir)
+    skills_mode = None
+    if "--skills-link" in args:
+        skills_mode = "link"
+    elif "--skills-copy" in args:
+        skills_mode = "copy"
+
+    steps = installer.install_all(target=target, base_dir=base_dir, skills_mode=skills_mode)
     print()
     for step in steps:
         print(f"  {step}")
@@ -707,7 +713,7 @@ def main():
         print("  curator sync              — пуш offline-outbox в xmemory")
         print("  curator sessions [list|show] — реестр/транскрипты сессий OpenCode (майнинг)")
         print("  curator candidates        — precision-отчёт: предложено/сохранено/отказано")
-        print("  curator install [--opencode|--claude] [--base-dir ПУТЬ] — установка без вопросов (автодетект; флаги — для скриптов)")
+        print("  curator install [--opencode|--claude] [--base-dir ПУТЬ] [--skills-link|--skills-copy] — установка без вопросов")
         print("  curator demo [--keep] [--backend xmemory] — тур: полный цикл жизни знания")
         print()
         print("Конфигурация: MEMORY_BACKEND, IMPROVE_INTERVAL_MINUTES, XMEMORY_API_KEY")

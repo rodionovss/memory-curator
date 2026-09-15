@@ -283,10 +283,9 @@ class TestPatchPreservesBase:
 
 
 class TestSkillSymlinkDest:
-    """Симлинк в скиллах (ранняя ручная установка) не должен ронять
-    установку: rmtree на symlink падает — replace на unlink."""
+    """Локальный symlink не должен уничтожаться обычным install."""
 
-    def test_symlink_replaced_by_copy(self, tmp_path, monkeypatch):
+    def test_symlink_preserved_by_default(self, tmp_path, monkeypatch):
         _opencode_dir(tmp_path)
         dest_root = tmp_path / ".config" / "opencode" / "skills"
         dest_root.mkdir(parents=True)
@@ -295,9 +294,27 @@ class TestSkillSymlinkDest:
 
         installer.install_all()
 
-        assert link.is_dir() and not link.is_symlink(), \
-            "после установки скилл — обычная копия, не симлинк"
+        assert link.is_dir() and link.is_symlink(), \
+            "обычный install не должен уничтожать dev symlink"
         assert (link / "SKILL.md").exists()
+
+    def test_link_mode_creates_symlink(self, tmp_path):
+        _opencode_dir(tmp_path)
+        installer.install_all(skills_mode="link")
+        link = tmp_path / ".config" / "opencode" / "skills" / "curator-save"
+        assert link.is_symlink()
+        assert link.resolve() == _repo_root_for_test() / ".agents" / "skills" / "curator-save"
+
+    def test_copy_mode_replaces_symlink(self, tmp_path):
+        _opencode_dir(tmp_path)
+        dest_root = tmp_path / ".config" / "opencode" / "skills"
+        dest_root.mkdir(parents=True)
+        link = dest_root / "curator-save"
+        link.symlink_to(_repo_root_for_test() / ".agents" / "skills" / "curator-save")
+
+        installer.install_all(skills_mode="copy")
+
+        assert link.is_dir() and not link.is_symlink()
 
 
 def _repo_root_for_test():

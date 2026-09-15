@@ -46,9 +46,14 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
-def _install_skills(dest_root: Path) -> list[Path]:
-    """Скопировать ВСЕ скиллы из репо (curator-save, mapping-documentation,
-    curator-update-docs и будущие) в <dest_root>/. wheel-установка без репо — пусто."""
+def _install_skills(dest_root: Path, mode: str = "preserve") -> list[Path]:
+    """Установить все skills из репо в ``dest_root``.
+
+    ``preserve`` сохраняет существующие dev symlink-и, ``link`` создаёт
+    symlink-и на source, ``copy`` создаёт управляемые копии.
+    """
+    if mode not in {"preserve", "link", "copy"}:
+        raise ValueError(f"неизвестный режим skills: {mode}")
     for name in _RETIRED_SKILLS:
         retired = dest_root / name
         if retired.is_symlink() or retired.is_file():
@@ -58,17 +63,23 @@ def _install_skills(dest_root: Path) -> list[Path]:
     skills_root = _repo_root() / ".agents" / "skills"
     if not skills_root.is_dir():
         return []
+    dest_root.mkdir(parents=True, exist_ok=True)
     installed = []
     for source in sorted(skills_root.iterdir()):
         if not (source / "SKILL.md").exists():
             continue
         dest = dest_root / source.name
         if dest.is_symlink():
-            # симлинк (например, из ранней ручной установки) нельзя rmtree — только unlink
+            if mode == "preserve":
+                installed.append(dest)
+                continue
             dest.unlink()
         elif dest.exists():
             shutil.rmtree(dest)
-        shutil.copytree(source, dest)
+        if mode == "link":
+            dest.symlink_to(source, target_is_directory=True)
+        else:
+            shutil.copytree(source, dest)
         installed.append(dest)
     return installed
 
@@ -226,8 +237,13 @@ def _install_footer() -> list[str]:
     ]
 
 
-def install_all(target: str | None = None, base_dir: str | None = None) -> list[str]:
+def install_all(
+    target: str | None = None,
+    base_dir: str | None = None,
+    skills_mode: str | None = None,
+) -> list[str]:
     """Установка без вопросов: автодетект → ставим во всё найденное."""
+    skills_mode = skills_mode or os.getenv("CURATOR_SKILLS_MODE", "preserve")
     do_opencode, do_claude = detect_harnesses()
     steps: list[str] = []
 
@@ -241,17 +257,17 @@ def install_all(target: str | None = None, base_dir: str | None = None) -> list[
         steps.append("  (для Claude Code потом: curator install --claude)")
 
     if do_opencode:
-        steps.extend(_install_opencode_steps(base_dir))
+        steps.extend(_install_opencode_steps(base_dir, skills_mode))
     if do_claude:
         if do_opencode:
             steps.append("")
-        steps.extend(_install_claude_steps(base_dir))
+        steps.extend(_install_claude_steps(base_dir, skills_mode))
 
     steps.extend(_install_footer())
     return steps
 
 
-def _install_opencode_steps(base_dir: str | None) -> list[str]:
+def _install_opencode_steps(base_dir: str | None, skills_mode: str) -> list[str]:
     """MCP + команды + скиллы + worker в ~/.config/opencode (без футера)."""
     home = Path(os.environ.get("HOME", str(Path.home())))
 
@@ -273,9 +289,9 @@ def _install_opencode_steps(base_dir: str | None) -> list[str]:
     steps = [f"✅ opencode: MCP-сервер и {len(commands)} команд /curator-*: {config_path} (остальное не тронуто)",
              f"✅ opencode: база знаний: {base}"]
 
-    skills = _install_skills(home / ".config" / "opencode" / "skills")
+    skills = _install_skills(home / ".config" / "opencode" / "skills", skills_mode)
     if skills:
-        steps.append(f"✅ opencode: скиллы {', '.join(s.name for s in skills)}")
+        steps.append(f"✅ opencode: скиллы {', '.join(s.name for s in skills)} (mode={skills_mode})")
     else:
         steps.append("⚠ скиллы не найдены в репо (wheel-установка?) — MCP и команды работают")
 
@@ -292,7 +308,7 @@ def _install_opencode_steps(base_dir: str | None) -> list[str]:
     return steps
 
 
-def _install_claude_steps(base_dir: str | None) -> list[str]:
+def _install_claude_steps(base_dir: str | None, skills_mode: str) -> list[str]:
     """.mcp.json в проекте (cwd) + слэш-команды ~/.claude/commands + скиллы (без футера)."""
     home = Path(os.environ.get("HOME", str(Path.home())))
     project = Path.cwd()
@@ -327,7 +343,7 @@ def _install_claude_steps(base_dir: str | None) -> list[str]:
             )
         steps.append(f"✅ Claude Code: слэш-команды: {len(commands)} в {commands_dir}")
 
-    skills = _install_skills(home / ".claude" / "skills")
+    skills = _install_skills(home / ".claude" / "skills", skills_mode)
     if skills:
         steps.append(f"✅ Claude Code: скиллы {', '.join(s.name for s in skills)}")
     else:
