@@ -11,6 +11,14 @@
     "description": "Подключить Memory Curator к текущему репозиторию",
     "template": "Настрой Memory Curator для текущего репозитория: найди карту документации, подготовь project-local MCP-конфиг с CURATOR_STATE_DIR, CURATOR_BASE_DIR и CURATOR_MAP, добавь локальные файлы в .gitignore, покажи preview и запроси подтверждение. Если карты нет, попроси сначала вызвать /curator-create-map. После подтверждения напомни полностью перезапустить клиент."
   },
+  "curator-save-original": {
+    "description": "Сравнение: исходная baseline-версия curator-save",
+    "template": "Загрузи skill curator-save-original и выполни его полный flow. Это baseline extraction для A/B-сравнения. Покажи version=original и comparison_id, не записывай transcript, после preview обязательно зафиксируй run record в benchmark/extraction/local/runs/. Для сравнения сначала можно выбрать отказ, чтобы не менять документы."
+  },
+  "curator-save-experiment": {
+    "description": "Сравнение: текущая experiment-версия curator-save",
+    "template": "Загрузи skill curator-save-experiment и выполни его полный flow. Это текущая candidate extraction для A/B-сравнения. Переиспользуй comparison_id из предыдущего original-прогона, покажи version=experiment, не записывай transcript, после preview обязательно зафиксируй run record в benchmark/extraction/local/runs/. После сравнения можно подтвердить эту версию для реального сохранения."
+  },
   "curator-status": {
     "description": "Статистика базы знаний: факты, типы, статусы",
     "template": "Вызови memory-curator_curator_status и покажи результат"

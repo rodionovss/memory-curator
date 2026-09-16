@@ -145,3 +145,36 @@ skill-following run с ручной gold-разметкой, а не финал�
 Это подтверждает отсутствие ошибок на малом holdout corpus, но не является
 достаточным доказательством production-качества: набор содержит три сессии и
 не заменяет более широкий blind evaluation с зафиксированной моделью.
+
+## Локальное A/B-сравнение skills
+
+Для ручной проверки доступны две полноценные команды:
+
+```text
+/curator-save-original
+/curator-save-experiment
+```
+
+`original` использует baseline extraction rules из исходного skill, а
+`experiment` - текущий candidate playbook. Обе версии используют один и тот же
+актуальный протокол `capture -> approve -> curator-update-docs -> complete` и
+могут реально сохранять знания после подтверждения.
+
+Для сравнения одной сессии сначала вызови `original`, посмотри preview и
+откажись от сохранения. Затем вызови `experiment` с тем же
+`comparison_id`, сравни candidates и подтверди только выбранную версию. Обе
+команды записывают локальные run records в
+`benchmark/extraction/local/runs/`; transcript туда не попадает.
+
+Сводный отчёт строится так:
+
+```bash
+python3 benchmark/extraction/compare_versions.py \
+  --gold benchmark/extraction/local/gold.json \
+  --runs benchmark/extraction/local/runs \
+  --report benchmark/extraction/local/version-comparison.md
+```
+
+Gold-разметка должна быть общей для обеих версий. Только она позволяет
+отделить «пользователь выбрал» от объективного ответа, стоило ли сохранять
+кандидат и что версия пропустила.
