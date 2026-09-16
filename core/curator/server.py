@@ -526,7 +526,7 @@ def _relative_existing_file(root: Path, raw_path, target: str) -> tuple[str | No
 
 
 def _capture_complete(args: dict) -> str:
-    from curator.routing.map_router import MapRouter
+    from curator.routing.map_router import MapRouter, VALID_CAPTURES
 
     capture_id = str(args.get("capture_id", "")).strip()
     placements = args.get("placements")
@@ -553,6 +553,7 @@ def _capture_complete(args: dict) -> str:
                 or set(placement_ids) != selected_ids or len(set(placement_ids)) != len(placement_ids)):
             return _json_response(status="error", error="для каждого выбранного факта нужен ровно один placement")
 
+        candidate_by_id = {candidate.candidate_id: candidate for candidate in capture.candidates}
         canonical_by_id = {}
         documents = []
         for raw_placement in placements:
@@ -568,7 +569,25 @@ def _capture_complete(args: dict) -> str:
             candidate_id = placement.candidate_id
             config = map_router.target_config(placement.topic, placement.target)
             if config is None:
-                return _json_response(status="error", error=f"неизвестная точная пара topic/target для {candidate_id}")
+                # Дефолтный маршрут route_fact (on_unmatched): пары в карте нет,
+                # но это ровно то, куда ядро маршрутизирует unmatched-факт —
+                # принимаем, иначе правка .md остаётся без store_fact (баг #5)
+                candidate = candidate_by_id[candidate_id]
+                if (placement.topic == "default"
+                        and placement.target == f"session/{candidate.type.lower()}.md"):
+                    config = {
+                        "topic": "default",
+                        "target": placement.target,
+                        "captures": list(VALID_CAPTURES),
+                        "mode": "update",
+                    }
+                else:
+                    return _json_response(
+                        status="error",
+                        error=(f"неизвестная точная пара topic/target для {candidate_id}; "
+                               f"для факта без темы карты — дефолт: "
+                               f"topic=default, target=session/{candidate.type.lower()}.md"),
+                    )
             if placement.capture not in config["captures"]:
                 return _json_response(status="error", error=f"capture '{placement.capture}' не разрешён target для {candidate_id}")
             if config["mode"] not in ("update", "append"):
@@ -594,13 +613,12 @@ def _capture_complete(args: dict) -> str:
                 if changed_file not in documents:
                     documents.append(changed_file)
 
-        candidates = {candidate.candidate_id: candidate for candidate in capture.candidates}
         capture.state = "completing"
 
     saved = 0
     try:
         for candidate_id in placement_ids:
-            candidate = candidates[candidate_id]
+            candidate = candidate_by_id[candidate_id]
             backend.store_fact(StructuredFact(
                 type=candidate.type,
                 title=candidate.title,
