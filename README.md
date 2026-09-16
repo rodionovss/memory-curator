@@ -1,8 +1,3 @@
----
-type: Index
-project: Memory Curator
----
-
 # Memory Curator
 
 Фоновый агент памяти для opencode и Claude Code: извлекает проверенные знания
