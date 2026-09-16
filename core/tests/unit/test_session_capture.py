@@ -329,6 +329,49 @@ class TestComplete:
         assert message in out["error"]
         assert be.query_facts(FactQuery()) == []
 
+    def test_default_route_placement_completes_unmatched_fact(self, memory_server, tmp_path):
+        # баг #5: route_fact отдаёт unmatched-фактам дефолт session/{type}.md,
+        # но complete валидировал только пары карты — факт терялся после
+        # правки .md (store_fact не вызывался)
+        be, _ = memory_server
+        session = tmp_path / "session"
+        session.mkdir()
+        (session / "reference.md").write_text("# Session\n\nЗнание дня.\n", encoding="utf-8")
+        reviewed = _review([VALID_FACT])
+        _approve(reviewed["capture_id"], ["fact_1"])
+
+        out = _complete(reviewed["capture_id"], [_placement(
+            topic="default",
+            target="session/reference.md",
+            capture="knowledge",
+            canonical_file="session/reference.md",
+            changed_files=["session/reference.md"],
+        )])
+
+        assert out["status"] == "completed"
+        assert out["saved"] == 1
+        facts = be.query_facts(FactQuery())
+        assert facts[0].source_file == "session/reference.md"
+
+    def test_default_route_accepts_only_exact_pair(self, memory_server, tmp_path):
+        # дефолт принимается только в точной форме: topic=default,
+        # target=session/<type>.md — чужие пары остаются неизвестными
+        session = tmp_path / "session"
+        session.mkdir()
+        (session / "style.md").write_text("# Style\n\nЗнание.\n", encoding="utf-8")
+        reviewed = _review([VALID_FACT])
+        _approve(reviewed["capture_id"], ["fact_1"])
+
+        out = _complete(reviewed["capture_id"], [_placement(
+            topic="default",
+            target="session/style.md",
+            canonical_file="session/style.md",
+            changed_files=["session/style.md"],
+        )])
+
+        assert out["status"] == "error"
+        assert "topic/target" in out["error"]
+
     def test_requires_exactly_one_placement_per_selected_fact(self, memory_server):
         reviewed = _review([VALID_FACT, VALID_FACT_2])
         _approve(reviewed["capture_id"], ["fact_1", "fact_2"])
