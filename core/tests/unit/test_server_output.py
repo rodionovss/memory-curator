@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 import curator.server as server_mod
-from curator.server import _improve, _status, _feedback
+from curator.server import _improve, _query, _status, _feedback
 from curator.backend.local import LocalBackend
 from curator.improve_loop import ImproveLoop
 from curator.models import StructuredFact
@@ -156,3 +156,40 @@ class TestFeedbackOutput:
     def test_output_is_valid(self):
         output = _feedback()
         assert isinstance(output, str)
+
+
+class TestQueryDefaultStatus:
+    """curator_query по умолчанию не показывает deprecated (мусор improve-петли);
+    hypothesis остаётся видимой; явный status и «all» управляют полнотой."""
+
+    def _add_deprecated(self):
+        server_mod.backend.store_fact(StructuredFact(
+            type="Reference", title="Отозванный факт про deprecated мусор",
+            tags=["kotlin"], status="deprecated",
+            content_summary="Deprecated знание не должно показываться в выдаче по умолчанию.",
+        ))
+
+    def test_default_hides_deprecated_keeps_rest(self):
+        self._add_deprecated()
+        out = _query({})
+        assert "Отозванный факт" not in out
+        assert "ImmutableList" in out
+        assert "гипотеза про производительность" in out
+
+    def test_search_default_hides_deprecated(self):
+        self._add_deprecated()
+        out = _query({"search": "Deprecated"})
+        assert "Отозванный факт" not in out
+
+    def test_explicit_deprecated_status_shows_only_them(self):
+        self._add_deprecated()
+        out = _query({"status": "deprecated"})
+        assert "Отозванный факт" in out
+        assert "ImmutableList" not in out
+        assert "гипотеза" not in out
+
+    def test_all_shows_everything(self):
+        self._add_deprecated()
+        out = _query({"status": "all"})
+        assert "Отозванный факт" in out
+        assert "ImmutableList" in out
