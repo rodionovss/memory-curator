@@ -1,0 +1,4 @@
+name: curator-save
+version: 0.2.0
+source: memory-curator
+status: stable

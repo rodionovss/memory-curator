@@ -24,3 +24,20 @@ def test_curator_update_docs_preflights_before_semantic_writeback():
     assert "останови весь\n   набор без правок" in skill
     assert "curator_capture_complete" in skill
     assert "changed_files" in skill
+
+
+def test_save_skill_documents_structured_russian_preview_contract():
+    required = ("Type:", "Rule:", "Why:", "Evidence:", "Tags:")
+    skill = (SKILLS / "curator-save" / "SKILL.md").read_text(encoding="utf-8")
+    for marker in required:
+        assert marker in skill, f"curator-save must document preview marker {marker}"
+    assert "Evidence" in skill and "не сохраня" in skill
+
+
+def test_update_docs_shows_topic_and_file_before_writeback():
+    skill = (SKILLS / "curator-update-docs" / "SKILL.md").read_text(encoding="utf-8")
+
+    assert "План размещения" in skill
+    assert "Topic" in skill
+    assert "File" in skill
+    assert skill.index("План размещения") < skill.index("Примени минимальные смысловые патчи")

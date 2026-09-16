@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Memory Curator extraction evaluation corpus",
+  "type": "object",
+  "required": ["sessions"],
+  "properties": {
+    "sessions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "transcript", "gold"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "transcript": {"type": "string"},
+          "gold": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "type", "title", "summary", "evidence", "scope", "should_save"],
+              "properties": {
+                "id": {"type": "string", "minLength": 1},
+                "type": {"type": "string", "minLength": 1},
+                "title": {"type": "string", "minLength": 1},
+                "summary": {"type": "string", "minLength": 1},
+                "evidence": {"type": "string", "minLength": 1},
+                "scope": {"type": "string", "minLength": 1},
+                "should_save": {"type": "boolean"}
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

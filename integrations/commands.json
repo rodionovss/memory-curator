@@ -1,15 +1,15 @@
 {
   "curator-save": {
-    "description": "Сохранить знания из текущей сессии",
-    "template": "Следуй скиллу curator-save. Если Python вернул status=update_project_docs и next_action=curator-update-docs, загрузи curator-update-docs; успех сообщай только после status=completed."
+    "description": "Сохранить знания из текущей сессии в базу знаний",
+    "template": "Следуй skill curator-save и его playbook.md. Извлеки только подтверждённые переносимые знания, вызови curator_session_capture, покажи preview и запроси выбор через question. После выбора вызови curator_capture_approve с candidate_id. Если вернулся status=update_project_docs и next_action=curator-update-docs, загрузи curator-update-docs; успех сообщай только после status=completed. В plan/read-only режиме запись запрещена до переключения в режим исполнения."
   },
   "curator-create-map": {
-    "description": "Построить или обновить карту документации текущего проекта",
-    "template": "Следуй скиллу mapping-documentation. Построй карту документации внутри текущего project workspace. После записи карты предложи запустить /curator-setup, чтобы привязать к проекту MCP, CURATOR_STATE_DIR, CURATOR_BASE_DIR и CURATOR_MAP."
+    "description": "Построить карту документации проекта (вызов скилла mapping-documentation) и подключить маршрутизацию по ней",
+    "template": "Построй карту документации текущего проекта, следуя скиллу mapping-documentation (его SKILL.md): определи корпус документации, следуй его правилам исследования и синтеза. Границы поиска и путь сохранения карты спроси у пользователя — предложи файл DOCUMENTATION-MAP.md внутри базы знаний Memory Curator (путь базы — env CURATOR_BASE_DIR, посмотреть можно в конфиге mcp.memory-curator). После сохранения карты маршрутизация фактов по её темам включится автоматически (ROUTER_CLASS уже настроен)."
   },
   "curator-setup": {
     "description": "Подключить Memory Curator к текущему репозиторию",
-    "template": "Настрой Memory Curator для текущего репозитория.\n\n1. Канонически определи корень workspace и найди внутри него DOCUMENTATION-MAP.md или documentation-map.md. Канонически разреши сам файл и проверь, что symlink/junction не выводит его за корень. Если карты нет, ничего не меняй и попроси пользователя вызвать /curator-create-map. Если карт несколько, используй question и попроси выбрать одну.\n2. Найди действующую команду запуска memory-curator в глобальном MCP-конфиге opencode или Claude Code. Если сервер не установлен, остановись и покажи команду установки из README Memory Curator.\n3. Подготовь локальный, не отслеживаемый Git MCP-конфиг, сохраняя существующие настройки. Для opencode используй <project>/.opencode/opencode.json и mcp.memory-curator с type=local, enabled=true, command как массив и environment. Для Claude Code используй <project>/.mcp.json и mcpServers.memory-curator. Задай MEMORY_BACKEND=local, CURATOR_STATE_DIR=<project>/.curator, CURATOR_BASE_DIR=<project>, CURATOR_MAP=<absolute map path>, ROUTER_CLASS=curator.routing.map_router.MapRouter.\n4. Добавь .curator/ и локальный MCP-конфиг в .gitignore, не меняя другие правила. Покажи preview и запроси подтверждение через question. До подтверждения файлы не меняй.\n5. После подтверждения обнови конфиг, создай .curator при необходимости, проверь JSON и покажи итоговые пути. Напомни полностью перезапустить клиент: MCP-конфиг не перезагружается на лету. Глобальный MCP-конфиг и карту не изменяй."
+    "template": "Настрой Memory Curator для текущего репозитория: найди карту документации, подготовь project-local MCP-конфиг с CURATOR_STATE_DIR, CURATOR_BASE_DIR и CURATOR_MAP, добавь локальные файлы в .gitignore, покажи preview и запроси подтверждение. Если карты нет, попроси сначала вызвать /curator-create-map. После подтверждения напомни полностью перезапустить клиент."
   },
   "curator-status": {
     "description": "Статистика базы знаний: факты, типы, статусы",

@@ -30,6 +30,8 @@ cd core
 | `design/` | архитектура: `requirements.md` (матрица сдачи), `spec.md`, `decision-log.md` |
 | `demo/` | сценарий видео, чеклист записи, путеводитель по коду |
 | `docs/getting-started.md` | установка, подключение к opencode, CLI, worker |
+| `.agents/skills/` | канонический source of truth product skills; подробный workflow хранится в `playbook.md` |
+| `docs/` | актуальная документация; authority и исторические материалы описаны в `docs/README.md` |
 
 ## Соглашения
 

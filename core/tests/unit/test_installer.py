@@ -131,7 +131,9 @@ class TestIdempotencyAndSafety:
         assert "status=update_project_docs" in command["template"]
         assert "next_action=curator-update-docs" in command["template"]
         assert "CURATOR_MAP" not in command["template"]
-        assert "curator_session_capture" not in command["template"]
+        assert "curator_session_capture" in command["template"]
+        assert "curator_capture_approve" in command["template"]
+        assert "auto_approve" not in command["template"]
         assert "curator-project-save" not in installer._commands_source()
 
     def test_project_setup_command_documents_project_paths(self):
@@ -165,9 +167,12 @@ class TestIdempotencyAndSafety:
         assert {"curator-save", "curator-update-docs",
                 "mapping-documentation"} <= skills
         assert "curator-project-save" not in skills
+        assert "curator-create-map" not in skills
+        assert "curator-save-original" not in skills
+        assert "curator-save-experiment" not in skills
+        # A/B-обёртки curator-save удалены: канон — curator-save 0.2.0;
         # дубль-скилл curator-create-map удалён: живой оригинал —
         # mapping-documentation, команда /curator-create-map осталась
-        assert "curator-create-map" not in skills
 
     @pytest.mark.parametrize("target", ["opencode", "claude"])
     def test_upgrade_removes_installed_project_save(self, tmp_path, monkeypatch, target):

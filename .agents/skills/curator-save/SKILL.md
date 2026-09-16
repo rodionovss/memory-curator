@@ -1,32 +1,46 @@
 ---
 name: curator-save
-description: Сохраняет проверенные знания из сессии через Memory Curator. Использовать по явной просьбе («сохрани знания», /curator-save) и предлагать после появления подтверждённого устойчивого знания.
+description: Сохраняет проверенные знания из сессии в базу знаний через Memory Curator. Использовать по явной просьбе («сохрани знания», /curator-save) и проактивно, когда в сессии подтверждено абстрактное правило, паттерн или принцип.
 ---
 
 # Curator Save
 
-Короткий orchestrator review, human approval и project write-back.
+Используй этот skill, когда нужно извлечь знания из текущей сессии и сохранить
+их через Memory Curator.
 
-## Процесс
+## Короткий flow
 
-1. Извлеки из сессии проверенные устойчивые знания. Для каждого подготовь
-   `type`, однострочный `title` (не короче 10 знаков), `content_summary`, `tags`
-   и `evidence`. Вызови `curator_status` и сверяй типы с их описаниями.
-   Неизвестный тип предложи зарегистрировать отдельным вопросом; после согласия
-   добавь `new_type: true` и `type_description`.
-2. Вызови `curator_query` по релевантным ключевым словам и убери уже известные
-   факты. Передай оставшиеся `candidates` в `curator_session_capture`.
-3. Из ответа со `status=needs_human_approval` покажи все `eligible` с их
-   `candidate_id` и все `rejected` с причинами. Через `question` запроси выбор:
-   все eligible, конкретные eligible или отказ.
-4. Вызови `curator_capture_approve` с исходным `capture_id` и только выбранными
-   `candidate_id`. При отказе передай пустой `selected_candidate_ids` и заверши
-   процесс без сообщения о сохранении.
-5. Только если ответ approval содержит точные значения
-   `status=update_project_docs` и `next_action=curator-update-docs`, загрузи skill
-   `curator-update-docs`. Тот же агент продолжает по нему с полным неизменённым
-   объектом ответа как manifest. При любом другом ответе остановись.
-6. Сообщи о сохранении только после ответа `curator_capture_complete` с точным
-   `status=completed`; перечисли его `documents`.
+1. Извлеки только подтверждённые переносимые кандидаты по правилам из
+   `playbook.md` и вызови `curator_session_capture`.
+2. Покажи preview кандидатов и через `question` попроси выбрать все,
+   отдельные `candidate_id` или отказ.
+3. Вызови `curator_capture_approve` с выбранными ID. Не отправляй candidates
+   повторно и не используй `auto_approve`.
+4. Если ответ содержит `status=update_project_docs` и
+   `next_action=curator-update-docs`, загрузи `curator-update-docs`.
+   Карту и target-документы здесь не читай и не редактируй до запуска этого
+   skill.
+5. Считай сохранение успешным только после ответа
+   `curator_capture_complete` со `status=completed`.
 
-Карту и target-документы здесь не читай, маршруты не выбирай и файлы не меняй.
+## Preview contract
+
+Показывай candidates нумерованным списком в одном формате:
+
+```text
+1. Название знания
+Type: Reference
+Rule: ...
+Why: ...
+Evidence: ...
+Tags: ...
+```
+
+`Rule` и `Why` должны быть понятны без чтения исходной сессии. `Evidence` -
+только локальное подтверждение для review и evaluation; не добавляй его в
+сохраняемый смысл знания и не сохраняй его в общем знании. `Tags` - поисковые ключи, а не отдельная часть
+знания.
+
+Полный workflow находится в `playbook.md` рядом с этим файлом. Прочитай и
+выполни его целиком. `SKILL.md` является только точкой входа и не заменяет
+playbook.
