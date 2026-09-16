@@ -92,6 +92,9 @@ class MapRouter:
     на дефолт session/{type}.md, батч сохранения не валится."""
 
     def __init__(self, map_path: Path | None = None):
+        # Явный путь живёт в reload: перечитать нужно тот же файл, которым
+        # роутер создан, а не уходить в find_map_path() (баг #4)
+        self._map_path_arg = map_path
         self._default = DefaultRouter()
         self._topics: list[_Topic] = []
         self._all_targets: list[_Target] = []
@@ -197,7 +200,7 @@ class MapRouter:
         return None
 
     def reload(self):
-        self.__init__()
+        self.__init__(self._map_path_arg)
 
     @staticmethod
     def matches_target(source: str, pattern: str) -> bool:

@@ -293,3 +293,63 @@ class TestSyntheticMap:
         path = target.split("path: ", 1)[1].splitlines()[0]
         assert router.target_config("incomplete", path) is None
         assert "ошибок валидации" in capsys.readouterr().err
+
+    def test_reload_rereads_map_file(self, tmp_path):
+        map_file = self._write(tmp_path, (
+            "  - name: kotlin\n"
+            "    targets:\n"
+            "      - path: docs/kotlin.md\n"
+            "        captures: [knowledge]\n"
+            "        mode: update\n"
+        ))
+        router = MapRouter(map_file)
+        assert len(router.list_routes()) == 1
+
+        self._write(tmp_path, (
+            "  - name: kotlin\n"
+            "    targets:\n"
+            "      - path: docs/kotlin.md\n"
+            "        captures: [knowledge]\n"
+            "        mode: update\n"
+            "  - name: compose\n"
+            "    targets:\n"
+            "      - path: docs/compose.md\n"
+            "        captures: [knowledge]\n"
+            "        mode: update\n"
+        ))
+        router.reload()
+        assert len(router.list_routes()) == 2, "reload перечитывает карту (#4)"
+
+    def test_reload_preserves_explicit_path(self, tmp_path, monkeypatch):
+        map_file = self._write(tmp_path, (
+            "  - name: kotlin\n"
+            "    targets:\n"
+            "      - path: docs/kotlin.md\n"
+            "        captures: [knowledge]\n"
+            "        mode: update\n"
+        ))
+        other = tmp_path / "OTHER.md"
+        other.write_text(
+            "---\n"
+            "topics:\n"
+            "  - name: a\n"
+            "    targets:\n"
+            "      - path: docs/a.md\n"
+            "        captures: [knowledge]\n"
+            "        mode: update\n"
+            "  - name: b\n"
+            "    targets:\n"
+            "      - path: docs/b.md\n"
+            "        captures: [knowledge]\n"
+            "        mode: update\n"
+            "---\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("CURATOR_MAP", str(other))
+
+        router = MapRouter(map_file)
+        router.reload()
+
+        assert len(router.list_routes()) == 1, \
+            "reload с явным путём читает его же, а не уходит в find_map_path (#4)"
+        assert router.list_routes()[0]["type"] == "kotlin"
