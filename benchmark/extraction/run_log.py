@@ -20,6 +20,7 @@ from benchmark.extraction.evaluator import validate_predictions
 
 
 REQUIRED_FIELDS = (
+    "schema_version",
     "run_id",
     "version",
     "skill_version",
@@ -39,6 +40,8 @@ def validate_run_record(record: Any) -> list[str]:
     if not isinstance(record, dict):
         return ["run record must be an object"]
     errors = [f"{field} is required" for field in REQUIRED_FIELDS if field not in record]
+    if record.get("schema_version") != 2:
+        errors.append("schema_version must be 2")
     if "transcript" in record:
         errors.append("transcript must not be stored in a run record")
     if record.get("decision") not in DECISIONS:
@@ -49,6 +52,9 @@ def validate_run_record(record: Any) -> list[str]:
         errors.append("rejection_reasons must be an object")
     if "predictions" in record:
         errors.extend(validate_predictions(record["predictions"]))
+        for index, prediction in enumerate(record["predictions"]):
+            if not isinstance(prediction.get("evidence"), str) or not prediction["evidence"].strip():
+                errors.append(f"predictions[{index}].evidence must be a non-empty string")
     return errors
 
 

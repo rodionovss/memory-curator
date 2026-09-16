@@ -11,6 +11,7 @@ from benchmark.extraction.run_log import write_run_record  # noqa: E402
 
 def _record(**overrides):
     record = {
+        "schema_version": 2,
         "run_id": "run-1",
         "version": "original",
         "skill_version": "0.1.0-original",
@@ -27,6 +28,7 @@ def _record(**overrides):
             "title": "Reusable rule",
             "content_summary": "A transferable rule.",
             "tags": ["general"],
+            "evidence": "The session explicitly confirms the rule.",
             "evaluation": {
                 "evidence_supported": True,
                 "abstract": True,
@@ -60,3 +62,15 @@ def test_write_run_record_rejects_private_transcript(tmp_path):
         assert "transcript" in str(error)
     else:
         raise AssertionError("private transcript must not be written to run log")
+
+
+def test_write_run_record_rejects_missing_evidence(tmp_path):
+    record = _record()
+    del record["predictions"][0]["evidence"]
+
+    try:
+        write_run_record(tmp_path / "run.json", record)
+    except ValueError as error:
+        assert "evidence" in str(error)
+    else:
+        raise AssertionError("run log must preserve evidence for evaluation")

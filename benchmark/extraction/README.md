@@ -163,8 +163,10 @@ skill-following run с ручной gold-разметкой, а не финал�
 Для сравнения одной сессии сначала вызови `original`, посмотри preview и
 откажись от сохранения. Затем вызови `experiment` с тем же
 `comparison_id`, сравни candidates и подтверди только выбранную версию. Обе
-команды записывают локальные run records в
-`benchmark/extraction/local/runs/`; transcript туда не попадает.
+команды записывают локальные run records schema v2 в
+`benchmark/extraction/local/runs/`; transcript туда не попадает, а `evidence`
+сохраняется только для audit/evaluation. Старые records без schema v2
+пропускаются comparator-ом и требуют повторного прогона.
 
 Сводный отчёт строится так:
 

@@ -10,13 +10,14 @@ from benchmark.extraction.compare_versions import compare_run_directory  # noqa:
 
 
 def _prediction(session_id, title, gold_id):
-    return {
+        return {
         "session_id": session_id,
         "gold_id": gold_id,
         "type": "Reference",
         "title": title,
         "content_summary": "A transferable rule.",
         "tags": ["general"],
+        "evidence": "The session explicitly confirms the rule.",
         "evaluation": {
             "evidence_supported": True,
             "abstract": True,
@@ -47,6 +48,7 @@ def test_compare_run_directory_reports_each_version(tmp_path):
     runs.mkdir()
     for version in ("original", "experiment"):
         (runs / f"{version}.json").write_text(json.dumps({
+            "schema_version": 2,
             "run_id": version,
             "version": version,
             "skill_version": version,
@@ -65,3 +67,18 @@ def test_compare_run_directory_reports_each_version(tmp_path):
     assert "| original |" in report
     assert "| experiment |" in report
     assert "100.0%" in report
+
+
+def test_compare_run_directory_skips_legacy_records_without_evidence(tmp_path):
+    gold_path = tmp_path / "gold.json"
+    gold_path.write_text(json.dumps({"sessions": []}), encoding="utf-8")
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    (runs / "legacy.json").write_text(json.dumps({"version": "original"}), encoding="utf-8")
+
+    try:
+        compare_run_directory(gold_path, runs)
+    except ValueError as error:
+        assert "no current run records" in str(error)
+    else:
+        raise AssertionError("legacy-only directory must not produce a comparison")

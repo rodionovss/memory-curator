@@ -51,7 +51,10 @@ ID. Не отправляй candidates повторно. Если approval ве�
 
 Для сравнения создай или продолжи `comparison_id` в текущей сессии. В начале
 покажи пользователю версию `original` и этот ID. После preview и решения запиши
-локальный run record в `benchmark/extraction/local/runs/` через
-`benchmark/extraction/run_log.py`. Record должен содержать version, skill_version,
-skill_commit, comparison_id, session_id, predictions, decision,
-selected_candidate_ids и rejection_reasons. Не записывай transcript.
+локальный run record schema_version=2 в `benchmark/extraction/local/runs/` через
+`benchmark/extraction/run_log.py`. Для этой версии укажи
+`skill_version=0.1.0-original` и `skill_commit=8e912f7` - immutable baseline
+source. В каждой prediction обязательно сохрани `evidence`. Record должен
+содержать version, skill_version, skill_commit, comparison_id, session_id,
+predictions, decision, selected_candidate_ids и rejection_reasons. Не записывай
+transcript.

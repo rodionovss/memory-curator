@@ -34,17 +34,21 @@ def _percent(value: float) -> str:
     return f"{value * 100:.1f}%"
 
 
-def _load_runs(directory: Path) -> dict[str, list[dict[str, Any]]]:
+def _load_runs(directory: Path) -> tuple[dict[str, list[dict[str, Any]]], list[str]]:
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    legacy: list[str] = []
     for path in sorted(directory.glob("*.json")):
         record = load_records(str(path))
+        if isinstance(record, dict) and "schema_version" not in record:
+            legacy.append(path.name)
+            continue
         errors = validate_run_record(record)
         if errors:
             raise ValueError(f"{path}: {'; '.join(errors)}")
         grouped[record["version"]].append(record)
     if not grouped:
-        raise ValueError(f"no run records found in {directory}")
-    return grouped
+        raise ValueError(f"no current run records found in {directory}; legacy files: {legacy}")
+    return grouped, legacy
 
 
 def compare_run_directory(gold_path: str | Path, runs_directory: str | Path) -> str:
@@ -57,7 +61,7 @@ def compare_run_directory(gold_path: str | Path, runs_directory: str | Path) -> 
         for session in corpus["sessions"]
         for item in session["gold"]
     ]
-    grouped = _load_runs(Path(runs_directory))
+    grouped, legacy = _load_runs(Path(runs_directory))
 
     lines = [
         "# Curator Save Version Comparison",
@@ -92,6 +96,12 @@ def compare_run_directory(gold_path: str | Path, runs_directory: str | Path) -> 
         "Metrics are computed against the same gold corpus. Run records contain",
         "candidates and decisions, but never session transcripts.",
     ])
+    if legacy:
+        lines.extend([
+            "",
+            "Legacy run records skipped (missing schema v2/evidence): "
+            + ", ".join(legacy),
+        ])
     return "\n".join(lines) + "\n"
 
 

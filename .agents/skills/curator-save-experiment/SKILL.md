@@ -58,6 +58,8 @@ manifest. Успех сообщай только после `curator_capture_com
 Переиспользуй `comparison_id` из текущей сессии или создай новый и покажи его
 пользователю. После preview и решения запиши локальный run record в
 `benchmark/extraction/local/runs/` через `benchmark/extraction/run_log.py`.
-Record должен содержать version, skill_version, skill_commit, comparison_id,
-session_id, predictions, decision, selected_candidate_ids и
+Используй `schema_version=2`, `skill_version=0.2.0-candidate` и commit текущей
+ветки из `git rev-parse HEAD`. В каждой prediction обязательно сохрани
+`evidence`. Record должен содержать version, skill_version, skill_commit,
+comparison_id, session_id, predictions, decision, selected_candidate_ids и
 rejection_reasons. Не записывай transcript.
