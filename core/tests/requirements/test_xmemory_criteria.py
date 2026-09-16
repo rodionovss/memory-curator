@@ -1,4 +1,4 @@
-"""Критерии номинации xmemory — design/requirements.md, «Критерии номинации xmemory».
+"""Критерии блока xmemory — design/requirements.md, «Критерии блока xmemory».
 
 | ID | Требование | Источник |
 |----|-----------|----------|

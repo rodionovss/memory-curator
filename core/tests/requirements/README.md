@@ -11,7 +11,7 @@
 
 | ID | Требование | Тест | Статус |
 |----|-----------|------|--------|
-| R1 | Поток задач из источника (.md → факты) | `test_hackathon_must.py::test_R1_поток_задач_из_источника_ingest` | ✅ |
+| R1 | Поток задач из источника (.md → факты) | `test_must_have.py::test_R1_поток_задач_из_источника_ingest` | ✅ |
 | R2 | Цикл «выполнил → оценил → извлёк урок» (review → approve → docs → complete → store) | `unit/test_session_capture.py` (`TestReview`, `TestApprove`, `TestComplete`) | ✅ |
 | R3 | Менять поведение на основе опыта (improve консолидирует дубликаты) | `test_R3_поведение_меняется_на_основе_опыта` | ✅ |
 | R4 | Память между рестартами (персистентный файл, не :memory:) | `test_R4_память_между_рестартами` | ✅ |
@@ -28,7 +28,7 @@
 | N4 | Human-in-the-loop: review не меняет документы/backend, approve принимает только выбранные ID | `unit/test_session_capture.py::TestReview::test_returns_json_preview_without_side_effects`, `TestApprove::test_freezes_selected_subset_and_returns_manifest` | ✅ |
 | N5 | Observability: JSONL-лог всех improve-действий | `test_N5_observability_логирует_улучшения` | ✅ |
 
-## xmemory номинация (4/4)
+## xmemory блок (4/4)
 
 | ID | Требование | Тест | Статус |
 |----|-----------|------|--------|

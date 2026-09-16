@@ -120,7 +120,7 @@ ignore:
   - "Конкретные баги и их фиксы"
   - "Временные решения и workaround'ы"
 ```
-> Заменяется «картой» Егора (watch_for/targets) — единый конфиг проекта.
+> Заменяется картой проекта (watch_for/targets) — единый конфиг проекта.
 
 ### Router Protocol (legacy-маршрутизация)
 `curator/routing/interface.py` — контракт маршрутизации для `SyncEngine`, CLI и

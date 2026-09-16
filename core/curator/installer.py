@@ -350,5 +350,5 @@ def _install_claude_steps(base_dir: str | None, skills_mode: str) -> list[str]:
         steps.append("⚠ скиллы не найдены в репо (wheel-установка?) — MCP и команды работают")
 
     if _install_global_rules(home / ".claude" / "CLAUDE.md", _rules_section()):
-        steps.append("✅ Claude Code: правила памяти в ~/.claude/CLAUDE.md (хуков до спринта нет — правила вместо них)")
+        steps.append("✅ Claude Code: правила памяти в ~/.claude/CLAUDE.md (хуков нет — правила вместо них)")
     return steps

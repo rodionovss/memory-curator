@@ -395,7 +395,7 @@ Curator поддерживает два режима, переключаемых
 
 ---
 
-## 9. Scope хакатона
+## 9. Scope
 
 ### Core (обязательно)
 - [x] Memory Backend Interface (Python Protocol)
@@ -404,7 +404,7 @@ Curator поддерживает два режима, переключаемых
 - [x] Контракт candidates: извлечение в слое агента, бэкенд принимает готовые факты
 - [x] Gatekeeper: фильтр абстрактности/проверенности/dedup
 - [x] Sync Engine: .md → backend (ingest), backend → .md (write-back)
-- [x] MCP Server: 6 тулзов (curator_session_capture, curator_query, curator_status, curator_improve, curator_feedback, curator_routes)
+- [x] MCP Server: 8 тулзов (curator_session_capture, curator_capture_approve, curator_capture_complete, curator_query, curator_status, curator_improve, curator_feedback, curator_routes)
 - [x] XMD Schema: Reference, Style типы + relations
 - [x] Background Worker: cron/daemon для автономного improve loop
 - [x] Retrieval Feedback: отслеживание использования фактов
@@ -423,7 +423,7 @@ Curator поддерживает два режима, переключаемых
 - [x] Поиск устаревших знаний
 - [x] Router Protocol (модульный роутинг)
 
-### Future (после хакатона)
+### Future
 - [ ] Schema evolution (xmemory auto-suggest)
 - [ ] Multi-project scoping
 - [ ] Интерфейс разрешения конфликтов

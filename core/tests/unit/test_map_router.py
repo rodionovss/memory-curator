@@ -1,9 +1,9 @@
-"""MapRouter: маршрутизация по карте документации (формат скилла Егора).
+"""MapRouter: маршрутизация по карте документации.
 
 Детерминированная попытка интеграции: путь агента (валидация против
 таргетов), теги ∩ токены темы, явные types темы, glob-таргеты не
 угадываем (это работа агента/скилла), on_unmatched → report + дефолт.
-Фикстура — его реальная карта (tests/fixtures/egor-documentation-map.md)."""
+Фикстура — типовая карта проекта (tests/fixtures/sample-documentation-map.md)."""
 
 from pathlib import Path
 
@@ -12,7 +12,7 @@ import pytest
 from curator.models import ProposedFact
 from curator.routing.map_router import MapRouter
 
-FIXTURE = Path(__file__).parent.parent / "fixtures" / "egor-documentation-map.md"
+FIXTURE = Path(__file__).parent.parent / "fixtures" / "sample-documentation-map.md"
 
 
 def _fact(title="Факт про architecture слоёв приложения", tags=None, type_="Reference", source_file=None):

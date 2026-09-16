@@ -10,8 +10,6 @@ project: Memory Curator
 память (дубликаты, устаревание, противоречия) и возвращает знания обратно
 в документацию.
 
-**Hacker Sprint #2** · podlodka-ai-club/refinement · трек «Агент, который помнит»
-
 ## Проблема
 
 Знания из AI-сессий умирают вместе с чатом. `.md`-базы растут, в них копятся
@@ -42,7 +40,7 @@ project: Memory Curator
   знания забыты — видно; решение за человеком, автоматика не удаляет
 - **Работает офлайн** — локальная база по умолчанию; облачный режим для
   команд, при сбое сети ничего не теряется и досылается автоматически
-- **Надёжность** — 300+ тестов, каждое требование хакатона закрыто тестом
+- **Надёжность** — 300+ тестов, каждое требование закрыто тестом
   с ID, все изменения журналируются
 
 ## Как работает
@@ -78,7 +76,7 @@ title. 4xx — ошибка запроса, деградации нет.
 
 ## Как измеряется прогресс
 
-Каждое требование хакатона закрыто тестом, имя теста = ID требования.
+Каждое требование закрыто тестом, имя теста = ID требования.
 **21 тест на 16 требований** (UC6 покрыт 6 сценариями):
 
 ```bash
@@ -89,7 +87,7 @@ cd core && .venv/bin/python -m pytest tests/requirements/ -v
 |------|-------|---------------|
 | R1-R6 | 6 | минимальные требования: поток задач, цикл урока, изменение поведения, рестарты, реальные данные, дельта до/после |
 | N1-N5 | 5 | доп. блоки: забывание, противоречия, eval-гейт, human-in-the-loop, observability |
-| X1-X4 | 4 | номинация xmemory: durability (smoke, VPN), схема, primary-backend, наглядность |
+| X1-X4 | 4 | блок xmemory: durability (smoke, VPN), схема, primary-backend, наглядность |
 | UC6 | 6 | offline-fallback: store / query / 4xx / идемпотентность / sync |
 
 Трассировочная матрица — [core/tests/requirements/README.md](core/tests/requirements/README.md):
@@ -102,8 +100,9 @@ cd core && .venv/bin/python -m pytest tests/requirements/ -v
 
 ## Измерено: переиспользование опыта
 
-Требование трека — «копит опыт и переиспользует его в следующих задачах» —
-проверено экспериментом. 10 кодинговых задач — агент дорабатывает легаси-код,
+Ключевое обещание продукта — «копит опыт и переиспользует его в следующих
+задачах» — проверено экспериментом. 10 кодинговых задач — агент дорабатывает
+легаси-код,
 в каждой спрятано правило из нашей базы (база выросла из 100 реальных рабочих
 сессий); детерминированные проверки, замороженные до прогонов, 48 прогонов
 чистых агентов:
@@ -126,8 +125,8 @@ Fisher exact: p = 0.0011.
 ## Попробовать за 2 минуты
 
 ```bash
-git clone https://github.com/podlodka-ai-club/refinement.git
-cd refinement
+git clone https://github.com/rodionovss/memory-curator.git
+cd memory-curator
 ./install.sh          # Windows: install.bat
 # разработка (тесты):
 cd core && python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
@@ -175,7 +174,6 @@ AGENTS.md / CLAUDE.md — база в контексте каждой сесси
 | `core/` | ядро (Python): backend/ (xmemory + SQLite + outbox), gatekeeper, improve_loop, MCP-сервер; CLI и legacy sync_engine |
 | `core/tests/requirements/` | тесты требований — имя теста = ID требования |
 | `design/` | архитектура: requirements, spec, decision-log, playbook-routing (контракт Router), backlog |
-| `demo/` | демо/защита: чеклист записи видео, сценарий, путеводитель по коду |
 | `benchmark/` | A/B/C-бенчмарк применения знаний и extraction eval: фикстуры, детерминированные чеки, решения, отчёты |
 | `docs/` | day-to-day: getting-started |
 
@@ -189,7 +187,7 @@ AGENTS.md / CLAUDE.md — база в контексте каждой сесси
 - **Read-side — готово**: правила памяти в глобальном AGENTS.md / CLAUDE.md
   (база в контексте каждой сессии), плагин session.idle → `/curator-save`,
   `curator status` показывает, что сделал последний improve
-- **Карта документации (Егор) — готова и интегрирована**: команда
+- **Карта документации — готова и интегрирована**: команда
   `/curator-create-map` (скилл mapping-documentation) генерирует карту проекта,
   нейронный `curator-update-docs` следует её
   `watch_for`, `captures`, `mode` и `instructions`, а Python проверяет placement;
@@ -210,15 +208,6 @@ AGENTS.md / CLAUDE.md — база в контексте каждой сесси
 
 Полный список: [design/backlog.md](design/backlog.md)
 
-## Команда
-
-| Блок | Кто | Зона |
-|------|-----|------|
-| Ядро | Сергей ([@rodionovss](https://github.com/rodionovss)) | backend, gatekeeper, improve loop, MCP, CLI |
-| Карта | Егор ([@eger1393](https://github.com/eger1393)) | карта проекта, скиллы, трёхфазный capture |
-
 ## Ссылки
 
-- Защита проекта (пакет по правилам, как проверить): [PRESENTATION.md](PRESENTATION.md)
-- Репозиторий команды: https://github.com/podlodka-ai-club/refinement
 - xmemory: https://xmemory.ai
