@@ -28,6 +28,23 @@ A/B-сравнения с `curator-save-original`, а не как молчали
 `auto_approve` и `source_file`. Покажи preview и через `question` запроси все,
 отдельные `candidate_id` или отказ.
 
+## Preview contract
+
+Показывай candidates нумерованным списком:
+
+```text
+1. Название знания
+Type: Reference
+Rule: ...
+Why: ...
+Evidence: ...
+Tags: ...
+```
+
+`Rule` и `Why` - сохраняемый смысл. `Evidence` - только локальное подтверждение
+для review и evaluation, не сохраняй его в общем знании. `Tags` - поисковые
+ключи, а не отдельное знание.
+
 ## Save
 
 После выбора вызови `curator_capture_approve` только с `capture_id` и выбранными
