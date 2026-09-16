@@ -204,6 +204,21 @@ class TestSyntheticMap:
         err = capsys.readouterr().err
         assert "без ключа topics" in err, "структурно битая карта — не молчим"
 
+    def test_validation_errors_exposed_for_mcp_tools(self, tmp_path):
+        # баг #3: ошибки валидации уходили только в stderr — MCP-тулы
+        # отвечали «Маршрутов: 0» без единого объяснения
+        map_file = self._write(tmp_path, (
+            "  - name: broken\n"
+            "    targets:\n"
+            "      - path: docs/broken.md\n"
+            "        mode: update\n"
+        ))
+        errors = MapRouter(map_file).validation_errors()
+        assert errors and "captures" in errors[0], \
+            "ошибки _parse доступны тулзам, а не только stderr"
+        assert MapRouter(FIXTURE).validation_errors() == [], \
+            "валидная карта — пустой список ошибок"
+
     def test_no_map_default(self, tmp_path, capsys):
         router = MapRouter(tmp_path / "nonexistent.md")
         assert router.route_fact(_fact()) == "session/reference.md"

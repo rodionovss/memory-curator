@@ -93,21 +93,28 @@ class MapRouter:
 
     def __init__(self, map_path: Path | None = None):
         self._default = DefaultRouter()
+        self._topics: list[_Topic] = []
+        self._all_targets: list[_Target] = []
+        self._errors: list[str] = []
         path = map_path if map_path is not None else find_map_path()
         if path is None or not path.exists():
             if path is not None:
                 _note(f"карта не найдена: {path} — дефолт session/{{type}}.md")
-            self._topics: list[_Topic] = []
-            self._all_targets: list[_Target] = []
             return
         topics, targets, errors = self._parse(path)
         self._topics = topics
         self._all_targets = targets
+        self._errors = errors
         if errors:
             shown = "; ".join(errors[:3])
             more = f" (+{len(errors) - 3})" if len(errors) > 3 else ""
             _note(f"карта {path.name}: {len(errors)} ошибок валидации: {shown}{more} "
                   f"— проблемные элементы пропущены")
+
+    def validation_errors(self) -> list[str]:
+        """Ошибки валидации карты — MCP-тулы показывают их, а не только stderr
+        (баг #3: «Маршрутов: 0» без объяснения ронял сохранение)."""
+        return list(self._errors)
 
     def route_fact(self, fact: ProposedFact) -> str:
         # 1. Путь от агента: доверяем, если он совпал с таргетом карты

@@ -259,6 +259,29 @@ class TestApprove:
         assert out["status"] == "update_project_docs"
         assert out["map_path"].endswith("DOCUMENTATION-MAP.md")
 
+    def test_invalid_map_warns_in_manifest_and_routes(self, memory_server, tmp_path, monkeypatch):
+        # баг #3: невалидная карта (targets без captures) тихо отключала
+        # маршрутизацию — manifest и curator_routes молчали об ошибках
+        map_path = tmp_path / "DOCUMENTATION-MAP.md"
+        map_path.write_text(
+            "---\ntopics:\n  - name: broken\n    targets:\n"
+            "      - path: docs/broken.md\n        mode: update\n---\n",
+            encoding="utf-8",
+        )
+        from curator.routing.map_router import MapRouter
+        monkeypatch.setattr(server_mod, "router", MapRouter(map_path))
+
+        reviewed = _review([VALID_FACT])
+        out = _approve(reviewed["capture_id"], ["fact_1"])
+
+        assert out["status"] == "update_project_docs"
+        assert out["map_errors"] and "captures" in out["map_errors"][0], \
+            "manifest предупреждает агента до правки документации"
+        routes = server_mod._routes()
+        assert "Маршрутов: 0" in routes
+        assert "карта невалидна" in routes and "captures" in routes, \
+            "curator_routes показывает ошибки карты, а не молчит"
+
     def test_approve_without_map_points_to_setup(self, memory_server, monkeypatch, tmp_path):
         # Карты нет нигде — человеко-понятная ошибка, ведущая к настройке
         reviewed = _review([VALID_FACT])
