@@ -450,15 +450,23 @@ def _project_paths() -> tuple[Path, Path] | tuple[None, str]:
 
 def _approval_manifest(capture_id: str, capture: PendingCapture, root: Path,
                        map_path: Path) -> str:
-    return _json_response(
-        status="update_project_docs",
-        next_action="curator-update-docs",
-        capture_id=capture_id,
-        base_dir=str(root),
-        map_path=str(map_path),
-        facts=[candidate.as_dict() for candidate in capture.candidates
-               if candidate.candidate_id in capture.selected_candidate_ids],
-    )
+    from curator.routing.map_router import MapRouter
+
+    payload = {
+        "status": "update_project_docs",
+        "next_action": "curator-update-docs",
+        "capture_id": capture_id,
+        "base_dir": str(root),
+        "map_path": str(map_path),
+        "facts": [candidate.as_dict() for candidate in capture.candidates
+                  if candidate.candidate_id in capture.selected_candidate_ids],
+    }
+    # Невалидная карта — предупреждение в manifest до правки документации:
+    # complete по такой карте упадёт на target_config (баг #3)
+    map_errors = MapRouter(map_path).validation_errors()
+    if map_errors:
+        payload["map_errors"] = map_errors
+    return _json_response(**payload)
 
 
 def _capture_approve(args: dict) -> str:
@@ -645,6 +653,15 @@ def _log_mcp_candidates(result, saved: int, declined_by_human: bool):
 def _routes() -> str:
     routes = router.list_routes()
     lines = [f"Маршрутов: {len(routes)}"]
+    # Невалидная карта не молчит: деградация видна в ответе тулза,
+    # а не только в stderr сервера (баг #3)
+    validation = getattr(router, "validation_errors", None)
+    if validation is not None:
+        errors = validation()
+        if errors:
+            lines.append(f"ВНИМАНИЕ: карта невалидна ({len(errors)} ошибок) — "
+                         f"маршрутизация по карте отключена:")
+            lines.extend(f"  ⚠ {error}" for error in errors)
     for r in routes:
         lines.append(f"  · {r.get('path', '?')} — {r.get('description', '')}")
     return "\n".join(lines)
