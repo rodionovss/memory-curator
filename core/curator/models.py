@@ -154,6 +154,7 @@ class StructuredFact:
     content_summary: str
     source_file: str | None = None
     source_session: str | None = None
+    created_at: str | None = None
 
 
 @dataclass

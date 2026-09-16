@@ -108,8 +108,20 @@ class ImproveLoop:
         for i, f1 in enumerate(facts):
             for f2 in facts[i + 1:]:
                 if f1.type == f2.type and self._title_similarity(f1.title, f2.title) > 0.8:
-                    duplicates.append((f1, f2))
+                    duplicates.append(self._orient_dup_pair(f1, f2))
         return duplicates
+
+    def _orient_dup_pair(
+        self, f1: StructuredFact, f2: StructuredFact
+    ) -> tuple[StructuredFact, StructuredFact]:
+        """Детерминированная ориентация пары: survivor — ранее созданный
+        факт, при равенстве или отсутствии created_at — лексикографически
+        меньший title. Без этого проигравший зависел от порядка выдачи
+        бэкенда: ORDER BY created_at DESC с секундной гранулярностью
+        не гарантирует порядок тай-брейка (issue #8)."""
+        if (f1.created_at or "", f1.title) > (f2.created_at or "", f2.title):
+            return f2, f1
+        return f1, f2
 
     def _find_stale(self, facts: list[StructuredFact]) -> list[StructuredFact]:
         return [f for f in facts if f.status in ("hypothesis", "deprecated")]
