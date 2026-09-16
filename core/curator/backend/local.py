@@ -121,7 +121,8 @@ class LocalBackend:
             result.append(StructuredFact(
                 type=row[1], title=row[2], tags=tags,
                 status=row[4], content_summary=row[5],
-                source_file=row[6], source_session=row[7]
+                source_file=row[6], source_session=row[7],
+                created_at=row[8],
             ))
         return result
 

@@ -4,11 +4,12 @@ from curator.improve_loop import ImproveLoop, ImproveReport
 from curator.models import StructuredFact
 
 
-def _ref(title, tags=None, status="verified"):
+def _ref(title, tags=None, status="verified", created_at=None):
     return StructuredFact(
         type="Reference", title=title,
         tags=tags or ["test"], status=status,
         content_summary=f"Summary for {title}" * 2,
+        created_at=created_at,
     )
 
 
@@ -53,6 +54,41 @@ class TestFindDuplicates:
         f1 = StructuredFact(type="Reference", title="Same title", tags=["test"], status="verified", content_summary="x" * 20)
         f2 = StructuredFact(type="Style", title="Same title", tags=["test"], status="verified", content_summary="x" * 20)
         assert loop._find_duplicates([f1, f2]) == []
+
+
+class TestDupPairOrientation:
+    """Регрессия #8: survivor пары дубликатов не зависит от порядка,
+    в котором факты пришли из бэкенда."""
+
+    def _only_pair(self, facts):
+        loop = ImproveLoop.__new__(ImproveLoop)
+        dups = loop._find_duplicates(facts)
+        assert len(dups) == 1
+        return dups[0][0], dups[0][1]
+
+    def test_earlier_created_survives_in_any_order(self):
+        early = _ref("Правило про JVM inline классы sealed", created_at="2026-09-16 10:00:00")
+        late = _ref("Правило про JVM inline классы sealed бокс", created_at="2026-09-16 10:00:05")
+        for facts in ([early, late], [late, early]):
+            winner, loser = self._only_pair(facts)
+            assert winner.title == early.title
+            assert loser.title == late.title
+
+    def test_title_tiebreak_when_created_at_equal(self):
+        a = _ref("Правило про JVM inline классы sealed", created_at="2026-09-16 10:00:00")
+        b = _ref("Правило про JVM inline классы sealed бокс", created_at="2026-09-16 10:00:00")
+        for facts in ([a, b], [b, a]):
+            winner, loser = self._only_pair(facts)
+            assert winner.title == a.title
+            assert loser.title == b.title
+
+    def test_no_created_at_title_tiebreak(self):
+        a = _ref("Правило про JVM inline классы sealed")
+        b = _ref("Правило про JVM inline классы sealed бокс")
+        for facts in ([a, b], [b, a]):
+            winner, loser = self._only_pair(facts)
+            assert winner.title == a.title
+            assert loser.title == b.title
 
 
 class TestFindStale:
