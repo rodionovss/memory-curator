@@ -410,3 +410,51 @@ class TestMapRoutingE2E:
         assert "docs/kotlin.md (mode: update)" in out
         assert "docs/journal.md (mode: append)" in out
         assert "kotlin" in out
+
+    def test_routes_see_map_edits_without_restart(self, tmp_path, monkeypatch):
+        """Регрессия #4: curator_routes перечитывает карту при вызове,
+        а не служит снапшотом старта сервера."""
+        home = tmp_path
+        md_dir = home / "learnings"
+        md_dir.mkdir()
+        map_path = md_dir / "DOCUMENTATION-MAP.md"
+        map_path.write_text(
+            "---\n"
+            "topics:\n"
+            "  - name: alpha\n"
+            "    watch_for: alpha\n"
+            "    targets:\n"
+            "      - path: docs/alpha.md\n"
+            "        captures: [knowledge]\n"
+            "        mode: update\n"
+            "---\n",
+            encoding="utf-8",
+        )
+        be = LocalBackend(str(home / "db" / "knowledge.db"))
+        server_mod = _wire_server(monkeypatch, be, md_dir, home / "usage.json")
+        from curator.routing.map_router import MapRouter
+        monkeypatch.setattr(server_mod, "router", MapRouter(map_path))
+        assert "Маршрутов: 1" in server_mod._routes()
+
+        # правка карты без перезапуска сервера
+        map_path.write_text(
+            "---\n"
+            "topics:\n"
+            "  - name: alpha\n"
+            "    watch_for: alpha\n"
+            "    targets:\n"
+            "      - path: docs/alpha.md\n"
+            "        captures: [knowledge]\n"
+            "        mode: update\n"
+            "  - name: beta\n"
+            "    watch_for: beta\n"
+            "    targets:\n"
+            "      - path: docs/beta.md\n"
+            "        captures: [knowledge]\n"
+            "        mode: update\n"
+            "---\n",
+            encoding="utf-8",
+        )
+        out = server_mod._routes()
+        assert "Маршрутов: 2" in out, "правка карты видна без перезапуска сервера (#4)"
+        assert "docs/beta.md" in out

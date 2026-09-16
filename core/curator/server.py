@@ -669,6 +669,12 @@ def _log_mcp_candidates(result, saved: int, declined_by_human: bool):
 
 
 def _routes() -> str:
+    # Карта могла измениться с момента старта сервера: routes и complete
+    # обязаны видеть одно состояние (баг #4). reload есть не у всех роутеров —
+    # guard, как у validation_errors ниже.
+    reload_router = getattr(router, "reload", None)
+    if reload_router is not None:
+        reload_router()
     routes = router.list_routes()
     lines = [f"Маршрутов: {len(routes)}"]
     # Невалидная карта не молчит: деградация видна в ответе тулза,
