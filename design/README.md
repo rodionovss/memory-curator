@@ -8,7 +8,7 @@
 | [spec.md](spec.md) | Техспека: use cases, data flow, компоненты, scope | Чтобы понять «почему так устроено» |
 | [decision-log.md](decision-log.md) | Архитектурные решения: xmemory+SQLite fallback, LLM вне бэкенда, отвергнутые альтернативы | Чтобы понимать причины и не переубеждать |
 | [playbook-routing.md](playbook-routing.md) | Контракт Router Protocol, routing.yaml | Онбординг |
-| [backlog.md](backlog.md) | Задачи после пуша ядра: MapRouter, save-knowledge→куратор, CRDT-роадмап | Планирование следующих итераций |
+| [backlog.md](backlog.md) | Продуктовый роадмап: фичи и тех.долг (баги — в GitHub Issues) | Планирование следующих итераций |
 
 Демо-материалы (чеклисты, сценарий записи, путеводитель по коду) — в [`demo/`](../demo/).
 Day-to-day использование — в [`docs/getting-started.md`](../docs/getting-started.md).

@@ -1,6 +1,11 @@
 # План реализации скилла построения карты документации
 
-> **Для agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Для agentic workers:** REQUIRED SUB-CKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+>
+> **Статус: выполнен (2026-09-16).** Скилл `.agents/skills/mapping-documentation/`
+> существует, поставляется инсталлером и используется (карта
+> `DOCUMENTATION-MAP.md` построена и валидируется MapRouter). Чекбоксы в
+> процессе не велись — план закрывается задним числом как реализованный.
 
 **Цель:** Создать и поведенчески проверить скилл `mapping-documentation`, который строит либо обновляет выбранную пользователем карту документации по произвольному корпусу проектных документов.
 
