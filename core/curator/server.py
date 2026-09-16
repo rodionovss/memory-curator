@@ -220,7 +220,7 @@ async def handle_list_tools(ctx, request):
                 "properties": {
                     "type": {"type": "string", "description": "Тип факта: Reference, Style, Tool, Spec"},
                     "tags": {"type": "string", "description": "Теги через запятую"},
-                    "status": {"type": "string", "description": "Статус: verified, hypothesis, deprecated"},
+                    "status": {"type": "string", "description": "Статус: verified, hypothesis, deprecated или all. По умолчанию deprecated скрыты"},
                     "search": {"type": "string", "description": "Текстовый поиск"},
                 },
             },
@@ -696,14 +696,21 @@ def _query(args: dict) -> str:
     if args.get("tags"):
         tags_list = [t.strip() for t in args["tags"].split(",") if t.strip()]
 
+    raw_status = (args.get("status") or "").strip()
+    query_status = raw_status if raw_status and raw_status != "all" else None
+
     query = FactQuery(
         type=args.get("type"),
         tags=tags_list,
-        status=args.get("status"),
+        status=query_status,
         search=args.get("search"),
     )
 
     facts = backend.query_facts(query)
+    if not raw_status:
+        # по умолчанию deprecated не показываем (мусор improve-петли);
+        # явный status=deprecated/all управляет полнотой выдачи
+        facts = [f for f in facts if f.status != "deprecated"]
 
     if facts:
         feedback.record_query(len(facts), [f.title for f in facts])
