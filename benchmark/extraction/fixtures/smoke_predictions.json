@@ -1,0 +1,32 @@
+[
+  {
+    "session_id": "smoke-session",
+    "gold_id": "reusable-rule",
+    "type": "Reference",
+    "title": "Validate boundaries before transformation",
+    "content_summary": "Validate external input before applying a transformation so failures remain local and explainable.",
+    "tags": ["validation"],
+    "evidence": "The boundary check prevented the downstream failure.",
+    "evaluation": {
+      "evidence_supported": true,
+      "abstract": true,
+      "atomic": true,
+      "labels": []
+    }
+  },
+  {
+    "session_id": "smoke-session",
+    "gold_id": "task-detail",
+    "type": "Reference",
+    "title": "Rename the local parser variable",
+    "content_summary": "A local variable was renamed in the current task.",
+    "tags": ["implementation"],
+    "evidence": "The variable was renamed in one file.",
+    "evaluation": {
+      "evidence_supported": true,
+      "abstract": false,
+      "atomic": true,
+      "labels": ["task_residue"]
+    }
+  }
+]

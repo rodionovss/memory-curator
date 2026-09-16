@@ -1,0 +1,37 @@
+{
+  "sessions": [
+    {
+      "id": "smoke-session",
+      "transcript": "An anonymous debugging discussion produced one reusable rule and one local implementation detail.",
+      "gold": [
+        {
+          "id": "reusable-rule",
+          "type": "Reference",
+          "title": "Validate boundaries before transformation",
+          "summary": "Validate external input before applying a transformation so failures remain local and explainable.",
+          "evidence": "The boundary check prevented the downstream failure.",
+          "scope": "General integration code",
+          "should_save": true
+        },
+        {
+          "id": "missed-rule",
+          "type": "Style",
+          "title": "Prefer explicit failure context",
+          "summary": "Errors should retain the operation and input boundary that produced them.",
+          "evidence": "The revised error included the operation name.",
+          "scope": "General error handling",
+          "should_save": true
+        },
+        {
+          "id": "task-detail",
+          "type": "Reference",
+          "title": "Rename the local parser variable",
+          "summary": "A local variable was renamed in the current task.",
+          "evidence": "The variable was renamed in one file.",
+          "scope": "Only the smoke task",
+          "should_save": false
+        }
+      ]
+    }
+  ]
+}

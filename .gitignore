@@ -20,6 +20,9 @@ node_modules/
 # Reports (generated)
 reports/
 
+# Local extraction-eval data (may contain private session transcripts)
+benchmark/extraction/local/
+
 # Secrets
 .env
 *.env

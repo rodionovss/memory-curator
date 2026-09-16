@@ -1,0 +1,28 @@
+{
+  "sessions": [
+    {
+      "id": "session-id",
+      "transcript": "local transcript or anonymized text",
+      "gold": [
+        {
+          "id": "knowledge-id",
+          "type": "Reference",
+          "title": "A reusable knowledge item",
+          "summary": "The transferable conclusion.",
+          "evidence": "Exact supporting excerpt.",
+          "scope": "Where the conclusion applies.",
+          "should_save": true
+        },
+        {
+          "id": "negative-id",
+          "type": "Reference",
+          "title": "A task-specific implementation detail",
+          "summary": "This is not reusable outside the task.",
+          "evidence": "Exact excerpt.",
+          "scope": "Only this task.",
+          "should_save": false
+        }
+      ]
+    }
+  ]
+}

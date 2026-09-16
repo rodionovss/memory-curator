@@ -131,7 +131,9 @@ class TestIdempotencyAndSafety:
         assert "status=update_project_docs" in command["template"]
         assert "next_action=curator-update-docs" in command["template"]
         assert "CURATOR_MAP" not in command["template"]
-        assert "curator_session_capture" not in command["template"]
+        assert "curator_session_capture" in command["template"]
+        assert "curator_capture_approve" in command["template"]
+        assert "auto_approve" not in command["template"]
         assert "curator-project-save" not in installer._commands_source()
 
     def test_project_setup_command_documents_project_paths(self):
