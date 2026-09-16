@@ -57,9 +57,12 @@ manifest. Успех сообщай только после `curator_capture_com
 ## A/B logging
 
 Переиспользуй `comparison_id` из текущей сессии или создай новый и покажи его
-пользователю. После preview и решения запиши локальный run record в
+пользователю. Сразу после решения пользователя — ПЕРВЫМ действием, до
+approve/complete и любых дальнейших шагов — запиши локальный run record в
 `benchmark/extraction/local/runs/` через `benchmark/extraction/run_log.py`.
-Используй `schema_version=2`, `skill_version=0.2.0-candidate` и commit текущей
+Не держи record в памяти или временном
+файле: следующая команда пользователя может прервать flow и запись
+потеряется. Используй `schema_version=2`, `skill_version=0.2.0-candidate` и commit текущей
 ветки из `git rev-parse HEAD`. В каждой prediction обязательно сохрани
 `evidence`. Record должен содержать version, skill_version, skill_commit,
 comparison_id, session_id, predictions, decision, selected_candidate_ids и

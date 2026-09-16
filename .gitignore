@@ -31,3 +31,6 @@ benchmark/extraction/local/
 .idea/
 .vscode/.mcp.json
 .mcp.json
+
+# Ops (self-improvement loop: local-only, see ops/README.md)
+ops/
