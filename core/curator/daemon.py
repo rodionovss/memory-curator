@@ -104,11 +104,9 @@ def start_worker() -> str:
     pid_file = _pid_file()
     pid_file.parent.mkdir(parents=True, exist_ok=True)
     interval = os.getenv("IMPROVE_INTERVAL_MINUTES", "1440")
-    backend = os.getenv("MEMORY_BACKEND", "local")
 
     worker_cmd = [sys.executable, "-m", "curator.worker", "--daemon"]
     env = os.environ.copy()
-    env["MEMORY_BACKEND"] = backend
     env["IMPROVE_INTERVAL_MINUTES"] = interval
 
     log_file = _worker_log()
@@ -124,7 +122,7 @@ def start_worker() -> str:
 
     time.sleep(0.5)
     if is_running(proc.pid):
-        return f"✅ Worker запущен (pid {proc.pid}, интервал {interval} мин, бэкенд {backend}, лог {log_file})"
+        return f"✅ Worker запущен (pid {proc.pid}, интервал {interval} мин, лог {log_file})"
     return f"❌ Worker не запустился. Проверьте лог: {log_file}"
 
 

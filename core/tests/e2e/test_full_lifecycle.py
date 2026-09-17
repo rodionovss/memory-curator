@@ -1,10 +1,9 @@
 """E2E: полный жизненный цикл знания — всё заявленное, один связный сценарий.
 
 Сценарий = capture review → approval → semantic docs → complete → query →
-improve (дубликаты + противоречия + eval-гейт). Отдельно: decay по usage и
-offline-fallback xmemory → outbox → sync (реальный HTTP, не моки путей).
+improve (дубликаты + противоречия + eval-гейт). Отдельно: decay по usage.
 
-Изоляция: HOME → tmp. Все ~/.curator/... пути (usage, outbox, логи) и базы
+Изоляция: HOME → tmp. Все ~/.curator/... пути (usage, логи) и базы
 живут в песочнице — реальное окружение пользователя не затрагивается.
 """
 
@@ -232,84 +231,6 @@ class TestUsageTelemetry:
         assert "[УСТАРЕЛО]" not in md_text
         assert "*Статус:* Подтверждено" in md_text
 
-
-class TestOfflineOutbox:
-    """Заявка UC6: xmemory недоступен → факт не теряется (локальная БД +
-    outbox), восстановление → sync пушит. Реальная сеть: мёртвый порт,
-    затем живой локальный HTTP-сервер."""
-
-    def test_offline_fallback_and_sync(self, tmp_path, monkeypatch):
-        from curator.backend.xmemory import XMemoryBackend
-        from curator.outbox import Outbox
-
-        fact = StructuredFact(type="Reference",
-                               title="Факт переживший недоступность xmemory",
-                               tags=["offline"], status="verified",
-                               content_summary="Сеть лежала, но знание дошло через outbox.")
-        local_db = str(tmp_path / "knowledge.db")
-        outbox_db = str(tmp_path / "outbox.db")
-
-        # порт 1: bind требует root → ConnectError гарантирован, без внешней сети
-        monkeypatch.setattr(XMemoryBackend, "BASE_URL", "http://127.0.0.1:1")
-        xmem = XMemoryBackend(api_key="test-key", instance_id="inst-42",
-                              local_path=local_db, outbox_path=outbox_db)
-
-        ref = xmem.store_fact(fact)
-        assert ref.title == fact.title
-        assert len(xmem.query_facts(FactQuery(search="недоступность"))) == 1, \
-            "чтение деградирует на локальную БД, знание доступно офлайн"
-
-        ob = Outbox(outbox_db)
-        assert ob.count() == 1, "запись обязана встать в очередь"
-
-        # восстановление: живой локальный HTTP-сервер
-        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-
-        class Handler(BaseHTTPRequestHandler):
-            received = []
-
-            def do_POST(self):
-                body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-                Handler.received.append({
-                    "path": self.path,
-                    "auth": self.headers.get("Authorization"),
-                    "body": body,
-                })
-                payload = json.dumps({"items": [{"write_id": f"write-{len(Handler.received)}"}]}).encode()
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Content-Length", str(len(payload)))
-                self.end_headers()
-                self.wfile.write(payload)
-
-            def log_message(self, *args):
-                pass
-
-        httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-        import threading
-        thread = threading.Thread(target=httpd.serve_forever, daemon=True)
-        thread.start()
-        try:
-            monkeypatch.setattr(XMemoryBackend, "BASE_URL", f"http://127.0.0.1:{httpd.server_port}")
-
-            # `curator sync` — свежий процесс с новым клиентом (кэш httpx.Client
-            # старого инстанса держит мёртвый base_url — как в реальном CLI)
-            xmem2 = XMemoryBackend(api_key="test-key", instance_id="inst-42",
-                                   local_path=local_db, outbox_path=outbox_db)
-            pushed = 0
-            for row_id, pending_fact in ob.pending():
-                xmem2.push_direct(pending_fact)
-                ob.mark_synced(row_id)
-                pushed += 1
-        finally:
-            httpd.shutdown()
-
-        assert pushed == 1
-        assert ob.count() == 0, "очередь после sync пуста"
-        assert len(Handler.received) == 1
-        assert Handler.received[0]["path"] == "/instances/inst-42/write"
-        assert Handler.received[0]["auth"] == "Bearer test-key"
-        assert "Факт переживший недоступность xmemory" in Handler.received[0]["body"]["text"]
 
 
 class TestMapRoutingE2E:

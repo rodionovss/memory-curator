@@ -12,8 +12,6 @@ observability для человека, автоматика по ней не д�
     curator-worker --watch <dir>     # следить за директорией с сессиями
 
 Конфигурация:
-    MEMORY_BACKEND: "xmemory" | "local"
-    XMEMORY_API_KEY / XMEMORY_INSTANCE_ID
     IMPROVE_INTERVAL_MINUTES: интервал между прогонами (default: 1440 = сутки)
     IMPROVE_REPORT_DIR: куда писать отчёты (default: ~/.curator/reports/)
     CURATOR_STATE_DIR: общий каталог состояния (default: ~/.curator)
@@ -29,16 +27,8 @@ from datetime import datetime
 
 
 def get_backend():
-    backend_type = os.getenv("MEMORY_BACKEND", "local")
-    if backend_type == "xmemory":
-        from curator.backend.xmemory import XMemoryBackend
-        return XMemoryBackend(
-            api_key=os.getenv("XMEMORY_API_KEY", ""),
-            instance_id=os.getenv("XMEMORY_INSTANCE_ID", ""),
-        )
-    else:
-        from curator.backend.local import LocalBackend
-        return LocalBackend()
+    from curator.backend.local import LocalBackend
+    return LocalBackend()
 
 
 def run_improve_cycle(backend, report_dir: Path, base_dir: Path | None = None) -> dict:

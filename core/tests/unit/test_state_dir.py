@@ -10,21 +10,14 @@ def test_state_dir_is_single_default_for_runtime_files(tmp_path, monkeypatch):
 
     from curator import daemon, models, server_log, worker
     from curator.backend.local import LocalBackend
-    from curator.backend.xmemory import XMemoryBackend
     from curator.observability import Observability
-    from curator.outbox import Outbox
     from curator.retrieval_feedback import RetrievalFeedback
 
     state_dir = tmp_path / ".curator"
     local = LocalBackend()
-    outbox = Outbox()
-    xmemory = XMemoryBackend(api_key="key", instance_id="instance")
 
     try:
         assert Path(local._db_path) == state_dir / "knowledge.db"
-        assert outbox._path == state_dir / "outbox.db"
-        assert Path(xmemory._local_path) == state_dir / "knowledge.db"
-        assert Path(xmemory._outbox_path) == state_dir / "outbox.db"
         assert Observability().path == state_dir / "improve_events.jsonl"
         assert RetrievalFeedback().storage_path == state_dir / "usage.json"
         assert server_log._path() == state_dir / "server.log"
@@ -34,7 +27,6 @@ def test_state_dir_is_single_default_for_runtime_files(tmp_path, monkeypatch):
         assert worker._report_dir_from_env() == state_dir / "reports"
     finally:
         local._conn.close()
-        outbox._conn.close()
 
 
 def test_component_overrides_win_over_state_dir(tmp_path, monkeypatch):

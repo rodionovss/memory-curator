@@ -113,14 +113,3 @@ class TestCustomTypeRoundTrip:
         facts = be.query_facts(FactQuery())
         assert facts and facts[0].type == "Note", \
             ".md — источник правды rebuild: тип принимается как записан"
-
-    def test_xmemory_row_preserves_custom_type(self):
-        from curator.backend.xmemory import XMemoryBackend
-
-        backend = XMemoryBackend(api_key="test", instance_id="test")
-        fact = backend._row_to_fact(
-            ["type", "title", "content_summary", "tags", "status"],
-            ["Note", "Заметка об инструменте", "Проверенное наблюдение об инструменте.", "tools", "verified"],
-        )
-
-        assert fact.type == "Note"

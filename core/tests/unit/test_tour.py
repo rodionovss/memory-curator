@@ -8,7 +8,7 @@ from curator.tour import run_tour
 
 class TestTour:
     def test_full_lifecycle_counts(self):
-        result = run_tour(backend="local", keep=False, verbose=False)
+        result = run_tour(keep=False, verbose=False)
 
         # Этап 1: gatekeeper — 10 кандидатов → 7 принято / 3 отклонено
         assert result["approved"] == 7
@@ -33,7 +33,7 @@ class TestTour:
         import curator.retrieval_feedback as fb_mod
         before_obs, before_fb = obs_mod.Observability, fb_mod.RetrievalFeedback
 
-        run_tour(backend="local", keep=False, verbose=False)
+        run_tour(keep=False, verbose=False)
 
         assert obs_mod.Observability is before_obs, "патч Observability обязан сниматься"
         assert fb_mod.RetrievalFeedback is before_fb, "патч RetrievalFeedback обязан сниматься"
