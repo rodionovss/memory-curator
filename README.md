@@ -109,6 +109,8 @@ Fisher exact: p = 0.0011.
 
 Методология, фикстуры и решения: [benchmark/application/](benchmark/application/)
 
+Исполняемый протокол новых экспериментов: [benchmark/experiments/](benchmark/experiments/)
+
 ## Попробовать за 2 минуты
 
 ```bash
@@ -159,7 +161,7 @@ AGENTS.md / CLAUDE.md — база в контексте каждой сесси
 | `core/` | ядро (Python): backend (SQLite), gatekeeper, improve_loop, MCP-сервер; CLI и sync_engine (write-back в .md) |
 | `core/tests/requirements/` | тесты требований — имя теста = ID требования |
 | `design/` | архитектура: requirements, spec, decision-log (история), playbook-routing (контракт Router), backlog |
-| `benchmark/` | A/B/C-бенчмарк применения знаний и extraction eval: фикстуры, детерминированные чеки, решения, отчёты |
+| `benchmark/` | A/B/C-бенчмарк применения знаний, extraction eval и runbook routing/access/proactive/storage экспериментов |
 | `docs/` | day-to-day: getting-started |
 
 ## Статус

@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "experiment",
+    "run_id",
+    "task_id",
+    "variant",
+    "model",
+    "events",
+    "checks",
+    "metrics"
+  ],
+  "properties": {
+    "experiment": {"type": "string"},
+    "run_id": {"type": "string"},
+    "task_id": {"type": "string"},
+    "variant": {"type": "string"},
+    "model": {"type": "string"},
+    "expected_fact_ids": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["event"],
+        "properties": {
+          "event": {"type": "string"},
+          "source": {"type": "string"},
+          "fact_id": {"type": ["string", "null"]},
+          "path": {"type": ["string", "null"]},
+          "timestamp_ms": {"type": "number"}
+        }
+      }
+    },
+    "checks": {
+      "type": "object",
+      "required": ["application_pass"],
+      "properties": {
+        "application_pass": {"type": "boolean"},
+        "false_application": {"type": "boolean"},
+        "review_status": {
+          "enum": ["not_needed", "manual_review", "reviewed"]
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "required": ["tool_calls", "input_tokens", "latency_ms"],
+      "properties": {
+        "tool_calls": {"type": "integer", "minimum": 0},
+        "input_tokens": {"type": "integer", "minimum": 0},
+        "latency_ms": {"type": "number", "minimum": 0},
+        "retrieval_precision": {"type": ["number", "null"]},
+        "retrieval_recall": {"type": ["number", "null"]}
+      }
+    }
+  }
+}
