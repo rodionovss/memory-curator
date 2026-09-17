@@ -217,6 +217,23 @@ async def handle_list_tools(ctx, request):
             },
         ),
         Tool(
+            name="curator_context",
+            description="Proactive delivery: текст задачи → ranked context cards (verified-факты). Транспорт-агностик по ADR 002.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "trigger": {"type": "string", "description": "Текст задачи/контекста для подбора фактов"},
+                    "types": {"type": "array", "items": {"type": "string"}, "description": "Фильтр типов фактов"},
+                    "tags": {"type": "array", "items": {"type": "string"}, "description": "Желаемые теги"},
+                    "exclude_tags": {"type": "array", "items": {"type": "string"}, "description": "Исключить теги"},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 10},
+                    "token_budget": {"type": "integer", "minimum": 100},
+                    "relevance_threshold": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+                },
+                "required": ["trigger"],
+            },
+        ),
+        Tool(
             name="curator_status",
             description="Статистика базы знаний: количество фактов по типам и статусам",
             inputSchema={"type": "object", "properties": {}},
@@ -263,6 +280,8 @@ async def handle_call_tool(ctx, request):
         text = await asyncio.to_thread(_routes)
     elif name == "curator_query":
         text = await asyncio.to_thread(_query, arguments)
+    elif name == "curator_context":
+        text = await asyncio.to_thread(_context, arguments)
     elif name == "curator_status":
         text = await asyncio.to_thread(_status)
     elif name == "curator_improve":
@@ -274,6 +293,7 @@ async def handle_call_tool(ctx, request):
 
     structured = json.loads(text) if name in {
         "curator_session_capture", "curator_capture_approve", "curator_capture_complete",
+        "curator_context",
     } else None
     return CallToolResult(
         content=[TextContent(type="text", text=text)],
@@ -717,6 +737,39 @@ def _query(args: dict) -> str:
         lines.append(f"*{f.type} | {f.status} | {tags}*\n")
 
     return "\n".join(lines)
+
+
+def _context(args: dict) -> str:
+    """Proactive delivery (ADR 002): trigger → ranked context cards JSON.
+
+    Ошибка retrieval → {"cards": [], "error": ...}: сбой не ломает сессию.
+    """
+    trigger = str(args.get("trigger") or "")
+    if not trigger.strip():
+        return json.dumps({"cards": []}, ensure_ascii=False)
+
+    options = {}
+    for key in ("types", "tags", "exclude_tags"):
+        value = args.get(key)
+        if isinstance(value, list) and value:
+            options[key] = [str(t) for t in value]
+    for key in ("limit", "token_budget"):
+        if isinstance(args.get(key), int) and args[key] > 0:
+            options[key] = args[key]
+    threshold = args.get("relevance_threshold")
+    if isinstance(threshold, (int, float)) and 0.0 <= float(threshold) <= 1.0:
+        options["relevance_threshold"] = float(threshold)
+
+    from curator.delivery import fetch_context
+    try:
+        cards = fetch_context(trigger, backend, feedback, **options)
+    except Exception as e:
+        return json.dumps(
+            {"cards": [], "error": f"context delivery недоступен: {e}"},
+            ensure_ascii=False,
+        )
+    payload = {"cards": [card.__dict__ for card in cards]}
+    return json.dumps(payload, ensure_ascii=False, indent=2)
 
 
 def _status() -> str:

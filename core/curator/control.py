@@ -385,6 +385,44 @@ def cmd_get(query: str = ""):
     _table(["Факт", "Тип", "Статус", "Теги"], rows)
 
 
+def cmd_context(args: list[str] | None = None):
+    """curator context '<текст задачи>' — ranked context cards (стабильный JSON)."""
+    import json as json_mod
+
+    args = list(args if args is not None else sys.argv[2:] if len(sys.argv) > 2 else [])
+    flags = ("-j", "--json")
+    pretty = any(a in ("-t", "--text") for a in args)
+    rest = [a for a in args if a not in flags + ("-t", "--text")]
+
+    options = {"limit": 3, "token_budget": 500, "relevance_threshold": 0.4}
+    for i, a in enumerate(rest):
+        if a in ("--limit", "--budget", "--threshold") and i + 1 < len(rest):
+            options[{"--limit": "limit", "--budget": "token_budget", "--threshold": "relevance_threshold"}[a]] = (
+                int(rest[i + 1]) if a != "--threshold" else float(rest[i + 1])
+            )
+        elif a == "--types" and i + 1 < len(rest):
+            options["types"] = [t.strip() for t in rest[i + 1].split(",") if t.strip()]
+
+    trigger = " ".join(a for a in rest if not a.startswith("--"))
+    result = {"cards": [], "count": 0}
+    if trigger:
+        from curator.delivery import fetch_context
+        from curator.retrieval_feedback import RetrievalFeedback
+        cards = fetch_context(trigger, _make_backend(), RetrievalFeedback(), **options)
+        result = {"cards": [card.__dict__ for card in cards], "count": len(cards)}
+
+    if pretty:
+        if result["cards"]:
+            for c in result["cards"]:
+                print(f"{c['score']:.2f} {c['title']} ({c['type']}, {', '.join(c['tags'])})")
+                print(f"  {c['summary'][:300]}")
+                print(f"  → {c['source_file'] or '(нет файла)'} | {c['reason']}\n")
+        else:
+            print("  Релевантных фактов нет (silent).")
+    else:
+        print(json_mod.dumps(result, ensure_ascii=False, indent=2))
+
+
 def cmd_start():
     from curator.daemon import ensure_worker
     print(ensure_worker())
@@ -656,6 +694,7 @@ def main():
         print("Использование:")
         print("  curator save              — сохранить кандидатов (JSON из stdin, извлекает агент)")
         print("  curator get <query>       — поиск фактов")
+        print("  curator context '<задача>' — ranked context cards (JSON, ADR 002)")
         print("  curator start             — запустить worker daemon")
         print("  curator stop              — остановить worker")
         print("  curator status            — worker + факты + последний improve")
@@ -690,6 +729,8 @@ def main():
     elif cmd == "get":
         query = " ".join(sys.argv[2:]) if len(sys.argv) > 2 else ""
         cmd_get(query)
+    elif cmd == "context":
+        cmd_context()
     elif cmd == "start":
         cmd_start()
     elif cmd == "stop":
