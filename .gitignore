@@ -34,3 +34,6 @@ benchmark/extraction/local/
 
 # Ops (self-improvement loop: local-only, see ops/README.md)
 ops/
+
+# Agent work products (local-only plans and specs)
+.opencode/superpowers/
