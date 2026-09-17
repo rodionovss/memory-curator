@@ -28,21 +28,11 @@
 | N4 | Human-in-the-loop: review не меняет документы/backend, approve принимает только выбранные ID | `unit/test_session_capture.py::TestReview::test_returns_json_preview_without_side_effects`, `TestApprove::test_freezes_selected_subset_and_returns_manifest` | ✅ |
 | N5 | Observability: JSONL-лог всех improve-действий | `test_N5_observability_логирует_улучшения` | ✅ |
 
-## xmemory блок (4/4)
-
-| ID | Требование | Тест | Статус |
-|----|-----------|------|--------|
-| X1 | Durability write→read (smoke — VPN + ключи) | `test_xmemory_criteria.py::test_X1_durability_write_read` | smoke |
-| X2 | XMD-схема: required поля, enum, primary_key | `test_X2_схема_под_задачу` | ✅ |
-| X3 | xmemory primary при MEMORY_BACKEND=xmemory | `test_X3_xmemory_primary_backend` | ✅ |
-| X4 | Наглядность: curator_status со счётчиками | `test_X4_наглядность_статуса` | ✅ |
-
 ## Spec UC (spec.md)
 
 | ID | Требование | Тест | Статус |
 |----|-----------|------|--------|
 | UC2 | Project write-back: три MCP tools, neural preflight, сначала документы, затем backend, placement по обязательной карте | `unit/test_session_capture.py::test_mcp_schema_exposes_three_step_capture_without_legacy_fields`, `TestComplete::test_writable_placement_saves_canonical_source`, `unit/test_skill_contracts.py` | ✅ |
-| UC6 | Fallback: сеть падает → локальная БД + outbox → sync | `test_uc_fallback.py` (6 тестов: store/query/4xx/upsert/sync) | ✅ |
 
 UC2 описывает новый MCP `/curator-save`. Requirement-тесты ingest и CLI,
 integration-тесты `SyncEngine` и E2E demo проверяют legacy-контур отдельно;
@@ -51,7 +41,5 @@ integration-тесты `SyncEngine` и E2E demo проверяют legacy-кон
 
 ## Регрессии, пойманные этим подходом
 
-- **R4**: fallback в `:memory:` терял данные при «рестарте» — зелёные юнит-тесты
+- **R4**: persistence в `:memory:` терял данные при «рестарте» — зелёные юнит-тесты
   это не ловили (проверяли код, а не требование). Requirement-тест упал бы сразу.
-- **UC6**: fallback срабатывал только при пустых ключах, а не при сетевой ошибке
-  (наш реальный баг, починен 29.08).
