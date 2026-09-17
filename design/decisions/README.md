@@ -6,6 +6,7 @@
 | ADR | Решение | Статус |
 |-----|---------|--------|
 | [001-sqlite-only-storage.md](001-sqlite-only-storage.md) | SQLite — единственный persistence backend; xmemory удалён | accepted |
+| [002-delivery-contract.md](002-delivery-contract.md) | Delivery contract: query → ranked context cards | accepted |
 
 Исторический `design/decision-log.md` остаётся источником контекста до
 постепенного переноса решений в отдельные ADR-файлы. Новые решения следует
