@@ -9,6 +9,7 @@
     curator report             — сводка: сегодня / 3 дня / неделя
     curator improve            — ручной запуск improve цикла
     curator routes             — текущие правила маршрутизации
+    curator knowledge-routes   — каталог маршрутов базы (Markdown/JSON/write/check)
 
 Конфигурация:
     CURATOR_STATE_DIR: SQLite, логи и worker state (default: ~/.curator)
@@ -534,6 +535,140 @@ def cmd_routes():
     _table(["Путь", "Описание", "Правила"], rows)
 
 
+KNOWLEDGE_ROUTES_CATALOG_NAME = "knowledge-routes.md"
+
+
+def _atomic_write_text(target: Path, content: str) -> None:
+    """Атомарная запись UTF-8 текста: tmp.<pid> рядом с целью + os.replace.
+
+    Права существующего целевого файла сохраняются; при ошибке tmp удаляется.
+    """
+    import stat as stat_module
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target.with_name(f"{target.name}.tmp.{os.getpid()}")
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(content)
+            f.flush()
+        if target.exists():
+            os.chmod(tmp, stat_module.S_IMODE(target.stat().st_mode))
+        os.replace(tmp, target)
+    except OSError:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
+def _print_route_validation_errors(errors) -> None:
+    """Все ошибки валидации маршрутов — человеку, в stderr (stdout машинных режимов чист)."""
+    print("  Ошибки валидации (факты без source_file или с небезопасными путями):",
+          file=sys.stderr)
+    for error in errors:
+        print(f"    ⛔ {error}", file=sys.stderr)
+
+
+def _resolve_knowledge_routes_base_dir(base_dir: Path | None) -> Path | None:
+    """Base dir для каталога маршрутов: --base-dir > CURATOR_BASE_DIR/конфиг.
+
+    Без явного пути и конфига возвращает None — фолбэк на домашнюю базу
+    не делаем: нельзя молча писать не туда, куда просил человек.
+    """
+    if base_dir is not None:
+        return base_dir
+    configured = _configured_base_dir()
+    return Path(configured).expanduser() if configured else None
+
+
+def cmd_knowledge_routes(args: list[str] | None = None) -> int:
+    """curator knowledge-routes — каталог маршрутов базы знаний (уровень файла).
+
+    Режимы (взаимоисключающие): default — Markdown в stdout; --json —
+    машинные записи; --write — атомарная запись <base_dir>/knowledge-routes.md;
+    --check — сверка файла с текущими фактами.
+
+    Возвращает exit code: 0 — успех; 1 — устаревший каталог, ошибки валидации
+    или неудачная запись; 2 — неверные аргументы или недоступный base dir.
+    """
+    args = list(args if args is not None else sys.argv[2:])
+    mode_flags = ("--json", "--write", "--check")
+    chosen = [a for a in args if a in mode_flags]
+    if len(chosen) > 1:
+        print("Ошибка: флаги --json/--write/--check взаимоисключающие", file=sys.stderr)
+        return 2
+
+    base_dir: Path | None = None
+    known = set(mode_flags) | {"--base-dir"}
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg == "--base-dir":
+            if i + 1 >= len(args) or args[i + 1].startswith("-"):
+                print("Ошибка: --base-dir требует путь", file=sys.stderr)
+                return 2
+            base_dir = Path(args[i + 1]).expanduser()
+            i += 2
+            continue
+        if arg.startswith("-"):
+            if arg not in known:
+                print(f"Ошибка: неизвестный флаг: {arg}", file=sys.stderr)
+                return 2
+        else:
+            print(f"Ошибка: неожидаемый аргумент: {arg}", file=sys.stderr)
+            return 2
+        i += 1
+
+    base_dir = _resolve_knowledge_routes_base_dir(base_dir)
+    if base_dir is None:
+        print("Ошибка: base dir не задан (--base-dir, CURATOR_BASE_DIR или конфиг opencode/.mcp)",
+              file=sys.stderr)
+        return 2
+    if not base_dir.exists():
+        print(f"Ошибка: base dir не существует: {base_dir}", file=sys.stderr)
+        return 2
+
+    from curator.knowledge_routes import (
+        build_routes,
+        render_routes_json,
+        render_routes_markdown,
+    )
+    from curator.models import FactQuery
+
+    facts = _make_backend().query_facts(FactQuery())
+    result = build_routes(facts, base_dir)
+    routes = list(result.routes)
+
+    exit_code = 0
+    if not chosen:
+        print(render_routes_markdown(routes), end="")
+    elif chosen == ["--json"]:
+        print(json.dumps(render_routes_json(routes), ensure_ascii=False, indent=2))
+    elif chosen == ["--write"]:
+        target = base_dir / KNOWLEDGE_ROUTES_CATALOG_NAME
+        try:
+            _atomic_write_text(target, render_routes_markdown(routes))
+        except OSError as e:
+            print(f"Ошибка записи {target}: {e}", file=sys.stderr)
+            return 1
+        print(f"  ✅ Каталог маршрутов записан: {target}")
+    elif chosen == ["--check"]:
+        target = base_dir / KNOWLEDGE_ROUTES_CATALOG_NAME
+        if not target.exists():
+            print(f"Ошибка: каталог маршрутов не найден: {target} — сначала "
+                  "curator knowledge-routes --write", file=sys.stderr)
+            return 1
+        if target.read_text(encoding="utf-8") != render_routes_markdown(routes):
+            print(f"  ⛔ Каталог маршрутов устарел: {target} не совпадает с текущими фактами",
+                  file=sys.stderr)
+            exit_code = 1
+        else:
+            print(f"  ✅ Каталог маршрутов актуален: {target}")
+
+    if result.validation_errors:
+        _print_route_validation_errors(result.validation_errors)
+        exit_code = 1
+    return exit_code
+
+
 def cmd_sessions():
     """Реестр и транскрипты сессий OpenCode — источник для майнинга знаний."""
     args = sys.argv[2:] if len(sys.argv) > 2 else []
@@ -701,6 +836,7 @@ def main():
         print("  curator report [-d N]    — сводка (за N дней или всё время)")
         print("  curator improve           — ручной improve цикл")
         print("  curator routes            — правила маршрутизации")
+        print("  curator knowledge-routes [--json|--write|--check] [--base-dir ПУТЬ] — каталог маршрутов базы")
         print("  curator sessions [list|show] — реестр/транскрипты сессий OpenCode (майнинг)")
         print("  curator candidates        — precision-отчёт: предложено/сохранено/отказано")
         print("  curator install [--opencode|--claude] [--base-dir ПУТЬ] [--skills-link|--skills-copy] — установка без вопросов")
@@ -739,6 +875,8 @@ def main():
         cmd_improve()
     elif cmd == "routes":
         cmd_routes()
+    elif cmd == "knowledge-routes":
+        sys.exit(cmd_knowledge_routes(sys.argv[2:]))
     elif cmd == "install":
         cmd_install()
     elif cmd == "demo":
@@ -749,7 +887,7 @@ def main():
         cmd_candidates()
     else:
         print(f"Неизвестная команда: {cmd}")
-        print("Доступные: save, get, start, stop, status, report, improve, routes, sync, demo, sessions, candidates")
+        print("Доступные: save, get, start, stop, status, report, improve, routes, knowledge-routes, sync, demo, sessions, candidates")
 
 
 if __name__ == "__main__":
