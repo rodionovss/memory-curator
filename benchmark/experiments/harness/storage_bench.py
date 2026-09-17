@@ -363,16 +363,20 @@ def run_threshold_sweep(
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repeats", type=int, default=5)
+    parser.add_argument("--out-dir", default=None,
+                        help="куда писать артефакты (по умолчанию results/04-storage); "
+                             "ре-раны указывают отдельный каталог, чтобы не затирать замороженный baseline")
     parser.add_argument(
         "--thresholds", type=str, default=None,
         help="comma-separated sweep, e.g. 0.20,0.30,0.40,0.50,0.60",
     )
     args = parser.parse_args()
+    out_dir = Path(args.out_dir) if args.out_dir else None
     if args.thresholds:
         thresholds = [float(t) for t in args.thresholds.split(",") if t.strip()]
-        run_threshold_sweep(thresholds, args.repeats)
+        run_threshold_sweep(thresholds, args.repeats, out_dir=out_dir)
     else:
-        run(args.repeats)
+        run(args.repeats, out_dir=out_dir)
     return 0
 
 

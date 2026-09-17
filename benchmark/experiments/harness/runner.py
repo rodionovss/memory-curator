@@ -202,8 +202,8 @@ def run_single(task: dict, variant: str, model_name: str, model_id: str,
     return result
 
 
-def emit(result: dict) -> Path:
-    out_dir = RESULTS_DIR / result["experiment"] / "runs"
+def emit(result: dict, results_dir: Path | None = None) -> Path:
+    out_dir = (results_dir or RESULTS_DIR) / result["experiment"] / "runs"
     out_dir.mkdir(parents=True, exist_ok=True)
     out = out_dir / f"{result['run_id']}.json"
     out.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -221,6 +221,9 @@ def main() -> int:
     parser.add_argument("--models", default="strong")
     parser.add_argument("--repeats", type=int, default=1)
     parser.add_argument("--scratch", default="/tmp/curator-experiments")
+    parser.add_argument("--results-dir", default=None,
+                        help="корень для результатов (по умолчанию benchmark/experiments/results); "
+                             "ре-раны пишут в отдельный корень, чтобы не затирать замороженные артефакты")
     parser.add_argument("--dry", action="store_true")
     args = parser.parse_args()
 
@@ -242,6 +245,7 @@ def main() -> int:
 
     scratch = Path(args.scratch)
     scratch.mkdir(parents=True, exist_ok=True)
+    results_dir = Path(args.results_dir) if args.results_dir else None
 
     total = len(tasks) * len(variants) * len(chosen) * args.repeats
     print(f"plan: {len(tasks)} tasks × {len(variants)} variants × "
@@ -260,7 +264,7 @@ def main() -> int:
                                         repeat, scratch,
                                         experiment=args.experiment,
                                         routing=args.routing)
-                    out = emit(result)
+                    out = emit(result, results_dir=results_dir)
                     print(f"[{done}/{total}] {result['run_id']} → "
                           f"pass={result['checks']['application_pass']} "
                           f"kb_reads={result['metrics']['kb_reads']} ({out.name})")
