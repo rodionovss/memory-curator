@@ -5,6 +5,10 @@ project: Memory Curator
 
 # Требования к продукту
 
+> **Historical.** Разделы «Критерии блока xmemory» описывают удалённый
+> backend. Актуальные требования и тест-матрица:
+> [core/tests/requirements/README.md](../core/tests/requirements/README.md).
+
 Видение: «агент, который помнит» — фоновый агент, который с каждой итерацией
 становится лучше: извлекает уроки из своих же результатов, копит опыт и
 переиспользует его в следующих задачах.
@@ -24,9 +28,9 @@ project: Memory Curator
 | # | Требование | Memory Curator | Статус |
 |---|-----------|----------------|--------|
 | 1 | Обрабатывать поток задач из выбранного источника | `.md` файлы в `learnings/` (ingest) + сессии opencode / Claude Code (candidates от агента) | ✅ |
-| 2 | Цикл «выполнил → оценил → извлёк урок» | Агент извлекает → `curator_session_capture(candidates)` → `gatekeeper.py` → backend (xmemory/SQLite) → `improve_loop.py` | ✅ |
+| 2 | Цикл «выполнил → оценил → извлёк урок» | Агент извлекает → `curator_session_capture(candidates)` → `gatekeeper.py` → backend (SQLite) → `improve_loop.py` | ✅ |
 | 3 | Менять поведение на основе опыта | Improve loop находит дубликаты → consolidation; stale → deprecation; eval gate проверяет перед изменением | ✅ |
-| 4 | Хранить память между рестартами | xmemory (primary) + SQLite (fallback, персистентный файл + offline-outbox, `curator sync`) | ✅ |
+| 4 | Хранить память между рестартами | SQLite (персистентный файл `$CURATOR_STATE_DIR/knowledge.db`, закрыто тестом R4) | ✅ |
 | 5 | Поработать с реальными данными и обучиться на них | ingest реальных `.md` из `learnings/` + реальные сессии OpenCode (`session_reader.py`, opencode.db) + фикстуры структуры learnings в тестах | ✅ |
 | 6 | Демонстрация дельты «до/после» | `demo.py`: clean (пустая память) одобряет извлечённые факты, trained (обученная) отклоняет их как дубликаты — один и тот же прогон сессий | ✅ |
 
@@ -54,7 +58,7 @@ project: Memory Curator
 
 ---
 
-## Критерии блока xmemory
+## Критерии блока xmemory (historical, backend удалён)
 
 | Критерий | Memory Curator | Статус |
 |----------|----------------|--------|

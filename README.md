@@ -33,9 +33,8 @@
   записи для каждой темы (обновлять / дополнять / не трогать)
 - **Подсказывает, что реально читают** — телеметрия использования: какие
   знания забыты — видно; решение за человеком, автоматика не удаляет
-- **Работает офлайн** — локальная база по умолчанию; облачный режим для
-  команд, при сбое сети ничего не теряется и досылается автоматически
-- **Надёжность** — 300+ тестов, каждое требование закрыто тестом
+- **Работает офлайн** — локальная SQLite-база, сеть не нужна
+- **Надёжность** — 400+ тестов, каждое требование закрыто тестом
   с ID, все изменения журналируются
 
 ## Как работает
@@ -64,15 +63,10 @@ CLI, ingest, demo и `SyncEngine` остаются отдельным legacy-к�
 шаблонными Curator-секциями. Их fallback `session/{type}.md` и флаги
 автоподтверждения не действуют в `/curator-save`.
 
-Offline-fallback (UC6): при недоступности xmemory (сеть / VPN / 5xx) записи
-уходят в локальную SQLite + offline-outbox, чтения деградируют на локальную
-базу. При восстановлении `curator sync` допушивает очередь — идемпотентно по
-title. 4xx — ошибка запроса, деградации нет.
-
 ## Как измеряется прогресс
 
 Каждое требование закрыто тестом, имя теста = ID требования.
-**21 тест на 16 требований** (UC6 покрыт 6 сценариями):
+**14 тестов на 12 требований** (R1-R6: 6, N1-N5: 5, UC2: 3):
 
 ```bash
 cd core && .venv/bin/python -m pytest tests/requirements/ -v
@@ -82,8 +76,6 @@ cd core && .venv/bin/python -m pytest tests/requirements/ -v
 |------|-------|---------------|
 | R1-R6 | 6 | минимальные требования: поток задач, цикл урока, изменение поведения, рестарты, реальные данные, дельта до/после |
 | N1-N5 | 5 | доп. блоки: забывание, противоречия, eval-гейт, human-in-the-loop, observability |
-| X1-X4 | 4 | блок xmemory: durability (smoke, VPN), схема, primary-backend, наглядность |
-| UC6 | 6 | offline-fallback: store / query / 4xx / идемпотентность / sync |
 
 Трассировочная матрица — [core/tests/requirements/README.md](core/tests/requirements/README.md):
 требование → тест → статус. Тесты называются по ID требований и ходят только
@@ -152,33 +144,31 @@ AGENTS.md / CLAUDE.md — база в контексте каждой сесси
 Самоулучшение в фоне (баг-репорты от агентов → беклог → мейнтейнер):
 [docs/self-improvement-loop.md](docs/self-improvement-loop.md).
 
-## Два варианта развёртывания
+## Развёртывание
 
-| | Локальная база (по умолчанию) | xmemory (для команд и облака) |
-|--|-----------|-------------------|
-| Что нужно | ничего — SQLite идёт в комплекте | `XMEMORY_API_KEY` + `XMEMORY_INSTANCE_ID` |
-| Включение | `MEMORY_BACKEND=local` | `MEMORY_BACKEND=xmemory` |
-| Хранение | `$CURATOR_STATE_DIR/knowledge.db` | облако xmemory, локальный fallback в `$CURATOR_STATE_DIR` |
-| Сеть | не нужна | нужна; сбой (сеть/VPN/5xx) → авто-fallback на локальную SQLite + offline-outbox |
-| Восстановление | — | `curator sync` допушивает outbox, идемпотентно по title |
+| | Локальная база (единственный вариант) |
+|--|-----------|
+| Что нужно | ничего — SQLite идёт в комплекте |
+| Хранение | `$CURATOR_STATE_DIR/knowledge.db` |
+| Сеть | не нужна |
 
 ## Структура
 
 | Папка | Что |
 |-------|-----|
-| `core/` | ядро (Python): backend/ (xmemory + SQLite + outbox), gatekeeper, improve_loop, MCP-сервер; CLI и legacy sync_engine |
+| `core/` | ядро (Python): backend (SQLite), gatekeeper, improve_loop, MCP-сервер; CLI и sync_engine (write-back в .md) |
 | `core/tests/requirements/` | тесты требований — имя теста = ID требования |
-| `design/` | архитектура: requirements, spec, decision-log, playbook-routing (контракт Router), backlog |
+| `design/` | архитектура: requirements, spec, decision-log (история), playbook-routing (контракт Router), backlog |
 | `benchmark/` | A/B/C-бенчмарк применения знаний и extraction eval: фикстуры, детерминированные чеки, решения, отчёты |
 | `docs/` | day-to-day: getting-started |
 
 ## Статус
 
-- **Ядро — готово**: трёхфазный MCP capture, gatekeeper, xmemory + SQLite
-  fallback с offline-outbox, project write-back сначала в документацию,
-  затем в backend, improve loop с eval-гейтом,
-  реестр типов с описаниями, демо-тур. **300+ тестов**, включая 21
-  тест-требование
+- **Ядро — готово**: трёхфазный MCP capture, gatekeeper, локальный SQLite
+  backend, project write-back сначала в документацию, затем в backend,
+  improve loop с eval-гейтом,
+  реестр типов с описаниями, демо-тур. **400+ тестов**, включая 14
+  тест-требований
 - **Read-side — готово**: правила памяти в глобальном AGENTS.md / CLAUDE.md
   (база в контексте каждой сессии), плагин session.idle → `/curator-save`,
   `curator status` показывает, что сделал последний improve
@@ -193,8 +183,6 @@ AGENTS.md / CLAUDE.md — база в контексте каждой сесси
 ## Роадмап
 
 - **Упаковка**: pipx/uv — установка одной командой без клона репо
-- **`curator pull`**: слить чужие факты из xmemory в локальную — первая
-  ступень командной синхронизации
 - **Извлечение из прошлых сессий**: разговор закрыт и забыт — знания из
   него можно вытащить позже (сейчас — только текущая сессия)
 - **Авто-триггер извлечения**: полный автоном без human-in-the-loop
@@ -202,7 +190,3 @@ AGENTS.md / CLAUDE.md — база в контексте каждой сесси
 - **Двусторонняя .md-синка**: ручная правка файла → авто-переиндексация
 
 Полный список: [design/backlog.md](design/backlog.md)
-
-## Ссылки
-
-- xmemory: https://xmemory.ai
