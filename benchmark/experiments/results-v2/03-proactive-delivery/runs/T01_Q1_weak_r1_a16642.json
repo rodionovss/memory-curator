@@ -1,0 +1,33 @@
+{
+  "experiment": "03-proactive-delivery",
+  "run_id": "T01_Q1_weak_r1_a16642",
+  "task_id": "T01",
+  "task_class": "hidden_trigger",
+  "variant": "Q1",
+  "model": "weak",
+  "expected_fact_ids": [
+    "F72"
+  ],
+  "memory_required": true,
+  "looks_easy": true,
+  "events": [],
+  "checks": {
+    "application_pass": false,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "новый метод обёрнут в withContext"
+  },
+  "metrics": {
+    "tool_calls": 6,
+    "input_tokens": 34928,
+    "output_tokens": 403,
+    "latency_ms": 7933,
+    "kb_reads": 0
+  },
+  "session_id": "ses_f4ef907ceffeYrQ2Sb31b48O14",
+  "returncode": 0,
+  "stderr_tail": "",
+  "routing": "R3",
+  "delivery": "silent",
+  "silent_delivery": true
+}

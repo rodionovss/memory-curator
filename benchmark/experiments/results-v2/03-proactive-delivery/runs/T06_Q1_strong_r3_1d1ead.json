@@ -1,0 +1,39 @@
+{
+  "experiment": "03-proactive-delivery",
+  "run_id": "T06_Q1_strong_r3_1d1ead",
+  "task_id": "T06",
+  "task_class": "explicit_trigger",
+  "variant": "Q1",
+  "model": "strong",
+  "expected_fact_ids": [
+    "F68"
+  ],
+  "memory_required": true,
+  "looks_easy": false,
+  "events": [
+    {
+      "event": "source_file_read",
+      "source": "file_read",
+      "fact_id": "F68",
+      "path": "kb/F68-textalign-viewstart-port.md"
+    }
+  ],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "без явного TextAlign.Start"
+  },
+  "metrics": {
+    "tool_calls": 5,
+    "input_tokens": 5440,
+    "output_tokens": 315,
+    "latency_ms": 13813,
+    "kb_reads": 1
+  },
+  "session_id": "ses_f4ef3b9c4ffeKUNv3GBTGiPX33",
+  "returncode": 0,
+  "stderr_tail": "",
+  "routing": "R3",
+  "delivery": "real_retriever"
+}

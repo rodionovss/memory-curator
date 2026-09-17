@@ -1,0 +1,40 @@
+{
+  "experiment": "03-proactive-delivery",
+  "run_id": "K2_Q1_strong_r2_806655",
+  "task_id": "K2",
+  "task_class": "false_application_control",
+  "variant": "Q1",
+  "model": "strong",
+  "expected_fact_ids": [
+    "F72"
+  ],
+  "memory_required": true,
+  "looks_easy": false,
+  "events": [
+    {
+      "event": "source_file_read",
+      "source": "file_read",
+      "fact_id": "F72",
+      "path": "kb/F72-withcontext-suspend-dao.md"
+    }
+  ],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "blocking-чтение корректно обёрнуто"
+  },
+  "metrics": {
+    "tool_calls": 4,
+    "input_tokens": 12260,
+    "output_tokens": 309,
+    "latency_ms": 32047,
+    "kb_reads": 1
+  },
+  "session_id": "ses_f4ef0ee90ffe8wyXW7GZnyrCio",
+  "returncode": 0,
+  "stderr_tail": "",
+  "routing": "R3",
+  "delivery": "silent",
+  "silent_delivery": true
+}

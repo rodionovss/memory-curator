@@ -1,0 +1,33 @@
+{
+  "experiment": "03-proactive-delivery",
+  "run_id": "T04_Q1_weak_r3_77e902",
+  "task_id": "T04",
+  "task_class": "looks_easy_with_rule",
+  "variant": "Q1",
+  "model": "weak",
+  "expected_fact_ids": [
+    "F86"
+  ],
+  "memory_required": true,
+  "looks_easy": true,
+  "events": [],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "отсутствие id падает явно"
+  },
+  "metrics": {
+    "tool_calls": 4,
+    "input_tokens": 33965,
+    "output_tokens": 375,
+    "latency_ms": 9009,
+    "kb_reads": 0
+  },
+  "session_id": "ses_f4ef44cb6ffeb6tFHkTBn0MCw8",
+  "returncode": 0,
+  "stderr_tail": "",
+  "routing": "R3",
+  "delivery": "silent",
+  "silent_delivery": true
+}

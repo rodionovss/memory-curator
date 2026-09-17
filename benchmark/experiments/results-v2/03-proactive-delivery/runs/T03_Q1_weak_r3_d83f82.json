@@ -1,0 +1,33 @@
+{
+  "experiment": "03-proactive-delivery",
+  "run_id": "T03_Q1_weak_r3_d83f82",
+  "task_id": "T03",
+  "task_class": "hidden_trigger",
+  "variant": "Q1",
+  "model": "weak",
+  "expected_fact_ids": [
+    "F121"
+  ],
+  "memory_required": true,
+  "looks_easy": false,
+  "events": [],
+  "checks": {
+    "application_pass": false,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "нет @IntoMap-контрибуций"
+  },
+  "metrics": {
+    "tool_calls": 7,
+    "input_tokens": 16696,
+    "output_tokens": 265,
+    "latency_ms": 7766,
+    "kb_reads": 0
+  },
+  "session_id": "ses_f4ef55a44ffesuscdsD8sHs3jp",
+  "returncode": 0,
+  "stderr_tail": "",
+  "routing": "R3",
+  "delivery": "silent",
+  "silent_delivery": true
+}
