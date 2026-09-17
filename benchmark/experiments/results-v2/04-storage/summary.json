@@ -1,0 +1,29 @@
+{
+  "experiment": "04-storage",
+  "runs": 200,
+  "backends": {
+    "S1": {
+      "runs": 100,
+      "precision": 0.696,
+      "recall": 1.0,
+      "no_result_false_positive_rate": 0.0,
+      "deprecated_leak_rate": 1.0,
+      "latency_p50_ms": 0.02,
+      "latency_p95_ms": 0.03,
+      "avg_result_tokens": 76.3,
+      "deterministic_order": true
+    },
+    "S2": {
+      "runs": 100,
+      "precision": 1.0,
+      "recall": 0.375,
+      "no_result_false_positive_rate": 0.0,
+      "deprecated_leak_rate": 0.0,
+      "latency_p50_ms": 0.501,
+      "latency_p95_ms": 0.643,
+      "avg_result_tokens": 20.9,
+      "deterministic_order": true
+    }
+  },
+  "primary_metric": "recall"
+}
