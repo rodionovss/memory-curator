@@ -1,0 +1,31 @@
+{
+  "experiment": "03-proactive-delivery",
+  "run_id": "K1_Q1_strong_r3_343aa8",
+  "task_id": "K1",
+  "task_class": "no_memory_control",
+  "variant": "Q1",
+  "model": "strong",
+  "expected_fact_ids": [],
+  "memory_required": false,
+  "looks_easy": true,
+  "events": [],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "тривиальная задача решена"
+  },
+  "metrics": {
+    "tool_calls": 2,
+    "input_tokens": 9034,
+    "output_tokens": 151,
+    "latency_ms": 9382,
+    "kb_reads": 0
+  },
+  "session_id": "ses_f501f5777ffeHN3CO95oxO2hka",
+  "returncode": 0,
+  "stderr_tail": "",
+  "routing": "R3",
+  "delivery": "silent",
+  "silent_delivery": true
+}

@@ -1,0 +1,40 @@
+{
+  "experiment": "03-proactive-delivery",
+  "run_id": "T03_Q1_strong_r1_2fde67",
+  "task_id": "T03",
+  "task_class": "hidden_trigger",
+  "variant": "Q1",
+  "model": "strong",
+  "expected_fact_ids": [
+    "F121"
+  ],
+  "memory_required": true,
+  "looks_easy": false,
+  "events": [
+    {
+      "event": "source_file_read",
+      "source": "file_read",
+      "fact_id": "F121",
+      "path": "kb/F121-dagger-intomap.md"
+    }
+  ],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "контрибуции в map-фабрику добавлены"
+  },
+  "metrics": {
+    "tool_calls": 12,
+    "input_tokens": 15519,
+    "output_tokens": 853,
+    "latency_ms": 29765,
+    "kb_reads": 1
+  },
+  "session_id": "ses_f502aaad9ffeOXTDJ48PF0XoN2",
+  "returncode": 0,
+  "stderr_tail": "",
+  "routing": "R3",
+  "delivery": "silent",
+  "silent_delivery": true
+}

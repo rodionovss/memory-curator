@@ -1,0 +1,46 @@
+{
+  "experiment": "03-proactive-delivery",
+  "run_id": "T02_Q1_weak_r3_69d644",
+  "task_id": "T02",
+  "task_class": "explicit_trigger",
+  "variant": "Q1",
+  "model": "weak",
+  "expected_fact_ids": [
+    "F109"
+  ],
+  "memory_required": true,
+  "looks_easy": true,
+  "events": [
+    {
+      "event": "source_file_read",
+      "source": "file_read",
+      "fact_id": "F109",
+      "path": "kb/F109-retrofit-path-prefix.md"
+    },
+    {
+      "event": "source_file_read",
+      "source": "file_read",
+      "fact_id": "F72",
+      "path": "kb/F72-withcontext-suspend-dao.md"
+    }
+  ],
+  "checks": {
+    "application_pass": false,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "задвоение префикса в пути: 'api/mobile/v1/user/settings'"
+  },
+  "metrics": {
+    "tool_calls": 12,
+    "input_tokens": 66088,
+    "output_tokens": 888,
+    "latency_ms": 20837,
+    "kb_reads": 2
+  },
+  "session_id": "ses_f502ec4e8ffeIC9zNp6jF7k2oy",
+  "returncode": 0,
+  "stderr_tail": "",
+  "routing": "R3",
+  "delivery": "silent",
+  "silent_delivery": true
+}

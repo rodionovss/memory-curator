@@ -1,0 +1,32 @@
+{
+  "experiment": "03-proactive-delivery",
+  "run_id": "K2_O1_weak_r1_e27b0a",
+  "task_id": "K2",
+  "task_class": "false_application_control",
+  "variant": "O1",
+  "model": "weak",
+  "expected_fact_ids": [
+    "F72"
+  ],
+  "memory_required": true,
+  "looks_easy": false,
+  "events": [],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "blocking-чтение корректно обёрнуто"
+  },
+  "metrics": {
+    "tool_calls": 5,
+    "input_tokens": 34769,
+    "output_tokens": 379,
+    "latency_ms": 7937,
+    "kb_reads": 0
+  },
+  "session_id": "ses_f501e8df0ffekGOhSRUUr0ydn9",
+  "returncode": 0,
+  "stderr_tail": "",
+  "routing": "R3",
+  "delivery": "oracle_card"
+}
