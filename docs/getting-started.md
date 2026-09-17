@@ -143,13 +143,13 @@ topics:
 ## 2в. Демонстрация заявленного
 
 E2E-сценарий `core/tests/e2e/test_full_lifecycle.py` проверяет новый capture
-`review → approve → semantic docs → complete`, query, backend improve,
-телеметрию и offline-fallback. Legacy `SyncEngine` и rebuild проверяются
+`review → approve → semantic docs → complete`, query, backend improve
+и телеметрию. Legacy `SyncEngine` и rebuild проверяются
 отдельными integration-тестами. Прогон: `pytest tests/e2e/test_full_lifecycle.py -v`.
 
 ## 3. Все команды (TERMINAL, legacy-контур)
 
-Терминальные `curator save`, `curator sync`, ingest и demo не являются
+Терминальные `curator save`, ingest и demo не являются
 эквивалентом `/curator-save`: они сохраняют старый CLI/`SyncEngine` flow и не
 запускают `curator-update-docs`.
 
@@ -165,7 +165,6 @@ E2E-сценарий `core/tests/e2e/test_full_lifecycle.py` проверяет 
 | `curator get "kotlin"` | Поиск фактов |
 | `curator improve` | Ручной запуск improve цикла |
 | `curator routes` | Правила маршрутизации фактов по папкам |
-| `curator sync` | Пуш offline-outbox в xmemory (после восстановления сети) |
 | `curator install` | Установка без вопросов: автодетект opencode / Claude Code (флаги `--opencode/--claude/--base-dir` — только для скриптов) |
 | `curator demo` | Тур: полный жизненный цикл знания на изолированной базе (для быстрой проверки) |
 
@@ -199,9 +198,6 @@ Worker делает всё в фоне. Ты только смотришь `cura
 ## 6. Конфигурация
 
 ```bash
-# Локальный бэкенд (SQLite) — для разработки
-export MEMORY_BACKEND=local
-
 # Все служебные файлы в одном каталоге
 export CURATOR_STATE_DIR=/path/to/project/.curator
 
@@ -209,11 +205,6 @@ export CURATOR_STATE_DIR=/path/to/project/.curator
 # CURATOR_MAP (явно) → $CURATOR_BASE_DIR/DOCUMENTATION-MAP.md (конвенция)
 export CURATOR_BASE_DIR=/path/to/project
 export CURATOR_MAP=/path/to/project/docs/documentation-map.md
-
-# xmemory бэкенд — для прода
-export MEMORY_BACKEND=xmemory
-export XMEMORY_API_KEY=<your-key>
-export XMEMORY_INSTANCE_ID=<your-instance-id>
 
 # Интервал improve (минуты)
 export IMPROVE_INTERVAL_MINUTES=1440  # сутки
@@ -225,7 +216,6 @@ export IMPROVE_INTERVAL_MINUTES=1440  # сутки
 |-----|-----|
 | `curator` CLI | `.venv/bin/curator` |
 | Worker лог | `$CURATOR_STATE_DIR/worker.log` |
-| Offline-outbox | `$CURATOR_STATE_DIR/outbox.db` |
 | Improve-лог | `$CURATOR_STATE_DIR/improve_events.jsonl` |
 | Usage-статистика | `$CURATOR_STATE_DIR/usage.json` |
 | Worker отчёты | `$CURATOR_STATE_DIR/reports/improve_*.json` |

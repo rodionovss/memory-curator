@@ -25,9 +25,9 @@ cd core
 
 | Путь | Что |
 |------|-----|
-| `core/curator/` | код: `backend/` (xmemory + SQLite + outbox), `gatekeeper.py`, `improve_loop.py`, `sync_engine.py`, `server.py` (MCP, 8 тулзов), `control.py` (CLI), `tour.py` (демо-тур) |
-| `core/tests/requirements/` | **главный suite**: 1 тест = 1 требование (R1-R6, N1-N5, X1-X4, UC6), трассировочная матрица в README там же |
-| `design/` | архитектура: `requirements.md` (матрица требований), `spec.md`, `decision-log.md` |
+| `core/curator/` | код: `backend/` (SQLite LocalBackend), `gatekeeper.py`, `improve_loop.py`, `sync_engine.py`, `server.py` (MCP, 8 тулзов), `control.py` (CLI), `tour.py` (демо-тур) |
+| `core/tests/requirements/` | **главный suite**: 1 тест = 1 требование (R1-R6, N1-N5, UC2), трассировочная матрица в README там же |
+| `design/` | архитектура: `requirements.md` (матрица требований), `spec.md`, `decision-log.md` (история), `decisions/` (актуальные ADR) |
 | `docs/getting-started.md` | установка, подключение к opencode, CLI, worker |
 | `.agents/skills/` | канонический source of truth product skills; подробный workflow хранится в `playbook.md` |
 | `docs/` | актуальная документация; authority и исторические материалы описаны в `docs/README.md` |

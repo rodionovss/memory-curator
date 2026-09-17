@@ -157,7 +157,7 @@ print(f'Style fact → {path}')
 
 ```
 curator/gatekeeper.py   ← валидация (уже работает)
-curator/backend/        ← xmemory/SQLite (уже работает)
+curator/backend/        ← SQLite (уже работает)
 curator/improve_loop.py ← автоулучшение (уже работает)
 curator/server.py       ← MCP-сервер (уже работает, вызывает router.route_fact())
 ```

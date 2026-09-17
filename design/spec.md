@@ -2,10 +2,14 @@
 type: Spec
 project: Memory Curator
 date: 2026-08-22
-status: draft
+status: superseded
 ---
 
 # Spec: Memory Curator — Self-Improving Knowledge Base Agent
+
+> **Historical.** Документ описывает архитектуру эпохи xmemory primary
+> (хакатон). Актуальная архитектура SQLite-only: [decisions/](decisions/README.md).
+> Не переопределяет код и тесты; назначение — только исторический контекст.
 
 ## Overview
 
