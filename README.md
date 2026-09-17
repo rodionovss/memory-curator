@@ -160,7 +160,7 @@ AGENTS.md / CLAUDE.md — база в контексте каждой сесси
 |-------|-----|
 | `core/` | ядро (Python): backend (SQLite), gatekeeper, improve_loop, MCP-сервер; CLI и sync_engine (write-back в .md) |
 | `core/tests/requirements/` | тесты требований — имя теста = ID требования |
-| `design/` | архитектура: requirements, spec, decision-log (история), playbook-routing (контракт Router), backlog |
+| `design/` | архитектура: requirements, spec, decision-log (история), playbook-routing (контракт Router), knowledge-route-format ([контракт Knowledge Route Metadata](design/knowledge-route-format.md)), backlog |
 | `benchmark/` | A/B/C-бенчмарк применения знаний, extraction eval и runbook routing/access/proactive/storage экспериментов |
 | `docs/` | day-to-day: getting-started |
 

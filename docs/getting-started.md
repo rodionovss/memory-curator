@@ -227,3 +227,6 @@ export IMPROVE_INTERVAL_MINUTES=1440  # сутки
 | База SQLite (local) | `$CURATOR_STATE_DIR/knowledge.db` |
 
 Если `CURATOR_STATE_DIR` не задан, используется `~/.curator`.
+
+Сгенерированный каталог маршрутов уровня файла (`knowledge-routes.md`):
+контракт формата — [design/knowledge-route-format.md](../design/knowledge-route-format.md).
