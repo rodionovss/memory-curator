@@ -254,7 +254,6 @@ class TestPatchPreservesBase:
             "mcp": {"memory-curator": {
                 "command": "old-server",
                 "env": {
-                    "MEMORY_BACKEND": "local",
                     "CURATOR_BASE_DIR": base,
                     "CURATOR_STATE_DIR": "/home/user/project/.curator",
                     "CURATOR_MAP": "/home/user/project/DOCUMENTATION-MAP.md",
