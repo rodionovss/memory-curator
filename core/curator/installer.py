@@ -158,15 +158,26 @@ def publish_routes_pointers(base: str) -> list[str]:
 
     Вызывается после записи каталога (`curator knowledge-routes --write`)
     и повторяет placement-контракт install: только указатель, не контент.
-    Возвращает publish-строки; без найденных харнесов — пояснение.
+    Fault-isolation per harness: незаписываемый rules-файл одного харнеса
+    (read-only, нет места) не валит publish остальных — деградирует в ⚠-шаг,
+    из publish-пути исключение не выходит. Возвращает publish-строки;
+    без найденных харнесов — пояснение.
     """
     home = Path(os.environ.get("HOME", str(Path.home())))
     do_opencode, do_claude = detect_harnesses()
     steps: list[str] = []
-    if do_opencode and _install_routes_pointer(home / ".config" / "opencode" / "AGENTS.md", base):
-        steps.append("✅ opencode: pointer каталога маршрутов в глобальном AGENTS.md")
-    if do_claude and _install_routes_pointer(home / ".claude" / "CLAUDE.md", base):
-        steps.append("✅ Claude Code: pointer каталога маршрутов в ~/.claude/CLAUDE.md")
+    if do_opencode:
+        try:
+            if _install_routes_pointer(home / ".config" / "opencode" / "AGENTS.md", base):
+                steps.append("✅ opencode: pointer каталога маршрутов в глобальном AGENTS.md")
+        except Exception as e:
+            steps.append(f"⚠ opencode: pointer каталога маршрутов не записан: {e}")
+    if do_claude:
+        try:
+            if _install_routes_pointer(home / ".claude" / "CLAUDE.md", base):
+                steps.append("✅ Claude Code: pointer каталога маршрутов в ~/.claude/CLAUDE.md")
+        except Exception as e:
+            steps.append(f"⚠ Claude Code: pointer каталога маршрутов не записан: {e}")
     if not steps:
         steps.append("◦ opencode / Claude Code не обнаружены — pointer каталога не обновлён")
     return steps

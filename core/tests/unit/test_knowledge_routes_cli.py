@@ -13,6 +13,7 @@ import sys
 import pytest
 
 import curator.control as control
+from curator import installer
 from curator.backend.local import LocalBackend
 from curator.knowledge_routes import build_routes, render_routes_markdown
 from curator.models import FactQuery, StructuredFact
@@ -274,6 +275,34 @@ class TestWritePublishesPointer:
         assert rc == 0
         assert not (tmp_path / ".config").exists(), "нет харнесов — rules-файлы не создаём"
         assert not (tmp_path / ".claude").exists()
+
+    def test_write_unwritable_rules_one_harness_other_published(self, env, tmp_path, monkeypatch, capsys):
+        """rules-файл одного харнеса незаписываем (OSError) — ⚠ вместо крэша:
+        каталог уже записан, второй харнес опубликован, команда выходит 0."""
+        home = tmp_path / "home"
+        (home / ".config" / "opencode").mkdir(parents=True)
+        (home / ".claude").mkdir(parents=True)
+        monkeypatch.setenv("HOME", str(home))
+        store(make_fact("Alpha", source_file="a.md"))
+
+        real_install = installer._install_routes_pointer
+
+        def opencode_boom(rules_path, base):
+            if rules_path.name == "AGENTS.md":
+                raise OSError("файл только для чтения")
+            return real_install(rules_path, base)
+
+        monkeypatch.setattr(installer, "_install_routes_pointer", opencode_boom)
+
+        rc = control.cmd_knowledge_routes(["--write"])
+
+        captured = capsys.readouterr()
+        assert rc == 0, "каталог записан — сбой publish одного харнеса не валит команду"
+        assert (env / "knowledge-routes.md").exists()
+        assert "⚠" in captured.out  # сбой виден как предупреждение, не traceback
+        text = (home / ".claude" / "CLAUDE.md").read_text(encoding="utf-8")
+        assert "memory-curator-routes:begin" in text, "второй харнес всё же опубликован"
+        assert not (home / ".config" / "opencode" / "AGENTS.md").exists()
 
     def test_check_does_not_touch_rules_files(self, env, tmp_path, monkeypatch):
         home = tmp_path / "home"
