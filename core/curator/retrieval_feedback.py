@@ -114,6 +114,10 @@ class RetrievalFeedback:
         except OSError:
             pass
 
+    def usage_map(self) -> dict[str, dict]:
+        """Свежая карта title → {count, last_access} с диска (для ranking)."""
+        return dict(self._read_disk())
+
     def get_stats(self, top_n: int = 10) -> list[dict]:
         """Топ-N самых используемых фактов (свежие данные с диска)."""
         counts = defaultdict(_default_entry, self._read_disk())

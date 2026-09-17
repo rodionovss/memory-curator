@@ -11,10 +11,12 @@ from __future__ import annotations
 
 import math
 import re
+import sys
 import time
 from dataclasses import dataclass, field
+from typing import Protocol
 
-from curator.models import StructuredFact
+from curator.models import FactQuery, StructuredFact
 
 # ~4 символа на токен — консервативная оценка латиницы/кириллицы
 _CHARS_PER_TOKEN = 4
@@ -220,3 +222,71 @@ def retrieve(
         selected.append(card)
         budget_left -= cost
     return selected
+
+
+class ContextBackend(Protocol):
+    def query_facts(self, query: FactQuery) -> list[StructuredFact]: ...
+
+
+class ContextFeedback(Protocol):
+    def usage_map(self) -> dict[str, dict]: ...
+    def record_query(self, query_result_count: int, accessed_titles: list[str]): ...
+
+
+def fetch_context(
+    trigger: str,
+    backend: ContextBackend,
+    feedback: ContextFeedback | None = None,
+    *,
+    types: list[str] | None = None,
+    tags: list[str] | None = None,
+    exclude_tags: list[str] | None = None,
+    include_hypothesis: bool = False,
+    limit: int = _DEFAULTS["limit"],
+    token_budget: int = _DEFAULTS["token_budget"],
+    relevance_threshold: float = _DEFAULTS["relevance_threshold"],
+    now: float | None = None,
+) -> list[ContextCard]:
+    """Proactive delivery: текст задачи → ranked context cards (ADR 002).
+
+    Доставленные карточки записываются в usage-телеметрию (вход ранжирования
+    и сигнал качества для Epic #18). Только verified; deprecated исключён.
+    """
+    facts = backend.query_facts(FactQuery())
+    usage = feedback.usage_map() if feedback else {}
+    cards = retrieve(
+        ContextQuery(
+            trigger=trigger,
+            types=types or [],
+            tags=tags or [],
+            exclude_tags=exclude_tags or [],
+            include_hypothesis=include_hypothesis,
+            limit=limit,
+            token_budget=token_budget,
+            relevance_threshold=relevance_threshold,
+        ),
+        facts,
+        usage=usage,
+        now=now,
+    )
+    if cards and feedback is not None:
+        feedback.record_query(len(cards), [c.title for c in cards])
+    return cards
+
+
+def fetch_context_safe(
+    trigger: str,
+    backend: ContextBackend,
+    feedback: ContextFeedback | None = None,
+    **options,
+) -> list[ContextCard]:
+    """Безопасная обёртка: ошибка retrieval → пустой список, не исключение.
+
+    Инвариант proactive delivery: сбой базы не ломает сессию агента
+    (ADR 002, п. «Отказ безопасности»).
+    """
+    try:
+        return fetch_context(trigger, backend, feedback, **options)
+    except Exception as e:
+        print(f"curator: context delivery недоступен: {e}", file=sys.stderr, flush=True)
+        return []
