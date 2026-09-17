@@ -4,7 +4,7 @@ from curator.models import StructuredFact, FactQuery, FactRef, Relation, GraphDa
 
 @runtime_checkable
 class MemoryBackend(Protocol):
-    """Агностик к провайдеру памяти. xmemory primary, LocalBackend (SQLite) fallback."""
+    """Агностик к провайдеру памяти. LocalBackend (SQLite) — единственная реализация."""
 
     def store_fact(self, fact: StructuredFact) -> FactRef:
         """Сохранить валидированный факт. Возвращает ссылку."""

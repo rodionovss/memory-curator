@@ -5,7 +5,7 @@
   run_time_lapse(backend, sessions)— эволюция: N сессий подряд, рост фактов после каждой
 
 Использование:
-    cd core && MEMORY_BACKEND=xmemory XMEMORY_API_KEY=... .venv/bin/python3 -m curator.demo
+    cd core && .venv/bin/python3 -m curator.demo
     cd core && .venv/bin/python3 -c "from curator.demo import run_time_lapse; run_time_lapse()"
 """
 
@@ -269,7 +269,7 @@ def run_demo(backend_trained=None, verbose: bool = True) -> DemoResult:
 
     if verbose:
         header("DEMO: Memory Curator — «до» (чистая память) vs «после» (обученная)")
-        print(f"  Обученная память: {result.trained_facts_total} фактов в xmemory" if has_trained else "  Обученная память: НЕ ПОДКЛЮЧЕНА (только clean)")
+        print(f"  Обученная память: {result.trained_facts_total} фактов" if has_trained else "  Обученная память: НЕ ПОДКЛЮЧЕНА (только clean)")
         print("  Extraction: keyword (демо, детерминированно)\n")
 
     for session in TEST_SESSIONS:
@@ -378,7 +378,7 @@ def _print_summary_plain(result: DemoResult, has_trained: bool):
             print(f"\n  Вывод: Обученный агент НЕ сохранил {delta} фактов, которые уже знает.")
             print("  Чистый агент сохранил бы их как «новые» — это и есть накопление опыта.")
     else:
-        print("  (xmemory не подключён — запусти с MEMORY_BACKEND=xmemory)")
+        print("  (обученная память не подключена — сравнение только clean)")
 
 
 def run_opencode_demo(n_sessions: int = 3):
@@ -483,45 +483,6 @@ def run_ingest_demo(learnings_dir: str | None = None):
     print(f"  После индексации {saved} фактов из {len(list(dir_path.rglob('*.md')))} .md файлов — агент может отвечать.")
 
 
-def run_durability_demo():
-    header("DEMO: xmemory durability — память переживает рестарт")
-
-    api_key = os.getenv("XMEMORY_API_KEY", "")
-    instance_id = os.getenv("XMEMORY_INSTANCE_ID", "")
-
-    if not api_key:
-        print("  XMEMORY_API_KEY не задан.")
-        return
-
-    from curator.backend.xmemory import XMemoryBackend
-
-    # Шаг 1: записать маркер
-    marker = StructuredFact(type="Reference", title="DEMO DURABILITY MARKER", tags=["demo", "durability"], status="verified", content_summary="Маркер для проверки durability xmemory. Должен пережить перезапуск процесса.")
-    print("  1. Записываем маркер в xmemory...")
-    be1 = XMemoryBackend(api_key=api_key, instance_id=instance_id)
-    ref = be1.store_fact(marker)
-    print(f"     Сохранён: {ref.title}")
-
-    # Шаг 2: «перезапустить» — создать новый экземпляр backend
-    print("  2. «Перезапускаем» процесс — создаём новый XMemoryBackend...")
-    be2 = XMemoryBackend(api_key=api_key, instance_id=instance_id)
-    assert be2.health_check(), "xmemory недоступен после перезапуска"
-    print(f"     Backend здоров: {be2.health_check()}")
-
-    # Шаг 3: прочитать маркер обратно
-    print("  3. Ищем маркер в xmemory...")
-    found = be2.query_facts(FactQuery(search="DEMO DURABILITY MARKER"))
-    print(f"     Найдено: {len(found)} фактов")
-    for f in found:
-        print(f"     ✅ {f.title} [{f.status}]")
-
-    if found:
-        print("\n  Вывод: данные пережили перезапуск процесса.")
-        print("  xmemory хранит состояние независимо от нашего Python-процесса.")
-    else:
-        print("\n  ⚠ Маркер не найден — проверь VPN и ключ xmemory.")
-
-
 def main():
     mode = os.getenv("DEMO_MODE", "compare")
 
@@ -531,29 +492,11 @@ def main():
     if mode == "ingest":
         run_ingest_demo()
         return
-    if mode == "durability":
-        run_durability_demo()
-        return
     if mode == "timelapse":
         run_time_lapse()
         return
 
-    backend_type = os.getenv("MEMORY_BACKEND", "").lower()
-    trained = None
-
-    if backend_type == "xmemory":
-        api_key = os.getenv("XMEMORY_API_KEY", "")
-        instance_id = os.getenv("XMEMORY_INSTANCE_ID", "")
-        if not api_key:
-            print("MEMORY_BACKEND=xmemory, но XMEMORY_API_KEY не задан. Демо только с clean.")
-        else:
-            from curator.backend.xmemory import XMemoryBackend
-            trained = XMemoryBackend(api_key=api_key, instance_id=instance_id)
-            if not trained.health_check():
-                print("xmemory недоступен. Демо только с clean.")
-                trained = None
-
-    result = run_demo(trained)
+    result = run_demo()
     return result
 
 

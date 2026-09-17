@@ -9,7 +9,6 @@ backend, ImproveLoop, worker). Никакой синтетики: каждый �
 """
 
 import json
-import os
 import shutil
 import tempfile
 import time
@@ -98,7 +97,7 @@ def _banner(out, text: str):
     out(f"\n{line}\n  {text}\n{line}")
 
 
-def run_tour(backend: str = "local", keep: bool = False, verbose: bool = True) -> dict:
+def run_tour(keep: bool = False, verbose: bool = True) -> dict:
     """Прогнать полный тур. Возвращает итоговые счётчики (для тестов)."""
     out = print if verbose else (lambda *a, **k: None)
 
@@ -109,20 +108,9 @@ def run_tour(backend: str = "local", keep: bool = False, verbose: bool = True) -
               "decay": 0, "final_by_status": {}, "md_files": []}
 
     try:
-        if backend == "xmemory":
-            api_key = os.getenv("XMEMORY_API_KEY", "")
-            instance_id = os.getenv("XMEMORY_INSTANCE_ID", "")
-            if not api_key or not instance_id:
-                out("Ошибка: --backend xmemory требует XMEMORY_API_KEY и XMEMORY_INSTANCE_ID")
-                return result
-            from curator.backend.xmemory import XMemoryBackend
-            be = XMemoryBackend(api_key=api_key, instance_id=instance_id,
-                                local_path=str(tmp / "knowledge.db"),
-                                outbox_path=str(tmp / "outbox.db"))
-        else:
-            be = LocalBackend(str(tmp / "knowledge.db"))
+        be = LocalBackend(str(tmp / "knowledge.db"))
 
-        _banner(out, f"MEMORY CURATOR — ТУР · бэкенд: {backend}")
+        _banner(out, "MEMORY CURATOR — ТУР · бэкенд: local")
         out(f"  Изолированная база: {tmp} (реальные данные не трогаются)")
         out("  Флаг --keep сохранит файлы для ручного осмотра")
         out("")

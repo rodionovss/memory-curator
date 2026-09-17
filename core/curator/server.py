@@ -8,8 +8,7 @@
 нейронный skill делает смысловой write-back в документацию проекта.
 
 Конфигурация через переменные окружения:
-    MEMORY_BACKEND: "xmemory" | "local" (default: "local")
-    CURATOR_STATE_DIR: SQLite, outbox, логи и worker state (default: ~/.curator)
+    CURATOR_STATE_DIR: SQLite, логи и worker state (default: ~/.curator)
     CURATOR_BASE_DIR: директория с .md файлами
     CURATOR_MAP: путь к карте документации проекта
 """
@@ -43,15 +42,7 @@ from curator.retrieval_feedback import RetrievalFeedback
 
 
 def _get_backend() -> MemoryBackend:
-    backend_type = os.getenv("MEMORY_BACKEND", "local")
-    if backend_type == "xmemory":
-        from curator.backend.xmemory import XMemoryBackend
-        return XMemoryBackend(
-            api_key=os.getenv("XMEMORY_API_KEY", ""),
-            instance_id=os.getenv("XMEMORY_INSTANCE_ID", ""),
-        )
-    else:
-        return LocalBackend()
+    return LocalBackend()
 
 
 _FACT_TYPES_DOC = "тип факта — известные типы с описаниями: см. curator_status; новый тип только после подтверждения человеком (new_type=true + type_description)"
@@ -851,7 +842,7 @@ def main():
     """Entry point для MCP-сервера."""
     import asyncio
     import sys
-    print(f"[curator] MCP server starting: BACKEND={os.getenv('MEMORY_BACKEND', 'local')}", file=sys.stderr)
+    print("[curator] MCP server starting: BACKEND=local", file=sys.stderr)
 
     # Инвариант: worker жив, пока жив MCP-сервер. opencode стартует сервер —
     # ensure поднимает мёртвый демон и чистит протухший pid. Выключатель для

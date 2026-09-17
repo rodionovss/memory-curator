@@ -187,38 +187,6 @@ class TestSqliteThreadSafety:
         assert not errors, f"конкурентный доступ не должен падать: {errors}"
         assert len(be.query_facts(FactQuery())) == N * W, "ни одна запись не потеряна"
 
-    def test_concurrent_outbox_enqueue(self, tmp_path):
-        """Ревью-3 blocker: Outbox — тот же класс (Connection без лока,
-        reachable из to_thread через xmemory-fallback)."""
-        import threading
-
-        from curator.outbox import Outbox
-
-        ob = Outbox(str(tmp_path / "outbox.db"))
-        errors = []
-        N = 8
-        W = 25
-
-        def writer(worker_id: int):
-            try:
-                for i in range(W):
-                    ob.enqueue(StructuredFact(
-                        type="Reference", title=f"Факт очереди {worker_id} номер {i}",
-                        tags=["t"], status="verified", content_summary="x" * 20,
-                    ))
-                    ob.pending()
-            except Exception as e:
-                errors.append(e)
-
-        threads = [threading.Thread(target=writer, args=(w,)) for w in range(N)]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
-
-        assert not errors, f"конкурентный outbox не должен падать: {errors}"
-        assert ob.count() == N * W, "ни один факт очереди не потерян"
-
 
 class TestUsageJsonCrossProcess:
     """Ревью-2: фиксированный tmp-файл ронял второй процесс (FileNotFoundError

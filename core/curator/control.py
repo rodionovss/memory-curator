@@ -11,10 +11,8 @@
     curator routes             — текущие правила маршрутизации
 
 Конфигурация:
-    MEMORY_BACKEND: "local" | "xmemory"
-    CURATOR_STATE_DIR: SQLite, outbox, логи и worker state (default: ~/.curator)
+    CURATOR_STATE_DIR: SQLite, логи и worker state (default: ~/.curator)
     IMPROVE_INTERVAL_MINUTES: интервал daemon (default: 1440 = сутки)
-    XMEMORY_API_KEY / XMEMORY_INSTANCE_ID
 """
 
 import os
@@ -400,13 +398,8 @@ def cmd_stop():
 def cmd_demo():
     args = sys.argv[2:]
     keep = "--keep" in args
-    backend = "local"
-    if "--backend" in args:
-        idx = args.index("--backend")
-        if idx + 1 < len(args):
-            backend = args[idx + 1]
     from curator.tour import run_tour
-    run_tour(backend=backend, keep=keep)
+    run_tour(keep=keep)
 
 
 def cmd_install():
@@ -437,39 +430,6 @@ def cmd_install():
     print()
     for step in steps:
         print(f"  {step}")
-
-
-def cmd_sync():
-    _header("Curator Sync — пуш outbox в xmemory")
-
-    key = os.getenv("XMEMORY_API_KEY", "")
-    inst = os.getenv("XMEMORY_INSTANCE_ID", "")
-    if not key or not inst:
-        print("  ⚠ Нет XMEMORY_API_KEY / XMEMORY_INSTANCE_ID — синк невозможен.")
-        return
-
-    from curator.outbox import Outbox
-    from curator.backend.xmemory import XMemoryBackend
-    ob = Outbox()
-    pending = ob.pending()
-    if not pending:
-        print("  Outbox пуст — нечего синхронизировать.")
-        return
-
-    print(f"  В очереди: {len(pending)} фактов")
-    xmem = XMemoryBackend(api_key=key, instance_id=inst)
-    pushed = 0
-    failed = 0
-    for row_id, fact in pending:
-        try:
-            xmem.push_direct(fact)
-            ob.mark_synced(row_id)
-            pushed += 1
-        except Exception as e:
-            ob.fail(row_id)
-            failed += 1
-            print(f"    ⛔ {fact.title[:60]} — {str(e)[:80]}")
-    print(f"  ✅ Отправлено: {pushed}, ⛔ Не удалось: {failed}")
 
 
 def cmd_improve():
@@ -626,16 +586,8 @@ def cmd_candidates():
 
 
 def _make_backend():
-    backend_type = os.getenv("MEMORY_BACKEND", "local")
-    if backend_type == "xmemory":
-        from curator.backend.xmemory import XMemoryBackend
-        return XMemoryBackend(
-            api_key=os.getenv("XMEMORY_API_KEY", ""),
-            instance_id=os.getenv("XMEMORY_INSTANCE_ID", ""),
-        )
-    else:
-        from curator.backend.local import LocalBackend
-        return LocalBackend()
+    from curator.backend.local import LocalBackend
+    return LocalBackend()
 
 
 def _read_events():
@@ -710,13 +662,12 @@ def main():
         print("  curator report [-d N]    — сводка (за N дней или всё время)")
         print("  curator improve           — ручной improve цикл")
         print("  curator routes            — правила маршрутизации")
-        print("  curator sync              — пуш offline-outbox в xmemory")
         print("  curator sessions [list|show] — реестр/транскрипты сессий OpenCode (майнинг)")
         print("  curator candidates        — precision-отчёт: предложено/сохранено/отказано")
         print("  curator install [--opencode|--claude] [--base-dir ПУТЬ] [--skills-link|--skills-copy] — установка без вопросов")
-        print("  curator demo [--keep] [--backend xmemory] — тур: полный цикл жизни знания")
+        print("  curator demo [--keep] — тур: полный цикл жизни знания")
         print()
-        print("Конфигурация: MEMORY_BACKEND, IMPROVE_INTERVAL_MINUTES, XMEMORY_API_KEY")
+        print("Конфигурация: IMPROVE_INTERVAL_MINUTES")
         return
 
     cmd = sys.argv[1].lower()
@@ -747,8 +698,6 @@ def main():
         cmd_improve()
     elif cmd == "routes":
         cmd_routes()
-    elif cmd == "sync":
-        cmd_sync()
     elif cmd == "install":
         cmd_install()
     elif cmd == "demo":
