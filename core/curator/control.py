@@ -14,6 +14,9 @@
 Конфигурация:
     CURATOR_STATE_DIR: SQLite, логи и worker state (default: ~/.curator)
     IMPROVE_INTERVAL_MINUTES: интервал daemon (default: 1440 = сутки)
+    CURATOR_DELIVERY_MODE: режим `curator context` — off (default) | shadow | inject
+    CURATOR_SESSION_ID: id сессии OpenCode в shadow/inject событиях (форвардит плагин)
+    CURATOR_SHADOW_LOG_PATH: лог событий доставки (default: <state>/delivery-shadow.jsonl)
 """
 
 import os
@@ -386,8 +389,21 @@ def cmd_get(query: str = ""):
     _table(["Факт", "Тип", "Статус", "Теги"], rows)
 
 
+def _delivery_mode() -> str:
+    """CURATOR_DELIVERY_MODE: off | shadow | inject. Опечатка → off (fail-safe)."""
+    mode = (os.getenv("CURATOR_DELIVERY_MODE") or "").strip().lower()
+    return mode if mode in ("off", "shadow", "inject") else "off"
+
+
 def cmd_context(args: list[str] | None = None):
-    """curator context '<текст задачи>' — ranked context cards (стабильный JSON)."""
+    """curator context '<текст задачи>' — ranked context cards (стабильный JSON).
+
+    Транспорт плагина OpenCode (ADR 002). Режим CURATOR_DELIVERY_MODE:
+    off (default) — пустой контракт без retrieval; shadow — retrieval и
+    локальное shadow-событие, карточки не возвращаются; inject — событие
+    и возврат карточек. Retrieval всегда с feedback=None: proactive
+    доставка не считается ручным доступом пользователя.
+    """
     import json as json_mod
 
     args = list(args if args is not None else sys.argv[2:] if len(sys.argv) > 2 else [])
@@ -405,12 +421,29 @@ def cmd_context(args: list[str] | None = None):
             options["types"] = [t.strip() for t in rest[i + 1].split(",") if t.strip()]
 
     trigger = " ".join(a for a in rest if not a.startswith("--"))
+    mode = _delivery_mode()
     result = {"cards": [], "count": 0}
-    if trigger:
+    if trigger and mode != "off":
+        from curator import shadow_log
         from curator.delivery import fetch_context
-        from curator.retrieval_feedback import RetrievalFeedback
-        cards = fetch_context(trigger, _make_backend(), RetrievalFeedback(), **options)
-        result = {"cards": [card.__dict__ for card in cards], "count": len(cards)}
+
+        session_id = os.getenv("CURATOR_SESSION_ID") or None
+        started = time.perf_counter()
+        try:
+            cards = fetch_context(trigger, _make_backend(), None, **options)
+        except Exception as e:
+            # Сбой retrieval — не наблюдение: событие не пишется, CLI жив
+            print(f"curator: context delivery недоступен: {e}", file=sys.stderr, flush=True)
+            cards = None
+        if cards is not None:
+            latency_ms = int((time.perf_counter() - started) * 1000)
+            shadow_log.log_event(
+                trigger, cards, mode=mode, session_id=session_id,
+                delivered=(mode == "inject" and bool(cards)),
+                latency_ms=latency_ms,
+            )
+            if mode == "inject":
+                result = {"cards": [card.__dict__ for card in cards], "count": len(cards)}
 
     if pretty:
         if result["cards"]:

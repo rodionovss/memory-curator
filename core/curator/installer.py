@@ -117,14 +117,31 @@ def _install_global_rules(rules_path: Path, body: str) -> bool:
     return True
 
 
-def _install_plugin(plugins_dir: Path) -> bool:
-    """Плагин-реминдер (session.idle → нотификация) в каталог плагинов opencode."""
-    source = _repo_root() / "integrations" / "curator-reminder.js"
-    if not source.exists():
-        return False
-    plugins_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(source, plugins_dir / source.name)
-    return True
+def _install_plugin(plugins_dir: Path) -> list[str]:
+    """Плагины Memory Curator в каталог плагинов opencode.
+
+    Refresh своих копий (реминдер + proactive delivery) идемпотентен;
+    пользовательские плагины не трогаем. Возвращает шаги-сообщения.
+    """
+    sources = (
+        ("curator-reminder.js", "✅ opencode: плагин-реминдер session.idle → /curator-save"),
+        ("curator-context.js",
+         "✅ opencode: плагин proactive delivery curator-context.js "
+         "(режим доставки — env CURATOR_DELIVERY_MODE, см. integrations/README.md)"),
+    )
+    steps: list[str] = []
+    found = False
+    for name, message in sources:
+        source = _repo_root() / "integrations" / name
+        if not source.exists():
+            continue
+        found = True
+        plugins_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, plugins_dir / name)
+        steps.append(message)
+    if not found:
+        steps.append("⚠ плагины не найдены в репо (wheel-установка?)")
+    return steps
 
 
 def _commands_source() -> dict:
@@ -257,7 +274,7 @@ def _install_footer() -> list[str]:
     return [
         "",
         "Готово. Перезапусти opencode / Claude Code — появятся команды /curator-*, "
-        "тулзы curator_*, скиллы, правила памяти и плагин-реминдер.",
+        "тулзы curator_*, скиллы, правила памяти и плагины (реминдер + proactive delivery).",
         "База: дефолт ~/memory-curator, существующая настройка сохраняется при обновлении.",
         "Где база сейчас: curator status · смена: попроси агента «смени базу знаний на <путь>»",
     ]
@@ -325,8 +342,7 @@ def _install_opencode_steps(base_dir: str | None, skills_mode: str) -> list[str]
 
     if _install_global_rules(home / ".config" / "opencode" / "AGENTS.md", _rules_section()):
         steps.append("✅ opencode: правила памяти в глобальном AGENTS.md — база в контексте каждой сессии")
-    if _install_plugin(home / ".config" / "opencode" / "plugins"):
-        steps.append("✅ opencode: плагин-реминдер session.idle → /curator-save")
+    steps.extend(_install_plugin(home / ".config" / "opencode" / "plugins"))
 
     try:
         from curator.daemon import ensure_worker

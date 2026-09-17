@@ -498,6 +498,23 @@ class TestGlobalRules:
         assert plugin.exists()
         assert "session.idle" in plugin.read_text(encoding="utf-8")
 
+    def test_context_plugin_installed_and_refreshed(self, tmp_path):
+        """Task 10: установщик копирует/обновляет curator-context.js, не трогая чужие."""
+        _opencode_dir(tmp_path)
+        plugins = tmp_path / ".config" / "opencode" / "plugins"
+        plugins.mkdir(parents=True)
+        stale = plugins / "curator-context.js"
+        stale.write_text("// старая копия", encoding="utf-8")
+        (plugins / "my-plugin.js").write_text("// пользовательский", encoding="utf-8")
+
+        installer.install_all()
+
+        assert "chat.message" in stale.read_text(encoding="utf-8"), \
+            "своя копия обновляется до версии репо (idемпотентный refresh)"
+        assert (plugins / "curator-reminder.js").exists()
+        assert (plugins / "my-plugin.js").read_text(encoding="utf-8") == "// пользовательский", \
+            "пользовательские плагины не трогаем"
+
     def test_claude_rules_in_claude_md(self, tmp_path, monkeypatch):
         _claude_dir(tmp_path)
         project = tmp_path / "proj"

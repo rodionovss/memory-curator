@@ -5,6 +5,11 @@
 // генерации ответа, без ручного вызова тулзов. Изоляция от storage:
 // плагин знает только CLI/JSON контракт, не бэкенд. Любая ошибка
 // глушится — сбой доставки не ломает сессию.
+//
+// Режим доставки (off/shadow/inject) читает Python CLI, не плагин:
+// плагин всегда делает один вызов `curator context` на substantive
+// turn; в shadow CLI возвращает пустой контракт — гард
+// one-delivery-per-session не срабатывает, и каждый оборот наблюдается.
 const deliveredSessions = new Set()
 
 function _triggerOf(output) {
@@ -39,9 +44,13 @@ export const CuratorContext = async ({ $ }) => {
         const trigger = _triggerOf(output)
         if (!trigger.trim()) return
 
+        // Сессия OpenCode → env CLI: shadow/inject события привязаны
+        // к реальной сессии. Присваивание env-префиксом — контракт
+        // Bun Shell: значение экранируется, остальное окружение наследуется.
+        const sessionId = typeof input.sessionID === "string" ? input.sessionID : ""
         const proc =
-          await $`curator context ${trigger}`.quiet().nothrow()
-        if (!proc.ok) return
+          await $`CURATOR_SESSION_ID=${sessionId} curator context ${trigger}`.quiet().nothrow()
+        if (proc.exitCode !== 0) return
 
         const json = JSON.parse(proc.stdout)
         const context = _cardsToContext(json)
