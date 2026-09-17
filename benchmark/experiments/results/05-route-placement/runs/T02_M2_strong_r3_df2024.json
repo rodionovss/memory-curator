@@ -1,0 +1,53 @@
+{
+  "experiment": "05-route-placement",
+  "run_id": "T02_M2_strong_r3_df2024",
+  "task_id": "T02",
+  "task_class": "explicit_trigger",
+  "variant": "M2",
+  "model": "strong",
+  "expected_fact_ids": [
+    "F109"
+  ],
+  "memory_required": true,
+  "looks_easy": true,
+  "events": [
+    {
+      "event": "source_file_read",
+      "source": "file_read",
+      "fact_id": "F109",
+      "path": "kb/F109-retrofit-path-prefix.md"
+    },
+    {
+      "event": "routes_file_read",
+      "source": "file_read",
+      "fact_id": null,
+      "path": "knowledge-routes.md"
+    }
+  ],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "путь относительно base URL"
+  },
+  "metrics": {
+    "tool_calls": 10,
+    "input_tokens": 15829,
+    "output_tokens": 371,
+    "latency_ms": 17150,
+    "kb_reads": 1,
+    "source_file_reads": 1,
+    "unnecessary_reads": 0,
+    "routing_hit": true,
+    "routes_file_reads": 1
+  },
+  "placement": {
+    "marker": "<!-- route-catalog-marker: rp05-1f0c4b7e-93d2-45a8-8e6b-71c2ad9f04d3 -->",
+    "marker_expected": false,
+    "marker_present": false,
+    "probe_valid": true
+  },
+  "session_id": "ses_f4f5c17d4ffeGchUHjP8pQ6wg5",
+  "returncode": 0,
+  "stderr_tail": ""
+}

@@ -1,0 +1,47 @@
+{
+  "experiment": "05-route-placement",
+  "run_id": "K2_M1_strong_r3_c3354c",
+  "task_id": "K2",
+  "task_class": "false_application_control",
+  "variant": "M1",
+  "model": "strong",
+  "expected_fact_ids": [
+    "F72"
+  ],
+  "memory_required": true,
+  "looks_easy": false,
+  "events": [
+    {
+      "event": "source_file_read",
+      "source": "file_read",
+      "fact_id": "F72",
+      "path": "kb/F72-withcontext-suspend-dao.md"
+    }
+  ],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "blocking-чтение корректно обёрнуто"
+  },
+  "metrics": {
+    "tool_calls": 5,
+    "input_tokens": 5238,
+    "output_tokens": 332,
+    "latency_ms": 10617,
+    "kb_reads": 1,
+    "source_file_reads": 1,
+    "unnecessary_reads": 0,
+    "routing_hit": true,
+    "routes_file_reads": 0
+  },
+  "placement": {
+    "marker": "<!-- route-catalog-marker: rp05-1f0c4b7e-93d2-45a8-8e6b-71c2ad9f04d3 -->",
+    "marker_expected": true,
+    "marker_present": true,
+    "probe_valid": true
+  },
+  "session_id": "ses_f4f4106daffeRQO2Jmj03SA8H4",
+  "returncode": 0,
+  "stderr_tail": ""
+}

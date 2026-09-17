@@ -1,0 +1,53 @@
+{
+  "experiment": "05-route-placement",
+  "run_id": "T06_M3_weak_r3_dddff8",
+  "task_id": "T06",
+  "task_class": "explicit_trigger",
+  "variant": "M3",
+  "model": "weak",
+  "expected_fact_ids": [
+    "F68"
+  ],
+  "memory_required": true,
+  "looks_easy": false,
+  "events": [
+    {
+      "event": "source_file_read",
+      "source": "file_read",
+      "fact_id": "F68",
+      "path": "kb/F68-textalign-viewstart-port.md"
+    },
+    {
+      "event": "routes_file_read",
+      "source": "file_read",
+      "fact_id": null,
+      "path": "knowledge-routes.md"
+    }
+  ],
+  "checks": {
+    "application_pass": false,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "явный TextAlign.Start задан — не нужен (RTL-aware по умолчанию)"
+  },
+  "metrics": {
+    "tool_calls": 7,
+    "input_tokens": 56152,
+    "output_tokens": 538,
+    "latency_ms": 9068,
+    "kb_reads": 1,
+    "source_file_reads": 1,
+    "unnecessary_reads": 0,
+    "routing_hit": true,
+    "routes_file_reads": 1
+  },
+  "placement": {
+    "marker": "<!-- route-catalog-marker: rp05-1f0c4b7e-93d2-45a8-8e6b-71c2ad9f04d3 -->",
+    "marker_expected": true,
+    "marker_present": true,
+    "probe_valid": true
+  },
+  "session_id": "ses_f4f4843beffePDc2EudRkULg0L",
+  "returncode": 0,
+  "stderr_tail": ""
+}

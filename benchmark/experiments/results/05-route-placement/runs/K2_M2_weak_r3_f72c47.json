@@ -1,0 +1,40 @@
+{
+  "experiment": "05-route-placement",
+  "run_id": "K2_M2_weak_r3_f72c47",
+  "task_id": "K2",
+  "task_class": "false_application_control",
+  "variant": "M2",
+  "model": "weak",
+  "expected_fact_ids": [
+    "F72"
+  ],
+  "memory_required": true,
+  "looks_easy": false,
+  "events": [],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "blocking-чтение корректно обёрнуто"
+  },
+  "metrics": {
+    "tool_calls": 4,
+    "input_tokens": 32370,
+    "output_tokens": 377,
+    "latency_ms": 6825,
+    "kb_reads": 0,
+    "source_file_reads": 0,
+    "unnecessary_reads": 0,
+    "routing_hit": false,
+    "routes_file_reads": 0
+  },
+  "placement": {
+    "marker": "<!-- route-catalog-marker: rp05-1f0c4b7e-93d2-45a8-8e6b-71c2ad9f04d3 -->",
+    "marker_expected": false,
+    "marker_present": false,
+    "probe_valid": true
+  },
+  "session_id": "ses_f4f3f6021ffeiSeHCjJBfOrTvX",
+  "returncode": 0,
+  "stderr_tail": ""
+}

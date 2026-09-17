@@ -1,0 +1,53 @@
+{
+  "experiment": "05-route-placement",
+  "run_id": "T07_M2_weak_r3_e9b45f",
+  "task_id": "T07",
+  "task_class": "consensus_task",
+  "variant": "M2",
+  "model": "weak",
+  "expected_fact_ids": [
+    "F6"
+  ],
+  "memory_required": true,
+  "looks_easy": false,
+  "events": [
+    {
+      "event": "source_file_read",
+      "source": "file_read",
+      "fact_id": "F6",
+      "path": "kb/F6-modifier-root-compose.md"
+    },
+    {
+      "event": "routes_file_read",
+      "source": "file_read",
+      "fact_id": null,
+      "path": "knowledge-routes.md"
+    }
+  ],
+  "checks": {
+    "application_pass": false,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "решение (.kt) не создано"
+  },
+  "metrics": {
+    "tool_calls": 6,
+    "input_tokens": 44989,
+    "output_tokens": 561,
+    "latency_ms": 9702,
+    "kb_reads": 1,
+    "source_file_reads": 1,
+    "unnecessary_reads": 0,
+    "routing_hit": true,
+    "routes_file_reads": 1
+  },
+  "placement": {
+    "marker": "<!-- route-catalog-marker: rp05-1f0c4b7e-93d2-45a8-8e6b-71c2ad9f04d3 -->",
+    "marker_expected": false,
+    "marker_present": false,
+    "probe_valid": true
+  },
+  "session_id": "ses_f4f455e9bffe6zbD8OP632dV2c",
+  "returncode": 0,
+  "stderr_tail": ""
+}

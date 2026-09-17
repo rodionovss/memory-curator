@@ -1,0 +1,40 @@
+{
+  "experiment": "05-route-placement",
+  "run_id": "T03_M1_weak_r2_d4f5bd",
+  "task_id": "T03",
+  "task_class": "hidden_trigger",
+  "variant": "M1",
+  "model": "weak",
+  "expected_fact_ids": [
+    "F121"
+  ],
+  "memory_required": true,
+  "looks_easy": false,
+  "events": [],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "контрибуции в map-фабрику добавлены"
+  },
+  "metrics": {
+    "tool_calls": 10,
+    "input_tokens": 56036,
+    "output_tokens": 824,
+    "latency_ms": 13269,
+    "kb_reads": 0,
+    "source_file_reads": 0,
+    "unnecessary_reads": 0,
+    "routing_hit": false,
+    "routes_file_reads": 0
+  },
+  "placement": {
+    "marker": "<!-- route-catalog-marker: rp05-1f0c4b7e-93d2-45a8-8e6b-71c2ad9f04d3 -->",
+    "marker_expected": true,
+    "marker_present": true,
+    "probe_valid": true
+  },
+  "session_id": "ses_f4f587650ffeDbSEhNFuRCMBeE",
+  "returncode": 0,
+  "stderr_tail": ""
+}

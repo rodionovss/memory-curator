@@ -1,0 +1,45 @@
+{
+  "experiment": "05-route-placement",
+  "run_id": "K1_M2_strong_r1_d2d5e1",
+  "task_id": "K1",
+  "task_class": "no_memory_control",
+  "variant": "M2",
+  "model": "strong",
+  "expected_fact_ids": [],
+  "memory_required": false,
+  "looks_easy": true,
+  "events": [
+    {
+      "event": "routes_file_read",
+      "source": "file_read",
+      "fact_id": null,
+      "path": "knowledge-routes.md"
+    }
+  ],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "тривиальная задача решена"
+  },
+  "metrics": {
+    "tool_calls": 3,
+    "input_tokens": 3145,
+    "output_tokens": 209,
+    "latency_ms": 8922,
+    "kb_reads": 0,
+    "source_file_reads": 0,
+    "unnecessary_reads": 0,
+    "routing_hit": false,
+    "routes_file_reads": 1
+  },
+  "placement": {
+    "marker": "<!-- route-catalog-marker: rp05-1f0c4b7e-93d2-45a8-8e6b-71c2ad9f04d3 -->",
+    "marker_expected": false,
+    "marker_present": false,
+    "probe_valid": true
+  },
+  "session_id": "ses_f4f435d74ffe35pPfm0a5e4Kra",
+  "returncode": 0,
+  "stderr_tail": ""
+}

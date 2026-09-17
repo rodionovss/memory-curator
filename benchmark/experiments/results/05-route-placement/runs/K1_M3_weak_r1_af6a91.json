@@ -1,0 +1,38 @@
+{
+  "experiment": "05-route-placement",
+  "run_id": "K1_M3_weak_r1_af6a91",
+  "task_id": "K1",
+  "task_class": "no_memory_control",
+  "variant": "M3",
+  "model": "weak",
+  "expected_fact_ids": [],
+  "memory_required": false,
+  "looks_easy": true,
+  "events": [],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "тривиальная задача решена"
+  },
+  "metrics": {
+    "tool_calls": 4,
+    "input_tokens": 25555,
+    "output_tokens": 234,
+    "latency_ms": 18715,
+    "kb_reads": 0,
+    "source_file_reads": 0,
+    "unnecessary_reads": 0,
+    "routing_hit": false,
+    "routes_file_reads": 0
+  },
+  "placement": {
+    "marker": "<!-- route-catalog-marker: rp05-1f0c4b7e-93d2-45a8-8e6b-71c2ad9f04d3 -->",
+    "marker_expected": true,
+    "marker_present": true,
+    "probe_valid": true
+  },
+  "session_id": "ses_f4f41fd3affe7cIh1iKIcaWy41",
+  "returncode": 0,
+  "stderr_tail": ""
+}

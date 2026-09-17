@@ -1,0 +1,40 @@
+{
+  "experiment": "05-route-placement",
+  "run_id": "T07_M2_weak_r1_7fb3d3",
+  "task_id": "T07",
+  "task_class": "consensus_task",
+  "variant": "M2",
+  "model": "weak",
+  "expected_fact_ids": [
+    "F6"
+  ],
+  "memory_required": true,
+  "looks_easy": false,
+  "events": [],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "modifier применён один раз на корне"
+  },
+  "metrics": {
+    "tool_calls": 4,
+    "input_tokens": 32761,
+    "output_tokens": 322,
+    "latency_ms": 7636,
+    "kb_reads": 0,
+    "source_file_reads": 0,
+    "unnecessary_reads": 0,
+    "routing_hit": false,
+    "routes_file_reads": 0
+  },
+  "placement": {
+    "marker": "<!-- route-catalog-marker: rp05-1f0c4b7e-93d2-45a8-8e6b-71c2ad9f04d3 -->",
+    "marker_expected": false,
+    "marker_present": false,
+    "probe_valid": true
+  },
+  "session_id": "ses_f4f45bcbaffeYYKGz6VJ5IpUVe",
+  "returncode": 0,
+  "stderr_tail": ""
+}

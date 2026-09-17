@@ -1,0 +1,40 @@
+{
+  "experiment": "05-route-placement",
+  "run_id": "T01_M2_weak_r3_b88cbd",
+  "task_id": "T01",
+  "task_class": "hidden_trigger",
+  "variant": "M2",
+  "model": "weak",
+  "expected_fact_ids": [
+    "F72"
+  ],
+  "memory_required": true,
+  "looks_easy": true,
+  "events": [],
+  "checks": {
+    "application_pass": false,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "новый метод обёрнут в withContext"
+  },
+  "metrics": {
+    "tool_calls": 6,
+    "input_tokens": 33623,
+    "output_tokens": 508,
+    "latency_ms": 9107,
+    "kb_reads": 0,
+    "source_file_reads": 0,
+    "unnecessary_reads": 0,
+    "routing_hit": false,
+    "routes_file_reads": 0
+  },
+  "placement": {
+    "marker": "<!-- route-catalog-marker: rp05-1f0c4b7e-93d2-45a8-8e6b-71c2ad9f04d3 -->",
+    "marker_expected": false,
+    "marker_present": false,
+    "probe_valid": true
+  },
+  "session_id": "ses_f4f60ad10ffex1fCiz5fQL6llL",
+  "returncode": 0,
+  "stderr_tail": ""
+}

@@ -1,0 +1,47 @@
+{
+  "experiment": "05-route-placement",
+  "run_id": "T04_M3_strong_r3_747071",
+  "task_id": "T04",
+  "task_class": "looks_easy_with_rule",
+  "variant": "M3",
+  "model": "strong",
+  "expected_fact_ids": [
+    "F86"
+  ],
+  "memory_required": true,
+  "looks_easy": true,
+  "events": [
+    {
+      "event": "source_file_read",
+      "source": "file_read",
+      "fact_id": "F86",
+      "path": "kb/F86-required-fields-no-orempty.md"
+    }
+  ],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "отсутствие id падает явно"
+  },
+  "metrics": {
+    "tool_calls": 4,
+    "input_tokens": 4408,
+    "output_tokens": 306,
+    "latency_ms": 46165,
+    "kb_reads": 1,
+    "source_file_reads": 1,
+    "unnecessary_reads": 0,
+    "routing_hit": true,
+    "routes_file_reads": 0
+  },
+  "placement": {
+    "marker": "<!-- route-catalog-marker: rp05-1f0c4b7e-93d2-45a8-8e6b-71c2ad9f04d3 -->",
+    "marker_expected": true,
+    "marker_present": true,
+    "probe_valid": true
+  },
+  "session_id": "ses_f4f4d9627ffeZa6aABsA02vxcJ",
+  "returncode": 0,
+  "stderr_tail": ""
+}

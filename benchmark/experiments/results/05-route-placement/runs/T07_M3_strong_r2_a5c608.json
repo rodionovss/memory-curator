@@ -1,0 +1,47 @@
+{
+  "experiment": "05-route-placement",
+  "run_id": "T07_M3_strong_r2_a5c608",
+  "task_id": "T07",
+  "task_class": "consensus_task",
+  "variant": "M3",
+  "model": "strong",
+  "expected_fact_ids": [
+    "F6"
+  ],
+  "memory_required": true,
+  "looks_easy": false,
+  "events": [
+    {
+      "event": "source_file_read",
+      "source": "file_read",
+      "fact_id": "F6",
+      "path": "kb/F6-modifier-root-compose.md"
+    }
+  ],
+  "checks": {
+    "application_pass": false,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "решение (.kt) не создано"
+  },
+  "metrics": {
+    "tool_calls": 2,
+    "input_tokens": 984,
+    "output_tokens": 45,
+    "latency_ms": 4439,
+    "kb_reads": 1,
+    "source_file_reads": 1,
+    "unnecessary_reads": 0,
+    "routing_hit": true,
+    "routes_file_reads": 0
+  },
+  "placement": {
+    "marker": "<!-- route-catalog-marker: rp05-1f0c4b7e-93d2-45a8-8e6b-71c2ad9f04d3 -->",
+    "marker_expected": true,
+    "marker_present": true,
+    "probe_valid": true
+  },
+  "session_id": "ses_f4f44f971ffejVMTGpvDag5b1N",
+  "returncode": 0,
+  "stderr_tail": ""
+}

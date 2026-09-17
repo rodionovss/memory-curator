@@ -1,0 +1,59 @@
+{
+  "experiment": "05-route-placement",
+  "run_id": "T06_M2_strong_r2_c9fc26",
+  "task_id": "T06",
+  "task_class": "explicit_trigger",
+  "variant": "M2",
+  "model": "strong",
+  "expected_fact_ids": [
+    "F68"
+  ],
+  "memory_required": true,
+  "looks_easy": false,
+  "events": [
+    {
+      "event": "source_file_read",
+      "source": "file_read",
+      "fact_id": "F68",
+      "path": "kb/F68-textalign-viewstart-port.md"
+    },
+    {
+      "event": "source_file_read",
+      "source": "file_read",
+      "fact_id": "F6",
+      "path": "kb/F6-modifier-root-compose.md"
+    },
+    {
+      "event": "routes_file_read",
+      "source": "file_read",
+      "fact_id": null,
+      "path": "knowledge-routes.md"
+    }
+  ],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "без явного TextAlign.Start"
+  },
+  "metrics": {
+    "tool_calls": 8,
+    "input_tokens": 21386,
+    "output_tokens": 401,
+    "latency_ms": 18604,
+    "kb_reads": 2,
+    "source_file_reads": 2,
+    "unnecessary_reads": 1,
+    "routing_hit": true,
+    "routes_file_reads": 1
+  },
+  "placement": {
+    "marker": "<!-- route-catalog-marker: rp05-1f0c4b7e-93d2-45a8-8e6b-71c2ad9f04d3 -->",
+    "marker_expected": false,
+    "marker_present": false,
+    "probe_valid": true
+  },
+  "session_id": "ses_f4f4a50bbffe1PviiySslK3V7z",
+  "returncode": 0,
+  "stderr_tail": ""
+}
