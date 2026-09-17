@@ -71,7 +71,7 @@ def md_search(query: str, facts: list[dict]) -> list[str]:
     return [fid for _, fid in hits[:LIMIT]]
 
 
-def run(repeats: int) -> dict:
+def run(repeats: int, out_dir: Path | None = None) -> dict:
     facts = load_kb_facts()
     queries = json.loads((CORPUS / "storage-queries.json").read_text(encoding="utf-8"))["queries"]
 
@@ -106,10 +106,10 @@ def run(repeats: int) -> dict:
                                                if f["fact_id"] in returned) / 4),
                 })
 
-    return summarize(runs)
+    return summarize(runs, out_dir=out_dir)
 
 
-def summarize(runs: list[dict]) -> dict:
+def summarize(runs: list[dict], out_dir: Path | None = None) -> dict:
     def group_by(pred):
         return [r for r in runs if pred(r)]
 
@@ -157,7 +157,7 @@ def summarize(runs: list[dict]) -> dict:
         "backends": summary_rows,
         "primary_metric": "recall",
     }
-    out = RESULTS
+    out = out_dir or RESULTS
     out.mkdir(parents=True, exist_ok=True)
     (out / "runs.json").write_text(json.dumps(runs, ensure_ascii=False, indent=2), encoding="utf-8")
     (out / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")

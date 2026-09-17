@@ -36,7 +36,9 @@ class TestMarkdownBackend:
 
 class TestBenchRun:
     def test_полный_прогон_даёт_обе_руки_и_метрики(self, tmp_path):
-        summary = run(repeats=1)
+        # артефакты пишутся в tmp_path — закоммиченный results/04-storage
+        # (замороженный baseline) тесты мутировать не должны
+        summary = run(repeats=1, out_dir=tmp_path)
         assert summary["runs"] == 40  # 20 queries × 2 backends × 1 repeat
         for backend in ("S1", "S2"):
             row = summary["backends"][backend]
@@ -48,6 +50,8 @@ class TestBenchRun:
         assert summary["backends"]["S1"]["deprecated_leak_rate"] == 1.0
         # S2 точнее S1 на этом corpus
         assert summary["backends"]["S2"]["precision"] >= summary["backends"]["S1"]["precision"]
+        assert (tmp_path / "summary.json").exists()
+        assert (tmp_path / "runs.json").exists()
 
     def test_kb_фактов_7_включая_deprecated(self):
         facts = load_kb_facts()
