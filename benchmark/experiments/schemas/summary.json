@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "experiment",
+    "runs",
+    "variants",
+    "primary_metric",
+    "rates",
+    "failures",
+    "decision"
+  ],
+  "properties": {
+    "experiment": {"type": "string"},
+    "runs": {"type": "integer", "minimum": 0},
+    "models": {"type": "array", "items": {"type": "string"}},
+    "variants": {"type": "array", "items": {"type": "string"}},
+    "primary_metric": {"type": "string"},
+    "rates": {"type": "object"},
+    "confidence_intervals": {"type": "object"},
+    "failures": {"type": "array", "items": {"type": "string"}},
+    "decision": {"type": "string"}
+  }
+}
