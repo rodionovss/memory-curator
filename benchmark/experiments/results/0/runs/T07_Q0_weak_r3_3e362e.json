@@ -1,0 +1,32 @@
+{
+  "experiment": "0",
+  "run_id": "T07_R3_weak_r3_3e362e",
+  "task_id": "T07",
+  "task_class": "consensus_task",
+  "variant": "Q0",
+  "model": "weak",
+  "expected_fact_ids": [
+    "F6"
+  ],
+  "memory_required": true,
+  "looks_easy": false,
+  "events": [],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "modifier применён один раз на корне"
+  },
+  "metrics": {
+    "tool_calls": 4,
+    "input_tokens": 34387,
+    "output_tokens": 364,
+    "latency_ms": 8478,
+    "kb_reads": 0
+  },
+  "session_id": "ses_f506e2382ffeHAVzpL8pp545BW",
+  "returncode": 0,
+  "stderr_tail": "",
+  "routing": "R3",
+  "delivery": "none"
+}

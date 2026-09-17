@@ -1,0 +1,38 @@
+{
+  "experiment": "02-access-path",
+  "run_id": "T07_P1_strong_r1_a0f5ac",
+  "task_id": "T07",
+  "task_class": "consensus_task",
+  "variant": "P1",
+  "model": "strong",
+  "expected_fact_ids": [
+    "F6"
+  ],
+  "memory_required": true,
+  "looks_easy": false,
+  "events": [
+    {
+      "event": "source_file_read",
+      "source": "file_read",
+      "fact_id": "F6",
+      "path": "kb/F6-modifier-root-compose.md"
+    }
+  ],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "modifier применён один раз на корне"
+  },
+  "metrics": {
+    "tool_calls": 5,
+    "input_tokens": 21593,
+    "output_tokens": 333,
+    "latency_ms": 28456,
+    "kb_reads": 1
+  },
+  "session_id": "ses_f50490a5bffe7ZgmoVQUlG0ft7",
+  "returncode": 0,
+  "stderr_tail": "",
+  "routing": "R3"
+}

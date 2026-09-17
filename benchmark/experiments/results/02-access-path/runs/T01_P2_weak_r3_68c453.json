@@ -1,0 +1,31 @@
+{
+  "experiment": "02-access-path",
+  "run_id": "T01_P2_weak_r3_68c453",
+  "task_id": "T01",
+  "task_class": "hidden_trigger",
+  "variant": "P2",
+  "model": "weak",
+  "expected_fact_ids": [
+    "F72"
+  ],
+  "memory_required": true,
+  "looks_easy": true,
+  "events": [],
+  "checks": {
+    "application_pass": false,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "новый метод обёрнут в withContext"
+  },
+  "metrics": {
+    "tool_calls": 5,
+    "input_tokens": 39767,
+    "output_tokens": 394,
+    "latency_ms": 16337,
+    "kb_reads": 0
+  },
+  "session_id": "ses_f5061e382ffern8wKvt7eHGn3h",
+  "returncode": 0,
+  "stderr_tail": "",
+  "routing": "R3"
+}

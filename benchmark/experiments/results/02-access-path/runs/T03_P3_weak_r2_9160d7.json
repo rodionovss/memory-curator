@@ -1,0 +1,31 @@
+{
+  "experiment": "02-access-path",
+  "run_id": "T03_P3_weak_r2_9160d7",
+  "task_id": "T03",
+  "task_class": "hidden_trigger",
+  "variant": "P3",
+  "model": "weak",
+  "expected_fact_ids": [
+    "F121"
+  ],
+  "memory_required": true,
+  "looks_easy": false,
+  "events": [],
+  "checks": {
+    "application_pass": false,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "нет @IntoMap-контрибуций"
+  },
+  "metrics": {
+    "tool_calls": 15,
+    "input_tokens": 20467,
+    "output_tokens": 2128,
+    "latency_ms": 34035,
+    "kb_reads": 0
+  },
+  "session_id": "ses_f5052fc4cffevOtHAfJakeQHle",
+  "returncode": 0,
+  "stderr_tail": "",
+  "routing": "R3"
+}

@@ -1,0 +1,45 @@
+{
+  "experiment": "03-proactive-delivery",
+  "run_id": "T03_R3_weak_r1_b4bba2",
+  "task_id": "T03",
+  "task_class": "hidden_trigger",
+  "variant": "O0",
+  "model": "weak",
+  "expected_fact_ids": [
+    "F121"
+  ],
+  "memory_required": true,
+  "looks_easy": false,
+  "events": [
+    {
+      "event": "index_read",
+      "source": "file_read",
+      "fact_id": null,
+      "path": "kb/index.md"
+    },
+    {
+      "event": "source_file_read",
+      "source": "file_read",
+      "fact_id": "F121",
+      "path": "kb/F121-dagger-intomap.md"
+    }
+  ],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "контрибуции в map-фабрику добавлены"
+  },
+  "metrics": {
+    "tool_calls": 9,
+    "input_tokens": 15290,
+    "output_tokens": 1525,
+    "latency_ms": 72101,
+    "kb_reads": 2
+  },
+  "session_id": "ses_f508385eaffe9AAI7nCz1rynmy",
+  "returncode": 0,
+  "stderr_tail": "",
+  "routing": "R3",
+  "delivery": "none"
+}

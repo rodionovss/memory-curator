@@ -1,0 +1,49 @@
+{
+  "experiment": "02-access-path",
+  "run_id": "T07_P2_strong_r2_0fe686",
+  "task_id": "T07",
+  "task_class": "consensus_task",
+  "variant": "P2",
+  "model": "strong",
+  "expected_fact_ids": [
+    "F6"
+  ],
+  "memory_required": true,
+  "looks_easy": false,
+  "events": [
+    {
+      "event": "source_file_read",
+      "source": "file_read",
+      "fact_id": "F6",
+      "path": "kb/F6-modifier-root-compose.md"
+    },
+    {
+      "event": "catalog_read",
+      "source": "file_read",
+      "fact_id": null,
+      "path": "p2-catalog.md"
+    },
+    {
+      "event": "manual_curator_query",
+      "source": "manual_curator_query",
+      "tool": "memory-curator_curator_query"
+    }
+  ],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "modifier применён один раз на корне"
+  },
+  "metrics": {
+    "tool_calls": 8,
+    "input_tokens": 40913,
+    "output_tokens": 405,
+    "latency_ms": 202448,
+    "kb_reads": 2
+  },
+  "session_id": "ses_f50471fe8ffeTfigZF07kP4HJ8",
+  "returncode": 0,
+  "stderr_tail": "",
+  "routing": "R3"
+}

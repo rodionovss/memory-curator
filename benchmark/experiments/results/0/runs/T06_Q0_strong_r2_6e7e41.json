@@ -1,0 +1,45 @@
+{
+  "experiment": "0",
+  "run_id": "T06_R3_strong_r2_6e7e41",
+  "task_id": "T06",
+  "task_class": "explicit_trigger",
+  "variant": "Q0",
+  "model": "strong",
+  "expected_fact_ids": [
+    "F68"
+  ],
+  "memory_required": true,
+  "looks_easy": false,
+  "events": [
+    {
+      "event": "source_file_read",
+      "source": "file_read",
+      "fact_id": "F68",
+      "path": "kb/F68-textalign-viewstart-port.md"
+    },
+    {
+      "event": "source_file_read",
+      "source": "file_read",
+      "fact_id": "F6",
+      "path": "kb/F6-modifier-root-compose.md"
+    }
+  ],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "без явного TextAlign.Start"
+  },
+  "metrics": {
+    "tool_calls": 11,
+    "input_tokens": 17880,
+    "output_tokens": 525,
+    "latency_ms": 23691,
+    "kb_reads": 2
+  },
+  "session_id": "ses_f5076043bffeCyc01HkSIQ1aoD",
+  "returncode": 0,
+  "stderr_tail": "",
+  "routing": "R3",
+  "delivery": "none"
+}

@@ -1,0 +1,38 @@
+{
+  "experiment": "02-access-path",
+  "run_id": "T03_P2_weak_r2_81282e",
+  "task_id": "T03",
+  "task_class": "hidden_trigger",
+  "variant": "P2",
+  "model": "weak",
+  "expected_fact_ids": [
+    "F121"
+  ],
+  "memory_required": true,
+  "looks_easy": false,
+  "events": [
+    {
+      "event": "source_file_read",
+      "source": "file_read",
+      "fact_id": "F121",
+      "path": "kb/F121-dagger-intomap.md"
+    }
+  ],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "контрибуции в map-фабрику добавлены"
+  },
+  "metrics": {
+    "tool_calls": 17,
+    "input_tokens": 118469,
+    "output_tokens": 1133,
+    "latency_ms": 23178,
+    "kb_reads": 1
+  },
+  "session_id": "ses_f5055f755ffeiOAJ3LPkC2jmL3",
+  "returncode": 0,
+  "stderr_tail": "",
+  "routing": "R3"
+}

@@ -1,0 +1,38 @@
+{
+  "experiment": "02-access-path",
+  "run_id": "T06_P1_weak_r2_c2015d",
+  "task_id": "T06",
+  "task_class": "explicit_trigger",
+  "variant": "P1",
+  "model": "weak",
+  "expected_fact_ids": [
+    "F68"
+  ],
+  "memory_required": true,
+  "looks_easy": false,
+  "events": [
+    {
+      "event": "source_file_read",
+      "source": "file_read",
+      "fact_id": "F68",
+      "path": "kb/F68-textalign-viewstart-port.md"
+    }
+  ],
+  "checks": {
+    "application_pass": false,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "явный TextAlign.Start задан — не нужен (RTL-aware по умолчанию)"
+  },
+  "metrics": {
+    "tool_calls": 5,
+    "input_tokens": 40408,
+    "output_tokens": 497,
+    "latency_ms": 11618,
+    "kb_reads": 1
+  },
+  "session_id": "ses_f504be0b6ffeMgHenOFZXkn2KD",
+  "returncode": 0,
+  "stderr_tail": "",
+  "routing": "R3"
+}

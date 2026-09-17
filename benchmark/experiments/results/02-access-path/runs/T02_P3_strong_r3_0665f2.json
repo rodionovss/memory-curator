@@ -1,0 +1,31 @@
+{
+  "experiment": "02-access-path",
+  "run_id": "T02_P3_strong_r3_0665f2",
+  "task_id": "T02",
+  "task_class": "explicit_trigger",
+  "variant": "P3",
+  "model": "strong",
+  "expected_fact_ids": [
+    "F109"
+  ],
+  "memory_required": true,
+  "looks_easy": true,
+  "events": [],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "путь относительно base URL"
+  },
+  "metrics": {
+    "tool_calls": 6,
+    "input_tokens": 9293,
+    "output_tokens": 286,
+    "latency_ms": 12903,
+    "kb_reads": 0
+  },
+  "session_id": "ses_f505bc9b8ffeLgepyIrzktevgh",
+  "returncode": 0,
+  "stderr_tail": "",
+  "routing": "R3"
+}

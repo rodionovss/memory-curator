@@ -1,0 +1,39 @@
+{
+  "experiment": "03-proactive-delivery",
+  "run_id": "T04_R3_weak_r2_2865ea",
+  "task_id": "T04",
+  "task_class": "looks_easy_with_rule",
+  "variant": "O0",
+  "model": "weak",
+  "expected_fact_ids": [
+    "F86"
+  ],
+  "memory_required": true,
+  "looks_easy": true,
+  "events": [
+    {
+      "event": "source_file_read",
+      "source": "file_read",
+      "fact_id": "F86",
+      "path": "kb/F86-required-fields-no-orempty.md"
+    }
+  ],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "отсутствие id падает явно"
+  },
+  "metrics": {
+    "tool_calls": 6,
+    "input_tokens": 43337,
+    "output_tokens": 451,
+    "latency_ms": 10935,
+    "kb_reads": 1
+  },
+  "session_id": "ses_f507bb043fferP5F1c42W63zwY",
+  "returncode": 0,
+  "stderr_tail": "",
+  "routing": "R3",
+  "delivery": "none"
+}

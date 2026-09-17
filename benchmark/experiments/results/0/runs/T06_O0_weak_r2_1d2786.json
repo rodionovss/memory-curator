@@ -1,0 +1,32 @@
+{
+  "experiment": "0",
+  "run_id": "T06_R3_weak_r2_1d2786",
+  "task_id": "T06",
+  "task_class": "explicit_trigger",
+  "variant": "O0",
+  "model": "weak",
+  "expected_fact_ids": [
+    "F68"
+  ],
+  "memory_required": true,
+  "looks_easy": false,
+  "events": [],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "без явного TextAlign.Start"
+  },
+  "metrics": {
+    "tool_calls": 7,
+    "input_tokens": 52716,
+    "output_tokens": 844,
+    "latency_ms": 21348,
+    "kb_reads": 0
+  },
+  "session_id": "ses_f50752b9fffe7ueg4jcGPO5O1E",
+  "returncode": 0,
+  "stderr_tail": "",
+  "routing": "R3",
+  "delivery": "none"
+}

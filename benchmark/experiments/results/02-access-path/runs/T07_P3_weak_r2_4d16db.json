@@ -1,0 +1,31 @@
+{
+  "experiment": "02-access-path",
+  "run_id": "T07_P3_weak_r2_4d16db",
+  "task_id": "T07",
+  "task_class": "consensus_task",
+  "variant": "P3",
+  "model": "weak",
+  "expected_fact_ids": [
+    "F6"
+  ],
+  "memory_required": true,
+  "looks_easy": false,
+  "events": [],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "modifier применён один раз на корне"
+  },
+  "metrics": {
+    "tool_calls": 4,
+    "input_tokens": 34738,
+    "output_tokens": 305,
+    "latency_ms": 7409,
+    "kb_reads": 0
+  },
+  "session_id": "ses_f5041b1faffevNiAc5V011dfkm",
+  "returncode": 0,
+  "stderr_tail": "",
+  "routing": "R3"
+}

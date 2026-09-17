@@ -1,0 +1,32 @@
+{
+  "experiment": "03-proactive-delivery",
+  "run_id": "T02_R3_weak_r1_61df85",
+  "task_id": "T02",
+  "task_class": "explicit_trigger",
+  "variant": "Q0",
+  "model": "weak",
+  "expected_fact_ids": [
+    "F109"
+  ],
+  "memory_required": true,
+  "looks_easy": true,
+  "events": [],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "путь относительно base URL"
+  },
+  "metrics": {
+    "tool_calls": 7,
+    "input_tokens": 43087,
+    "output_tokens": 420,
+    "latency_ms": 9392,
+    "kb_reads": 0
+  },
+  "session_id": "ses_f508fb7f6ffeXH06yjpJ765WFO",
+  "returncode": 0,
+  "stderr_tail": "",
+  "routing": "R3",
+  "delivery": "none"
+}

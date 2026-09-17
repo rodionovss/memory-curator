@@ -1,0 +1,32 @@
+{
+  "experiment": "03-proactive-delivery",
+  "run_id": "T01_O1_strong_r2_2782e0",
+  "task_id": "T01",
+  "task_class": "hidden_trigger",
+  "variant": "O1",
+  "model": "strong",
+  "expected_fact_ids": [
+    "F72"
+  ],
+  "memory_required": true,
+  "looks_easy": true,
+  "events": [],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "suspend-вызов без withContext"
+  },
+  "metrics": {
+    "tool_calls": 4,
+    "input_tokens": 17249,
+    "output_tokens": 226,
+    "latency_ms": 11166,
+    "kb_reads": 0
+  },
+  "session_id": "ses_f50337311ffeLj5ZoDtEXvVD12",
+  "returncode": 0,
+  "stderr_tail": "",
+  "routing": "R3",
+  "delivery": "oracle_card"
+}

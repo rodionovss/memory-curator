@@ -1,0 +1,29 @@
+{
+  "experiment": "02-access-path",
+  "run_id": "K1_P1_weak_r1_4bd9ad",
+  "task_id": "K1",
+  "task_class": "no_memory_control",
+  "variant": "P1",
+  "model": "weak",
+  "expected_fact_ids": [],
+  "memory_required": false,
+  "looks_easy": true,
+  "events": [],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "тривиальная задача решена"
+  },
+  "metrics": {
+    "tool_calls": 1,
+    "input_tokens": 19100,
+    "output_tokens": 130,
+    "latency_ms": 15924,
+    "kb_reads": 0
+  },
+  "session_id": "ses_f5040d6b8ffeVOfU0lz9wlgSOw",
+  "returncode": 0,
+  "stderr_tail": "",
+  "routing": "R3"
+}

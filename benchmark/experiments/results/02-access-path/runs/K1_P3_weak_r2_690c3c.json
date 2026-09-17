@@ -1,0 +1,29 @@
+{
+  "experiment": "02-access-path",
+  "run_id": "K1_P3_weak_r2_690c3c",
+  "task_id": "K1",
+  "task_class": "no_memory_control",
+  "variant": "P3",
+  "model": "weak",
+  "expected_fact_ids": [],
+  "memory_required": false,
+  "looks_easy": true,
+  "events": [],
+  "checks": {
+    "application_pass": false,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "решение не создано"
+  },
+  "metrics": {
+    "tool_calls": 1,
+    "input_tokens": 8217,
+    "output_tokens": 122,
+    "latency_ms": 4059,
+    "kb_reads": 0
+  },
+  "session_id": "ses_f503efd08ffeNDfCA1W0mzvyfW",
+  "returncode": 0,
+  "stderr_tail": "",
+  "routing": "R3"
+}

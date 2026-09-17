@@ -1,0 +1,31 @@
+{
+  "experiment": "02-access-path",
+  "run_id": "T06_P2_weak_r3_c696e2",
+  "task_id": "T06",
+  "task_class": "explicit_trigger",
+  "variant": "P2",
+  "model": "weak",
+  "expected_fact_ids": [
+    "F68"
+  ],
+  "memory_required": true,
+  "looks_easy": false,
+  "events": [],
+  "checks": {
+    "application_pass": false,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "решение (.kt) не создано"
+  },
+  "metrics": {
+    "tool_calls": 3,
+    "input_tokens": 19131,
+    "output_tokens": 105,
+    "latency_ms": 5858,
+    "kb_reads": 0
+  },
+  "session_id": "ses_f504a4689ffe5ft1365JyeJtmE",
+  "returncode": 0,
+  "stderr_tail": "",
+  "routing": "R3"
+}

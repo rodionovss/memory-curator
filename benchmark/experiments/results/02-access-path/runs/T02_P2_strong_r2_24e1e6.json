@@ -1,0 +1,38 @@
+{
+  "experiment": "02-access-path",
+  "run_id": "T02_P2_strong_r2_24e1e6",
+  "task_id": "T02",
+  "task_class": "explicit_trigger",
+  "variant": "P2",
+  "model": "strong",
+  "expected_fact_ids": [
+    "F109"
+  ],
+  "memory_required": true,
+  "looks_easy": true,
+  "events": [
+    {
+      "event": "source_file_read",
+      "source": "file_read",
+      "fact_id": "F109",
+      "path": "kb/F109-retrofit-path-prefix.md"
+    }
+  ],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "путь относительно base URL"
+  },
+  "metrics": {
+    "tool_calls": 9,
+    "input_tokens": 13751,
+    "output_tokens": 311,
+    "latency_ms": 17113,
+    "kb_reads": 1
+  },
+  "session_id": "ses_f505df1cfffeOYMwwKQcXrbGam",
+  "returncode": 0,
+  "stderr_tail": "",
+  "routing": "R3"
+}

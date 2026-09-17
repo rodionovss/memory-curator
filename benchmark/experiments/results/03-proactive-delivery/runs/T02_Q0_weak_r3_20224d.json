@@ -1,0 +1,39 @@
+{
+  "experiment": "03-proactive-delivery",
+  "run_id": "T02_R3_weak_r3_20224d",
+  "task_id": "T02",
+  "task_class": "explicit_trigger",
+  "variant": "Q0",
+  "model": "weak",
+  "expected_fact_ids": [
+    "F109"
+  ],
+  "memory_required": true,
+  "looks_easy": true,
+  "events": [
+    {
+      "event": "source_file_read",
+      "source": "file_read",
+      "fact_id": "F109",
+      "path": "kb/F109-retrofit-path-prefix.md"
+    }
+  ],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "путь относительно base URL"
+  },
+  "metrics": {
+    "tool_calls": 9,
+    "input_tokens": 54076,
+    "output_tokens": 624,
+    "latency_ms": 12928,
+    "kb_reads": 1
+  },
+  "session_id": "ses_f508f65ffffejOHeW36SAVJRYN",
+  "returncode": 0,
+  "stderr_tail": "",
+  "routing": "R3",
+  "delivery": "none"
+}

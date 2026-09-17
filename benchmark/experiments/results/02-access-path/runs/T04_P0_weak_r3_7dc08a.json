@@ -1,0 +1,31 @@
+{
+  "experiment": "02-access-path",
+  "run_id": "T04_R3_weak_r3_7dc08a",
+  "task_id": "T04",
+  "task_class": "looks_easy_with_rule",
+  "variant": "P0",
+  "model": "weak",
+  "expected_fact_ids": [
+    "F86"
+  ],
+  "memory_required": true,
+  "looks_easy": true,
+  "events": [],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "отсутствие id падает явно"
+  },
+  "metrics": {
+    "tool_calls": 5,
+    "input_tokens": 34194,
+    "output_tokens": 478,
+    "latency_ms": 19012,
+    "kb_reads": 0
+  },
+  "session_id": "ses_f507b84a0ffe7oL8jT94wrmCpi",
+  "returncode": 0,
+  "stderr_tail": "",
+  "routing": "R3"
+}
