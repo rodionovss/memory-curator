@@ -52,7 +52,7 @@ export const CuratorContext = async ({ $ }) => {
           text:
             "\n\n---\n" +
             context +
-            "\n(доставлено плагином Memory Curator; ручной fallback: curator query)",
+            "\n(доставлено плагином Memory Curator; ручной fallback: curator get)",
         })
         deliveredSessions.add(input.sessionID)
       } catch {

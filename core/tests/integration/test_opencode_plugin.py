@@ -3,7 +3,7 @@
 Плагин — единственный поддерживаемый lifecycle hook (`chat.message`,
 до генерации ответа). Контракт: изоляция от storage backend (только CLI
 `curator context`), ошибки глушатся, доставка один раз на сессию,
-ручной fallback (curator query) остаётся.
+ручной fallback (curator get) остаётся.
 """
 
 import shutil
@@ -37,7 +37,7 @@ class TestPluginContract:
 
     def test_ручной_fallback_упомянут(self):
         src = PLUGIN.read_text(encoding="utf-8")
-        assert "curator query" in src
+        assert "curator get" in src
 
     def test_синтаксис_esm(self):
         node = shutil.which("node")
