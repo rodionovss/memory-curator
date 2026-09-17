@@ -1,0 +1,33 @@
+{
+  "experiment": "04-storage",
+  "note": "20 frozen queries против corpus/kb (6 фактов) + 1 synthetic deprecated-факт (создаётся бенчем, тестирует status-filter). expected_fact_ids: пустой список = правильный ответ 'ничего'",
+  "queries": [
+    {"id": "Q01", "class": "exact", "query": "withContext вокруг suspend DAO", "expected_fact_ids": ["F72"]},
+    {"id": "Q02", "class": "exact", "query": "путь в Retrofit методе дублирует base URL", "expected_fact_ids": ["F109"]},
+    {"id": "Q03", "class": "exact", "query": "Unknown ViewModel Dagger падение", "expected_fact_ids": ["F121"]},
+    {"id": "Q04", "class": "exact", "query": "orEmpty на обязательном поле", "expected_fact_ids": ["F86"]},
+    {"id": "Q05", "class": "exact", "query": "перенос textAlignment viewStart на Compose", "expected_fact_ids": ["F68"]},
+    {"id": "Q06", "class": "exact", "query": "входной modifier systemBarsPadding на корне", "expected_fact_ids": ["F6"]},
+    {"id": "Q07", "class": "exact", "query": "blocking чтение файла withContext IO", "expected_fact_ids": ["F72"]},
+    {"id": "Q08", "class": "exact", "query": "ViewModelFactory multibindings карта", "expected_fact_ids": ["F121"]},
+    {"id": "Q09", "class": "reformulated", "query": "зачем оборачивать корутину диспетчером при вызове DAO", "expected_fact_ids": ["F72"]},
+    {"id": "Q10", "class": "reformulated", "query": "404 при запросе настроек пользователя через API", "expected_fact_ids": ["F109"]},
+    {"id": "Q11", "class": "reformulated", "query": "двойные инсеты на экране", "expected_fact_ids": ["F6"]},
+    {"id": "Q12", "class": "reformulated", "query": "арабская раскладка выравнивание текста", "expected_fact_ids": ["F68"]},
+    {"id": "Q13", "class": "no_result", "query": "как настроить CI пайплайн", "expected_fact_ids": []},
+    {"id": "Q14", "class": "no_result", "query": "рецепт борща", "expected_fact_ids": []},
+    {"id": "Q15", "class": "no_result", "query": "gradle version catalog зависимости", "expected_fact_ids": []},
+    {"id": "Q16", "class": "no_result", "query": "настройка прокси в nginx", "expected_fact_ids": []},
+    {"id": "Q17", "class": "ambiguous", "query": "suspend функция корутина", "expected_fact_ids": ["F72"]},
+    {"id": "Q18", "class": "ambiguous", "query": "Compose экран", "expected_fact_ids": ["F68", "F6"]},
+    {"id": "Q19", "class": "ambiguous", "query": "валидация null аргументов экрана", "expected_fact_ids": ["F86"]},
+    {"id": "Q20", "class": "deprecated_silence", "query": "MVP Moxy legacy presenter", "expected_fact_ids": []}
+  ],
+  "deprecated_synth_fact": {
+    "fact_id": "FD1",
+    "title": "MVP Moxy legacy presenter",
+    "tags": ["mvp", "moxy", "legacy"],
+    "status": "deprecated",
+    "content": "Исторический паттерн MVP Moxy: presenter наследует MvpPresenter. Устарел: новый код пишется на MVI."
+  }
+}
