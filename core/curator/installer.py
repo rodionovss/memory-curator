@@ -187,7 +187,6 @@ def _mcp_entry_claude(base_dir: str, existing_env: dict | None = None) -> dict:
 
 def _mcp_env(base_dir: str, existing_env: dict | None = None) -> dict:
     env = dict(existing_env or {})
-    env.setdefault("MEMORY_BACKEND", "local")
     env.update({
         "CURATOR_BASE_DIR": base_dir,
         # MapRouter без карты молча = дефолт (session/{type}.md);

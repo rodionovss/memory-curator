@@ -20,7 +20,6 @@ CANDIDATES = [{
 
 @pytest.fixture
 def env(monkeypatch, tmp_path):
-    monkeypatch.setenv("MEMORY_BACKEND", "local")
     monkeypatch.setenv("CURATOR_DB_PATH", str(tmp_path / "knowledge.db"))
     monkeypatch.setenv("CURATOR_BASE_DIR", str(tmp_path / "learnings"))
     monkeypatch.setenv("CURATOR_USAGE_PATH", str(tmp_path / "usage.json"))
