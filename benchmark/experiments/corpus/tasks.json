@@ -1,0 +1,104 @@
+{
+  "experiment": "01-routing-format",
+  "corpus": "frozen selection of benchmark/application fixtures + checks",
+  "tasks": [
+    {
+      "task_id": "T01",
+      "class": "hidden_trigger",
+      "memory_required": true,
+      "looks_easy": true,
+      "expected_fact_id": "F72",
+      "expected_kb_file": "kb/F72-withcontext-suspend-dao.md",
+      "fixture_dir": "../../application/fixtures/T01/fix",
+      "task_prompt_file": "../../application/fixtures/T01/task.md",
+      "check": "../../application/checks/check_T01.py"
+    },
+    {
+      "task_id": "T02",
+      "class": "explicit_trigger",
+      "memory_required": true,
+      "looks_easy": true,
+      "expected_fact_id": "F109",
+      "expected_kb_file": "kb/F109-retrofit-path-prefix.md",
+      "fixture_dir": "../../application/fixtures/T02/fix",
+      "task_prompt_file": "../../application/fixtures/T02/task.md",
+      "check": "../../application/checks/check_T02.py"
+    },
+    {
+      "task_id": "T03",
+      "class": "hidden_trigger",
+      "memory_required": true,
+      "looks_easy": false,
+      "expected_fact_id": "F121",
+      "expected_kb_file": "kb/F121-dagger-intomap.md",
+      "fixture_dir": "../../application/fixtures/T03/fix",
+      "task_prompt_file": "../../application/fixtures/T03/task.md",
+      "check": "../../application/checks/check_T03.py"
+    },
+    {
+      "task_id": "T04",
+      "class": "looks_easy_with_rule",
+      "memory_required": true,
+      "looks_easy": true,
+      "expected_fact_id": "F86",
+      "expected_kb_file": "kb/F86-required-fields-no-orempty.md",
+      "fixture_dir": "../../application/fixtures/T04/fix",
+      "task_prompt_file": "../../application/fixtures/T04/task.md",
+      "check": "../../application/checks/check_T04.py"
+    },
+    {
+      "task_id": "T06",
+      "class": "explicit_trigger",
+      "memory_required": true,
+      "looks_easy": false,
+      "expected_fact_id": "F68",
+      "expected_kb_file": "kb/F68-textalign-viewstart-port.md",
+      "fixture_dir": "../../application/fixtures/T06/fix",
+      "task_prompt_file": "../../application/fixtures/T06/task.md",
+      "check": "../../application/checks/check_T06.py"
+    },
+    {
+      "task_id": "T07",
+      "class": "consensus_task",
+      "memory_required": true,
+      "looks_easy": false,
+      "expected_fact_id": "F6",
+      "expected_kb_file": "kb/F6-modifier-root-compose.md",
+      "fixture_dir": "../../application/fixtures/T07/fix",
+      "task_prompt_file": "../../application/fixtures/T07/task.md",
+      "check": "../../application/checks/check_T07.py"
+    },
+    {
+      "task_id": "K1",
+      "class": "no_memory_control",
+      "memory_required": false,
+      "looks_easy": true,
+      "expected_fact_id": null,
+      "expected_kb_file": null,
+      "fixture_dir": null,
+      "task_prompt_file": "../../application/fixtures/K1/task.md",
+      "check": "../../application/checks/check_K1.py"
+    },
+    {
+      "task_id": "K2",
+      "class": "false_application_control",
+      "memory_required": true,
+      "looks_easy": false,
+      "expected_fact_id": "F72",
+      "expected_kb_file": "kb/F72-withcontext-suspend-dao.md",
+      "fixture_dir": "../../application/fixtures/K2/fix",
+      "task_prompt_file": "../../application/fixtures/K2/task.md",
+      "check": "../../application/checks/check_K2.py"
+    }
+  ],
+  "models": {
+    "strong": "bifrost_GA/glm-5.3",
+    "weak": "opencode-go/glm-5.2"
+  },
+  "variants": {
+    "R0": "no pointer (workspace без AGENTS.md)",
+    "R1": "personal-setup style (указатель на kb/index.md)",
+    "R2": "GoldApple-style AGENTS map (topic/trigger/file)",
+    "R3": "skill-like metadata (name/description/when-to-use/source)"
+  }
+}
