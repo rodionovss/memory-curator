@@ -326,8 +326,9 @@ class TestCheck:
 
         rc = control.cmd_knowledge_routes(["--check"])
 
-        capsys.readouterr()
+        out = capsys.readouterr().out
         assert rc == 0
+        assert "актуален" in out  # чистый прогон — ✅ на месте
 
     def test_check_fails_when_facts_changed(self, env, capsys):
         store(make_fact("Alpha", source_file="a.md"))
@@ -369,6 +370,7 @@ class TestCheck:
         assert rc == 1
         assert "NoFile" in captured.err
         assert "source_file" in captured.err
+        assert "актуален" not in captured.out  # ошибки валидации — без конкурирующего ✅
 
 
 class TestFlagCombos:

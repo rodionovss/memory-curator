@@ -19,6 +19,8 @@ import shutil
 import sys
 from pathlib import Path
 
+from curator.fs import atomic_write_text
+
 
 _RETIRED_COMMANDS = ("curator-project-save",)
 _RETIRED_SKILLS = ("curator-project-save",)
@@ -106,7 +108,9 @@ def _install_marked_section(rules_path: Path, body: str, begin: str, end: str) -
 
     Read-side без хуков: секция попадает в контекст каждой сессии.
     Файла может не быть — создаём; чужой контент не трогаем, заменяем
-    только свою секцию между маркерами (идемпотентно).
+    только свою секцию между маркерами (идемпотентно). Запись атомарная
+    (fs.atomic_write_text) — сбой посреди записи не обрезает чужой
+    rules-файл.
     """
     if not body:
         return False
@@ -114,8 +118,7 @@ def _install_marked_section(rules_path: Path, body: str, begin: str, end: str) -
     pattern = re.compile(re.escape(begin) + r".*?" + re.escape(end) + r"\n?", re.DOTALL)
     without_ours = pattern.sub("", existing).rstrip()
     section = f"{begin}\n{body}\n{end}"
-    rules_path.parent.mkdir(parents=True, exist_ok=True)
-    rules_path.write_text(without_ours + ("\n\n" if without_ours else "") + section + "\n", encoding="utf-8")
+    atomic_write_text(rules_path, without_ours + ("\n\n" if without_ours else "") + section + "\n")
     return True
 
 

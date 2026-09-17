@@ -26,6 +26,8 @@ import time
 from pathlib import Path
 from datetime import datetime, timedelta
 
+from curator.fs import atomic_write_text
+
 def _report_dir() -> Path:
     from curator.state import env_path
     return env_path("IMPROVE_REPORT_DIR", "reports")
@@ -571,27 +573,6 @@ def cmd_routes():
 KNOWLEDGE_ROUTES_CATALOG_NAME = "knowledge-routes.md"
 
 
-def _atomic_write_text(target: Path, content: str) -> None:
-    """Атомарная запись UTF-8 текста: tmp.<pid> рядом с целью + os.replace.
-
-    Права существующего целевого файла сохраняются; при ошибке tmp удаляется.
-    """
-    import stat as stat_module
-
-    target.parent.mkdir(parents=True, exist_ok=True)
-    tmp = target.with_name(f"{target.name}.tmp.{os.getpid()}")
-    try:
-        with open(tmp, "w", encoding="utf-8") as f:
-            f.write(content)
-            f.flush()
-        if target.exists():
-            os.chmod(tmp, stat_module.S_IMODE(target.stat().st_mode))
-        os.replace(tmp, target)
-    except OSError:
-        tmp.unlink(missing_ok=True)
-        raise
-
-
 def _print_route_validation_errors(errors) -> None:
     """Все ошибки валидации маршрутов — человеку, в stderr (stdout машинных режимов чист)."""
     print("  Ошибки валидации (факты без source_file или с небезопасными путями):",
@@ -678,7 +659,7 @@ def cmd_knowledge_routes(args: list[str] | None = None) -> int:
     elif chosen == ["--write"]:
         target = base_dir / KNOWLEDGE_ROUTES_CATALOG_NAME
         try:
-            _atomic_write_text(target, render_routes_markdown(routes))
+            atomic_write_text(target, render_routes_markdown(routes))
         except OSError as e:
             print(f"Ошибка записи {target}: {e}", file=sys.stderr)
             return 1
@@ -698,7 +679,9 @@ def cmd_knowledge_routes(args: list[str] | None = None) -> int:
             print(f"  ⛔ Каталог маршрутов устарел: {target} не совпадает с текущими фактами",
                   file=sys.stderr)
             exit_code = 1
-        else:
+        elif not result.validation_errors:
+            # ✅ только при полностью чистом прогоне: ошибки валидации
+            # говорят сами за себя (stderr + exit 1) — без конкурирующего «актуален»
             print(f"  ✅ Каталог маршрутов актуален: {target}")
 
     if result.validation_errors:

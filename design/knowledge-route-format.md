@@ -3,14 +3,17 @@ type: Design
 title: Knowledge Route Metadata — контракт маршрутов уровня файла
 project: Memory Curator
 date: 2026-09-17
-status: draft
+status: accepted
 ---
 
 # Knowledge Route Metadata — контракт маршрутов уровня файла
 
-Каталог `knowledge-routes.md` — сгенерированный Markdown-указатель, который
-доставляется агенту (в workspace/глобальный AGENTS.md, по решению ADR 003 —
-routing-слой как primary delivery path). Каталог содержит **только
+Каталог `knowledge-routes.md` — сгенерированный Markdown-указатель,
+который живёт в базе (`<base>/knowledge-routes.md`); в глобальный
+rules-файл (AGENTS.md / CLAUDE.md) публикуется только pointer-секция,
+агент читает каталог по требованию (ADR 003, решение M2; полная
+загрузка каталога через instructions тестировалась и отвергнута).
+Каталог содержит **только
 метаданные для маршрутизации** — никогда полное содержимое фактов.
 
 Терминология: это **Knowledge Route Metadata**, не Skill. Маршрут —
