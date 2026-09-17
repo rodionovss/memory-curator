@@ -24,5 +24,23 @@ cp integrations/curator-context.js ~/.config/opencode/plugins/
   сообщение не шумит;
 - ошибки retrieval глушатся: пустой контракт → нет доставки, сессия
   продолжается;
-- ручной fallback остаётся: `curator query`, `curator get`,
+- ручной fallback остаётся: `curator get`,
   `curator context '<задача>'`.
+
+## Каталог маршрутов в instructions
+
+`curator install` добавляет абсолютный путь
+`<база знаний>/knowledge-routes.md` в массив `instructions` глобального
+`~/.config/opencode/opencode.json` — opencode грузит каталог в контекст
+каждой сессии. В конфиг попадает только путь каталога маршрутов
+(метаданные уровня файла), не весь корпус знаний.
+
+Каталог генерируется из фактов базы командой:
+
+```bash
+curator knowledge-routes --write
+```
+
+Если файла при установке ещё нет — путь всё равно прописывается
+(opencode пропускает отсутствующие пути), а установщик подсказывает
+команду генерации. Повторный `curator install` не дублирует запись.

@@ -22,6 +22,8 @@ from pathlib import Path
 
 _RETIRED_COMMANDS = ("curator-project-save",)
 _RETIRED_SKILLS = ("curator-project-save",)
+# Синхронен control.KNOWLEDGE_ROUTES_CATALOG_NAME (локальная копия — без импорта control)
+_ROUTES_CATALOG_NAME = "knowledge-routes.md"
 
 
 def _server_command() -> tuple[str, list[str]]:
@@ -196,6 +198,31 @@ def _mcp_env(base_dir: str, existing_env: dict | None = None) -> dict:
     return env
 
 
+def _install_routes_instruction(config: dict, base: str) -> list[str]:
+    """Каталог маршрутов в ``instructions`` opencode.json (не в AGENTS.md).
+
+    Добавляет абсолютный путь ``<base>/knowledge-routes.md`` один раз;
+    чужие записи не трогаем. Файла может ещё не быть — opencode пропускает
+    несуществующие пути (как пустые glob-шаблоны), конфиг остаётся
+    валидным; подсказываем команду генерации.
+    """
+    routes_path = Path(os.path.abspath(os.path.expanduser(base))) / _ROUTES_CATALOG_NAME
+    steps: list[str] = []
+    instructions = config.get("instructions")
+    if instructions is None:
+        config["instructions"] = [str(routes_path)]
+    elif isinstance(instructions, list):
+        if str(routes_path) not in instructions:
+            instructions.append(str(routes_path))
+    else:
+        steps.append(f"⚠ instructions в opencode.json не массив — не добавляю {routes_path}, поправь секцию руками")
+        return steps
+    steps.append(f"✅ opencode: каталог маршрутов в instructions: {routes_path}")
+    if not routes_path.exists():
+        steps.append("  ⚠ файл ещё не сгенерирован — команда: curator knowledge-routes --write")
+    return steps
+
+
 def detect_harnesses() -> tuple[bool, bool]:
     """(opencode, claude) — что найдено на машине."""
     home = Path(os.environ.get("HOME", str(Path.home())))
@@ -284,9 +311,11 @@ def _install_opencode_steps(base_dir: str | None, skills_mode: str) -> list[str]
         installed_commands.pop(name, None)
     if commands:
         installed_commands.update(commands)
+    routes_steps = _install_routes_instruction(config, base)
     _write_json_config(config_path, config)
     steps = [f"✅ opencode: MCP-сервер и {len(commands)} команд /curator-*: {config_path} (остальное не тронуто)",
              f"✅ opencode: база знаний: {base}"]
+    steps.extend(routes_steps)
 
     skills = _install_skills(home / ".config" / "opencode" / "skills", skills_mode)
     if skills:

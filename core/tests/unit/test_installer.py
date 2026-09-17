@@ -214,6 +214,74 @@ class TestIdempotencyAndSafety:
         assert legacy.exists()
 
 
+class TestKnowledgeRoutesInstruction:
+    """Каталог маршрутов грузится через instructions opencode.json
+    (не через AGENTS.md): путь добавляется один раз, чужие записи целы,
+    полный корпус в конфиг не попадает."""
+
+    def _base_with_routes(self, tmp_path):
+        base = tmp_path / "kb"
+        base.mkdir()
+        (base / "knowledge-routes.md").write_text("# Каталог маршрутов\n", encoding="utf-8")
+        return base
+
+    def _config(self, tmp_path):
+        return tmp_path / ".config" / "opencode" / "opencode.json"
+
+    def test_missing_route_file_does_not_crash(self, tmp_path):
+        _opencode_dir(tmp_path)
+        steps = installer.install_all()  # дефолтная база пуста — файла нет
+
+        data = json.loads(self._config(tmp_path).read_text(encoding="utf-8"))
+        assert data["instructions"], "путь всё равно прописан — конфиг валиден"
+        assert any("curator knowledge-routes --write" in s for s in steps), \
+            "нет файла — подсказываем команду генерации, установка не падает"
+
+    def test_existing_instructions_preserved(self, tmp_path):
+        base = self._base_with_routes(tmp_path)
+        _opencode_dir(tmp_path)
+        self._config(tmp_path).write_text(json.dumps({
+            "instructions": ["/abs/AGENTS.md", "~/rules/*.md"],
+        }), encoding="utf-8")
+
+        installer.install_all(base_dir=str(base))
+
+        data = json.loads(self._config(tmp_path).read_text(encoding="utf-8"))
+        assert "/abs/AGENTS.md" in data["instructions"]
+        assert "~/rules/*.md" in data["instructions"]
+
+    def test_route_path_added_once(self, tmp_path):
+        base = self._base_with_routes(tmp_path)
+        _opencode_dir(tmp_path)
+
+        installer.install_all(base_dir=str(base))
+
+        data = json.loads(self._config(tmp_path).read_text(encoding="utf-8"))
+        assert data["instructions"].count(str(base / "knowledge-routes.md")) == 1
+
+    def test_second_install_does_not_duplicate(self, tmp_path):
+        base = self._base_with_routes(tmp_path)
+        _opencode_dir(tmp_path)
+
+        installer.install_all(base_dir=str(base))
+        installer.install_all(base_dir=str(base))
+
+        data = json.loads(self._config(tmp_path).read_text(encoding="utf-8"))
+        assert data["instructions"].count(str(base / "knowledge-routes.md")) == 1
+
+    def test_no_full_corpus_in_instructions(self, tmp_path):
+        base = self._base_with_routes(tmp_path)
+        (base / "session").mkdir()
+        (base / "session" / "style.md").write_text("факт", encoding="utf-8")
+        _opencode_dir(tmp_path)
+
+        installer.install_all(base_dir=str(base))
+
+        data = json.loads(self._config(tmp_path).read_text(encoding="utf-8"))
+        assert data["instructions"] == [str(base / "knowledge-routes.md")], \
+            "в instructions — только каталог маршрутов, не весь корпус"
+
+
 class TestConfiguredBaseDir:
     def test_cli_status_reads_installed_config(self, tmp_path, capsys):
         from curator import control
