@@ -175,6 +175,31 @@ class TestTranscript:
         events = kb_events(transcript, ws)
         assert events and events[0]["fact_id"] == "F72"
 
+    def test_macos_private_tmp_путь_матчится(self):
+        """regression: opencode пишет /private/tmp, ws живёт в /tmp (symlink)."""
+        ws = Path("/tmp/harness-rt-test-ws")
+        kb = ws / "kb"
+        kb.mkdir(parents=True, exist_ok=True)
+        try:
+            target = "/private/tmp/harness-rt-test-ws/kb/index.md"
+            if not Path("/private/tmp").exists():
+                pytest.skip("не macOS")
+            parts = [
+                {"type": "tool", "tool": "read", "callID": "c1",
+                 "state": {"status": "completed",
+                           "input": {"filePath": target},
+                           "output": "..."}},
+            ]
+            db = Path("/tmp/harness-rt-test.db")
+            self._make_db(db, parts)
+            transcript = parse_session_db(db)
+            events = kb_events(transcript, ws)
+            assert events and events[0]["event"] == "index_read"
+        finally:
+            import shutil
+            shutil.rmtree(ws, ignore_errors=True)
+            db.unlink(missing_ok=True)
+
 
 class TestChecks:
     def test_frozen_check_проходит_на_эталонном_решении(self):

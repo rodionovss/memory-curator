@@ -84,8 +84,12 @@ def kb_events(transcript: dict, ws: Path) -> list[dict]:
 
     Считаем навигацией read/glob/grep, чей target указывает внутрь kb/.
     Чтения fixture-файлов — обычная работа, не память.
+
+    Пути нормализуются через resolve(): opencode может записать /private/tmp
+    вместо /tmp (macOS symlink) — без этого события терялись.
     """
-    ws_prefix = str(ws) + "/"
+    ws_resolved = ws.resolve()
+    ws_prefix = str(ws_resolved) + "/"
     events = []
     for call in transcript["tool_calls"]:
         tool = call["tool"]
@@ -96,7 +100,10 @@ def kb_events(transcript: dict, ws: Path) -> list[dict]:
             target = args.get("path") or ""
         else:
             continue
-        abs_target = str(Path(target).expanduser())
+        try:
+            abs_target = str(Path(target).expanduser().resolve())
+        except (OSError, RuntimeError):
+            continue
         if not abs_target.startswith(ws_prefix):
             continue
         rel = abs_target[len(ws_prefix):]
