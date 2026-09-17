@@ -683,6 +683,11 @@ def cmd_knowledge_routes(args: list[str] | None = None) -> int:
             print(f"Ошибка записи {target}: {e}", file=sys.stderr)
             return 1
         print(f"  ✅ Каталог маршрутов записан: {target}")
+        # Placement M2: указатель на каталог — в rules-файлы найденных
+        # харнесов (install-механизм, без дублирования логики)
+        from curator import installer
+        for step in installer.publish_routes_pointers(str(base_dir)):
+            print(f"  {step}")
     elif chosen == ["--check"]:
         target = base_dir / KNOWLEDGE_ROUTES_CATALOG_NAME
         if not target.exists():

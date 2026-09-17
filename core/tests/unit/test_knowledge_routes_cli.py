@@ -50,11 +50,12 @@ def expected_markdown(base_dir) -> str:
 
 @pytest.fixture
 def env(monkeypatch, tmp_path):
-    """Изолированные base dir + база фактов."""
+    """Изолированные base dir + база фактов + HOME (publish указателей)."""
     base = tmp_path / "learnings"
     base.mkdir()
     monkeypatch.setenv("CURATOR_DB_PATH", str(tmp_path / "knowledge.db"))
     monkeypatch.setenv("CURATOR_BASE_DIR", str(base))
+    monkeypatch.setenv("HOME", str(tmp_path))
     return base
 
 
@@ -218,6 +219,75 @@ class TestWrite:
         assert rc == 1
         assert (env / "knowledge-routes.md").exists()  # валидная часть записана
         assert "NoFile" in captured.err
+
+
+class TestWritePublishesPointer:
+    """--write публикует pointer-секцию каталога в глобальные rules-файлы
+    обнаруженных харнесов (placement M2, эксперимент 05)."""
+
+    def test_write_publishes_pointer_opencode(self, env, tmp_path, monkeypatch, capsys):
+        home = tmp_path / "home"
+        (home / ".config" / "opencode").mkdir(parents=True)
+        monkeypatch.setenv("HOME", str(home))
+        store(make_fact("Alpha", source_file="a.md"))
+
+        rc = control.cmd_knowledge_routes(["--write"])
+
+        assert rc == 0
+        text = (home / ".config" / "opencode" / "AGENTS.md").read_text(encoding="utf-8")
+        assert "memory-curator-routes:begin" in text
+        assert str(env / "knowledge-routes.md") in text
+        assert "curator knowledge-routes --write" in text
+        assert "pointer" in capsys.readouterr().out.lower()
+
+    def test_write_publishes_pointer_claude(self, env, tmp_path, monkeypatch):
+        home = tmp_path / "home"
+        (home / ".claude").mkdir(parents=True)
+        monkeypatch.setenv("HOME", str(home))
+        store(make_fact("Alpha", source_file="a.md"))
+
+        rc = control.cmd_knowledge_routes(["--write"])
+
+        assert rc == 0
+        text = (home / ".claude" / "CLAUDE.md").read_text(encoding="utf-8")
+        assert "memory-curator-routes:begin" in text
+        assert str(env / "knowledge-routes.md") in text
+
+    def test_write_twice_pointer_not_duplicated(self, env, tmp_path, monkeypatch):
+        home = tmp_path / "home"
+        (home / ".config" / "opencode").mkdir(parents=True)
+        monkeypatch.setenv("HOME", str(home))
+        store(make_fact("Alpha", source_file="a.md"))
+        assert control.cmd_knowledge_routes(["--write"]) == 0
+
+        rc = control.cmd_knowledge_routes(["--write"])
+
+        assert rc == 0
+        text = (home / ".config" / "opencode" / "AGENTS.md").read_text(encoding="utf-8")
+        assert text.count("memory-curator-routes:begin") == 1
+
+    def test_write_without_harnesses_publishes_nothing(self, env, tmp_path):
+        store(make_fact("Alpha", source_file="a.md"))
+
+        rc = control.cmd_knowledge_routes(["--write"])
+
+        assert rc == 0
+        assert not (tmp_path / ".config").exists(), "нет харнесов — rules-файлы не создаём"
+        assert not (tmp_path / ".claude").exists()
+
+    def test_check_does_not_touch_rules_files(self, env, tmp_path, monkeypatch):
+        home = tmp_path / "home"
+        (home / ".config" / "opencode").mkdir(parents=True)
+        monkeypatch.setenv("HOME", str(home))
+        store(make_fact("Alpha", source_file="a.md"))
+        assert control.cmd_knowledge_routes(["--write"]) == 0
+        agents = home / ".config" / "opencode" / "AGENTS.md"
+        before = agents.read_text(encoding="utf-8")
+
+        rc = control.cmd_knowledge_routes(["--check"])
+
+        assert rc == 0
+        assert agents.read_text(encoding="utf-8") == before, "--check ничего не меняет"
 
 
 class TestCheck:

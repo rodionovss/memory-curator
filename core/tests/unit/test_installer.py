@@ -214,72 +214,110 @@ class TestIdempotencyAndSafety:
         assert legacy.exists()
 
 
-class TestKnowledgeRoutesInstruction:
-    """Каталог маршрутов грузится через instructions opencode.json
-    (не через AGENTS.md): путь добавляется один раз, чужие записи целы,
-    полный корпус в конфиг не попадает."""
+class TestKnowledgeRoutesPointer:
+    """Placement M2 (эксперимент 05): каталог маршрутов живёт в базе,
+    в глобальном rules-файле — короткая pointer-секция (абсолютный путь
+    + инструкция + hint регенерации). instructions конфига не трогаем,
+    контент каталога в pointer не попадает."""
 
-    def _base_with_routes(self, tmp_path):
-        base = tmp_path / "kb"
-        base.mkdir()
-        (base / "knowledge-routes.md").write_text("# Каталог маршрутов\n", encoding="utf-8")
-        return base
+    def _agents_md(self, tmp_path):
+        return tmp_path / ".config" / "opencode" / "AGENTS.md"
 
-    def _config(self, tmp_path):
-        return tmp_path / ".config" / "opencode" / "opencode.json"
-
-    def test_missing_route_file_does_not_crash(self, tmp_path):
-        _opencode_dir(tmp_path)
-        steps = installer.install_all()  # дефолтная база пуста — файла нет
-
-        data = json.loads(self._config(tmp_path).read_text(encoding="utf-8"))
-        assert data["instructions"], "путь всё равно прописан — конфиг валиден"
-        assert any("curator knowledge-routes --write" in s for s in steps), \
-            "нет файла — подсказываем команду генерации, установка не падает"
-
-    def test_existing_instructions_preserved(self, tmp_path):
-        base = self._base_with_routes(tmp_path)
-        _opencode_dir(tmp_path)
-        self._config(tmp_path).write_text(json.dumps({
+    def test_instructions_untouched_by_install(self, tmp_path):
+        config_path = _opencode_dir(tmp_path) / "opencode.json"
+        config_path.write_text(json.dumps({
             "instructions": ["/abs/AGENTS.md", "~/rules/*.md"],
         }), encoding="utf-8")
 
+        installer.install_all()
+
+        data = json.loads(config_path.read_text(encoding="utf-8"))
+        assert data["instructions"] == ["/abs/AGENTS.md", "~/rules/*.md"], \
+            "instructions — не наш механизм доставки, install их не меняет"
+
+    def test_no_instructions_added_when_absent(self, tmp_path):
+        config_path = _opencode_dir(tmp_path) / "opencode.json"
+        config_path.write_text("{}", encoding="utf-8")
+
+        installer.install_all()
+
+        data = json.loads(config_path.read_text(encoding="utf-8"))
+        assert "instructions" not in data, "M2: ничего не грузим в контекст через конфиг"
+
+    def test_pointer_in_rules_file_with_abs_path_and_hint(self, tmp_path):
+        base = tmp_path / "kb"
+        base.mkdir()
+        _opencode_dir(tmp_path)
+
+        steps = installer.install_all(base_dir=str(base))
+
+        text = self._agents_md(tmp_path).read_text(encoding="utf-8")
+        assert "memory-curator-routes:begin" in text
+        assert str(base / "knowledge-routes.md") in text, "абсолютный путь каталога"
+        assert "curator knowledge-routes --write" in text, "hint регенерации"
+        assert any("pointer" in s.lower() for s in steps)
+
+    def test_pointer_idempotent_no_duplicates(self, tmp_path):
+        base = tmp_path / "kb"
+        base.mkdir()
+        _opencode_dir(tmp_path)
+
+        installer.install_all(base_dir=str(base))
         installer.install_all(base_dir=str(base))
 
-        data = json.loads(self._config(tmp_path).read_text(encoding="utf-8"))
-        assert "/abs/AGENTS.md" in data["instructions"]
-        assert "~/rules/*.md" in data["instructions"]
+        text = self._agents_md(tmp_path).read_text(encoding="utf-8")
+        assert text.count("memory-curator-routes:begin") == 1
+        assert text.count(str(base / "knowledge-routes.md")) == 1
 
-    def test_route_path_added_once(self, tmp_path):
-        base = self._base_with_routes(tmp_path)
+    def test_pointer_keeps_foreign_content(self, tmp_path):
+        _opencode_dir(tmp_path)
+        agents = self._agents_md(tmp_path)
+        agents.write_text("# Мои личные правила\n\nНе делать лишнего.\n", encoding="utf-8")
+
+        installer.install_all()
+
+        text = agents.read_text(encoding="utf-8")
+        assert "Мои личные правила" in text, "чужой контент вне маркеров не трогаем"
+        assert "memory-curator-routes:begin" in text
+
+    def test_no_catalog_content_in_pointer(self, tmp_path):
+        base = tmp_path / "kb"
+        base.mkdir()
+        (base / "knowledge-routes.md").write_text(
+            "## compose\n\n**When to use:**\n- секретный маршрут;\n",
+            encoding="utf-8")
         _opencode_dir(tmp_path)
 
         installer.install_all(base_dir=str(base))
 
-        data = json.loads(self._config(tmp_path).read_text(encoding="utf-8"))
-        assert data["instructions"].count(str(base / "knowledge-routes.md")) == 1
+        text = self._agents_md(tmp_path).read_text(encoding="utf-8")
+        assert "**When to use:**" not in text, "pointer несёт путь, не контент каталога"
+        assert "секретный маршрут" not in text
+        assert str(base / "knowledge-routes.md") in text
 
-    def test_second_install_does_not_duplicate(self, tmp_path):
-        base = self._base_with_routes(tmp_path)
-        _opencode_dir(tmp_path)
-
-        installer.install_all(base_dir=str(base))
-        installer.install_all(base_dir=str(base))
-
-        data = json.loads(self._config(tmp_path).read_text(encoding="utf-8"))
-        assert data["instructions"].count(str(base / "knowledge-routes.md")) == 1
-
-    def test_no_full_corpus_in_instructions(self, tmp_path):
-        base = self._base_with_routes(tmp_path)
-        (base / "session").mkdir()
-        (base / "session" / "style.md").write_text("факт", encoding="utf-8")
+    def test_missing_catalog_file_install_still_writes_pointer(self, tmp_path):
+        base = tmp_path / "kb"
+        base.mkdir()  # без knowledge-routes.md
         _opencode_dir(tmp_path)
 
         installer.install_all(base_dir=str(base))
 
-        data = json.loads(self._config(tmp_path).read_text(encoding="utf-8"))
-        assert data["instructions"] == [str(base / "knowledge-routes.md")], \
-            "в instructions — только каталог маршрутов, не весь корпус"
+        text = self._agents_md(tmp_path).read_text(encoding="utf-8")
+        assert "memory-curator-routes:begin" in text, \
+            "pointer пишется и без файла — hint регенерации в самом pointer"
+
+    def test_claude_pointer_in_claude_md(self, tmp_path, monkeypatch):
+        _claude_dir(tmp_path)
+        project = tmp_path / "proj"
+        project.mkdir()
+        monkeypatch.chdir(project)
+
+        installer.install_all(target="claude", base_dir=str(tmp_path / "kb"))
+
+        text = (tmp_path / ".claude" / "CLAUDE.md").read_text(encoding="utf-8")
+        assert "memory-curator-routes:begin" in text
+        assert str(tmp_path / "kb" / "knowledge-routes.md") in text
+        assert "curator knowledge-routes --write" in text
 
 
 class TestConfiguredBaseDir:

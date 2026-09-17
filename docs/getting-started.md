@@ -240,3 +240,9 @@ export IMPROVE_INTERVAL_MINUTES=1440  # сутки
 
 Сгенерированный каталог маршрутов уровня файла (`knowledge-routes.md`):
 контракт формата — [design/knowledge-route-format.md](../design/knowledge-route-format.md).
+
+Placement (M2, [ADR 003](../design/decisions/003-delivery-decision.md)):
+каталог живёт в базе; `curator install` и `curator knowledge-routes
+--write` ставят/обновляют короткую pointer-секцию (путь + инструкция +
+hint) в глобальные AGENTS.md / CLAUDE.md — контент каталога в контекст
+каждой сессии не грузится, агент читает его по требованию.
