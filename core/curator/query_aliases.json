@@ -1,0 +1,6 @@
+{
+  "dao": ["repository", "suspend", "room"],
+  "rtl": ["viewStart", "TextAlign", "right-to-left"],
+  "blocking io": ["file read", "Dispatchers.IO", "withContext"],
+  "viewmodel factory": ["IntoMap", "ViewModelKey", "Dagger"]
+}

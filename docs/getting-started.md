@@ -152,6 +152,16 @@ E2E-сценарий `core/tests/e2e/test_full_lifecycle.py` проверяет 
 и телеметрию. Legacy `SyncEngine` и rebuild проверяются
 отдельными integration-тестами. Прогон: `pytest tests/e2e/test_full_lifecycle.py -v`.
 
+### Порог доставки контекста — 0.4 (валидирован sweep-ом)
+
+`curator_context` возвращает факт только при score ≥ 0.4. Порог выбран
+исполняемым контрактом порогового sweep-а
+(`benchmark/experiments/results/04-storage/threshold-sweep.json`):
+0.4 — наивысший порог из прошедших все гейты (precision 1.0, recall
+0.375 > baseline 0.312, deprecated-leak 0.0, false positives 0.0) на
+замороженных 20 запросах corpus-а. Ниже порога — тишина вместо шума;
+выше — теряется recall (0.5/0.6 гейт recall не прошли).
+
 ## 3. Все команды (TERMINAL, legacy-контур)
 
 Терминальные `curator save`, ingest и demo не являются

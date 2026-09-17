@@ -2,11 +2,14 @@
 
 Отказоустойчивость RouteBuildResult (semantics задачи 7):
 - ошибки валидации + есть маршруты → лог всех ошибок, частичные маршруты;
-- ошибки + нет маршрутов → лог, fact-only fallback без исключения;
+- ошибки + нет маршрутов → лог, fact-only fallback;
 - падение сборки маршрутов → лог, fact-only fallback;
 - пустые маршруты без ошибок → валидное состояние, не шумит.
 
 Маршрут поднимает кандидатуру факта, но порог переранжирования не обходится.
+
+Задача 8: детерминированное расширение запроса алиасами — recall-гейн
+без новых ложных срабатываний, совпадения алиасов помечены в reason.
 """
 
 import curator.delivery as delivery
@@ -107,3 +110,58 @@ class TestRouteFallbacks:
         cards = fetch_context("устаревшее знание", be, None, base_dir=tmp_path)
         assert cards == []
         assert capsys.readouterr().err == ""
+
+
+# Задача 8: факт словаря Room/«repository» без слова «dao» в тексте;
+# триггер оперирует словом пользователя «dao» + частичный прямой матч.
+_ALIAS_FACT = _fact(
+    "Room repository: вызовы из корутин", ["room", "coroutines"],
+    "Room repository диспатчит сам; вызывать напрямую, suspend не нужен.",
+    "room/repository.md",
+)
+
+
+class TestQueryExpansionDelivery:
+    def test_алиас_поднимает_факт_который_раньше_молчал(self, tmp_path):
+        be = _seeded([_ALIAS_FACT])
+        cards = fetch_context(
+            "как правильно вызывать dao из корутин", be, None, base_dir=tmp_path,
+        )
+        assert [c.title for c in cards] == ["Room repository: вызовы из корутин"]
+
+    def test_исходный_текст_без_алиасного_слова_по_прежнему_молчит(self, tmp_path):
+        # контроль ложных срабатываний: нет «dao» → нет расширения → тишина
+        be = _seeded([_ALIAS_FACT])
+        cards = fetch_context(
+            "как правильно вызывать слой данных из корутин", be, None,
+            base_dir=tmp_path,
+        )
+        assert cards == []
+
+    def test_совпадение_алиаса_помечено_в_reason(self, tmp_path):
+        be = _seeded([_ALIAS_FACT])
+        cards = fetch_context(
+            "как правильно вызывать dao из корутин", be, None, base_dir=tmp_path,
+        )
+        assert len(cards) == 1
+        # стабильный формат фрагмента: alias:<ключ>→<совпавшие термины>
+        assert "alias:dao→" in cards[0].reason
+
+    def test_reason_без_алиасного_совпадения_не_содержит_фрагмента(self, tmp_path):
+        be = _seeded(_tool_facts())
+        cards = fetch_context(PARAPHRASE, be, None, base_dir=tmp_path)
+        assert cards
+        assert all("alias:" not in c.reason for c in cards)
+
+    def test_no_result_запросы_не_дают_новых_ложных_срабатываний(self, tmp_path):
+        be = _seeded([_ALIAS_FACT, *_tool_facts()])
+        for trigger in ("рецепт борща", "настройка прокси в nginx",
+                        "как настроить CI пайплайн"):
+            assert fetch_context(trigger, be, None, base_dir=tmp_path) == []
+
+    def test_детерминированность_с_расширением(self, tmp_path):
+        be = _seeded([_ALIAS_FACT])
+        r1 = fetch_context("вызов dao из корутины", be, None, base_dir=tmp_path)
+        r2 = fetch_context("вызов dao из корутины", be, None, base_dir=tmp_path)
+        assert [(c.title, c.score, c.reason) for c in r1] == \
+               [(c.title, c.score, c.reason) for c in r2]

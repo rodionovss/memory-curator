@@ -12,6 +12,14 @@ when_to_use/contains) дают дополнительные кандидаты �
 сматченных source_file. Маршрут поднимает кандидатуру (буст ≤ 0.5 от
 покрытия метаданных), но порог переранжирования не обходится: слабый
 факт остаётся тишиной.
+
+Расширение запроса алиасами (задача 8): детерминированный словарь
+`query_aliases.json` даёт канонические термины базы для слов
+пользователя («dao» → repository/suspend/room). Расширенные термины
+участвуют только в генерации кандидатов (бонус к text score ≤ 0.5 от
+покрытия, матч тегов) — исходный триггер не меняется, совпадения
+помечаются фрагментом reason «alias:<ключ>→<термины>». Общие слова
+(screen/feature/code) не расширяются.
 """
 
 from __future__ import annotations
@@ -29,6 +37,7 @@ from typing import Protocol
 
 from curator.knowledge_routes import KnowledgeRoute, build_routes
 from curator.models import FactQuery, StructuredFact
+from curator.query_expansion import expand_query_detailed, load_aliases
 
 # ~4 символа на токен — консервативная оценка латиницы/кириллицы
 _CHARS_PER_TOKEN = 4
@@ -49,6 +58,10 @@ _STOPWORDS = frozenset({
 
 _TOKEN_RE = re.compile(r"\w+", re.UNICODE)
 
+# Порог переранжирования валидирован пороговым sweep-ом (Task 8):
+# benchmark/experiments/results/04-storage/threshold-sweep.json —
+# 0.4 наивысший порог из прошедших все гейты (precision 1.0, recall
+# 0.375 > baseline 0.312, leak 0.0, FP 0.0) на замороженных запросах.
 _DEFAULTS = {
     "limit": 3,
     "token_budget": 500,
@@ -63,6 +76,15 @@ _W_USAGE = 0.2
 # маршрут не может заменить собственное совпадение факта с запросом,
 # только поднять кандидата из сматченного файла до переранжирования.
 _ROUTE_TEXT_DISCOUNT = 0.5
+
+# Бонус алиасного расширения — та же доля, что у маршрутов: совпадение
+# расширенного термина подтверждает тему, но не заменяет прямое
+# совпадение факта с запросом. Порог переранжирования не обходится.
+_ALIAS_TEXT_DISCOUNT = 0.5
+
+# Словарь алиасов — part of пакета; битый/отсутствующий файл деградирует
+# до fact-only совпадений без падения доставки.
+_QUERY_ALIASES = load_aliases()
 
 
 @dataclass
@@ -185,12 +207,54 @@ def _route_boosts(
     return boosts
 
 
+def _expanded_text_score(
+    expanded_tokens: list[str], fact: StructuredFact
+) -> tuple[float, list[str]]:
+    """Покрытие расширенных терминов фактом + сами совпавшие термины.
+
+    Веса те же, что у прямого совпадения: заголовок 1.0, текст 0.5.
+    """
+    if not expanded_tokens:
+        return 0.0, []
+    title_l = fact.title.casefold()
+    summary_l = fact.content_summary.casefold()
+    total = 0.0
+    hit_terms: list[str] = []
+    for token in expanded_tokens:
+        stem = _stem(token)
+        if stem in title_l:
+            total += 1.0
+            hit_terms.append(token)
+        elif stem in summary_l:
+            total += 0.5
+            hit_terms.append(token)
+    return total / len(expanded_tokens), hit_terms
+
+
+def _alias_reason(
+    alias_matches: list[tuple[str, list[str]]], hit_tokens: set[str]
+) -> str | None:
+    """Стабильный фрагмент reason: alias:<ключ>→<совпавшие термины>.
+
+    Несколько ключей разделяются «; ». Ключ без единого совпавшего
+    термина в reason не попадает.
+    """
+    parts: list[str] = []
+    for key, terms in alias_matches:
+        key_tokens = list(dict.fromkeys(_tokens(" ".join(terms))))
+        hit = [t for t in key_tokens if t in hit_tokens]
+        if hit:
+            parts.append(f"{key}→{', '.join(hit)}")
+    return "alias:" + "; ".join(parts) if parts else None
+
+
 def _compose_reason(
     matched_tags: list[str],
     title_hit: bool,
     text_hit: bool,
     count: int,
     route_source: str | None = None,
+    alias_fragment: str | None = None,
 ) -> str:
     parts: list[str] = []
     if matched_tags:
@@ -201,6 +265,8 @@ def _compose_reason(
         parts.append("совпадение в тексте")
     if route_source:
         parts.append(f"route:{route_source}")
+    if alias_fragment:
+        parts.append(alias_fragment)
     if count > 0:
         parts.append(f"использовался {count} раз")
     return "; ".join(parts)
@@ -222,10 +288,11 @@ def retrieve(
     Deterministic: одинаковый вход → одинаковый выход. Слабое совпадение
     (ниже relevance_threshold) не возвращается — silence вместо шума.
 
-    Retrieval v2: маршруты (routes) дают file-level кандидатов — метаданные
+    Retrieval v2: маршруты (routes) дают file-level кандидаты — метаданные
     маршрута матчатся текстом запроса, факты из сматченных файлов получают
     буст кандидатуры. Буст не минует порог: каждый факт переранжируется
-    индивидуально, как и без маршрутов.
+    индивидуально, как и без маршрутов. Алиасы расширяют генерацию
+    кандидатов теми же правилами: ограниченный бонус, порог не обходится.
     """
     usage = usage or {}
     now = time.time() if now is None else now
@@ -235,6 +302,16 @@ def retrieve(
     exclude = {t.casefold() for t in query.exclude_tags}
     allowed_types = {t for t in query.types}
     route_boosts = _route_boosts(query_tokens, routes)
+
+    # Расширение алиасами (задача 8): детерминированный словарь даёт
+    # канонические термины для слов пользователя. Токены, уже звучащие
+    # в триггере напрямую, не дублируются.
+    alias_matches = expand_query_detailed(query.trigger, _QUERY_ALIASES)
+    alias_terms = [t for _, terms in alias_matches for t in terms]
+    direct_tokens = set(query_tokens)
+    expanded_tokens = list(dict.fromkeys(
+        t for t in _tokens(" ".join(alias_terms)) if t not in direct_tokens
+    ))
 
     candidates: list[ContextCard] = []
     for fact in facts:
@@ -256,23 +333,33 @@ def retrieve(
         count = entry.get("count", 0)
         usage_s = _usage_score(fact.title, usage, now)
 
-        # Тег считается совпавшим, если он прозвучал в тексте триггера:
-        # MCP-тоулу не передают структурированные теги триггера, зато сам
-        # текст триггера почти всегда содержит названия областей как есть
+        # Тег считается совпавшим, если он прозвучал в тексте триггера
+        # или среди расширенных алиасами терминов: MCP-тоулу не передают
+        # структурированные теги триггера, зато сам текст триггера почти
+        # всегда содержит названия областей как есть
         trigger_l = query.trigger.casefold()
+        if alias_terms:
+            trigger_l += " " + " ".join(alias_terms).casefold()
         text_matched_tags = [t for t in fact.tags if _stem(t.casefold()) in trigger_l]
         if text_matched_tags:
             bonus = len(text_matched_tags) / len(fact.tags) if fact.tags else 0.0
             tag_s = max(tag_s, bonus)
             matched_tags = matched_tags or text_matched_tags
 
+        # Алиасное расширение (retrieval v2, задача 8): совпавшие
+        # расширенные термины добавляют ограниченный бонус к text score,
+        # не заменяя прямое совпадение и не обходя порог.
+        alias_s, alias_hit_terms = _expanded_text_score(expanded_tokens, fact)
+        alias_fragment = _alias_reason(alias_matches, set(alias_hit_terms)) \
+            if alias_hit_terms else None
+
         # Маршрутный уровень (retrieval v2): файл сматчен метаданными →
         # факты файла поднимаются в кандидаты. Буст ограничен и не
         # подменяет собственное совпадение факта, если оно сильнее.
-        text_s = direct_text_s
+        text_s = min(1.0, direct_text_s + alias_s * _ALIAS_TEXT_DISCOUNT)
         route_source: str | None = None
         boost_entry = route_boosts.get(_fact_source_key(fact.source_file))
-        if boost_entry is not None and boost_entry[0] > direct_text_s:
+        if boost_entry is not None and boost_entry[0] > text_s:
             text_s = boost_entry[0]
             route_source = boost_entry[1]
 
@@ -289,7 +376,8 @@ def retrieve(
             source_file=fact.source_file,
             score=round(score, 4),
             reason=_compose_reason(
-                matched_tags, title_hit, direct_text_s > 0, count, route_source,
+                matched_tags, title_hit, direct_text_s > 0, count,
+                route_source, alias_fragment,
             ),
         ))
 
