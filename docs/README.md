@@ -9,13 +9,14 @@
 - `docs/` содержит актуальные пользовательские и operational guides.
 - `benchmark/` содержит воспроизводимые эксперименты и их evidence.
 - `demo/` содержит сценарии демонстрации, а не нормативные правила.
-- `docs/superpowers/` содержит исторические design specs и execution plans.
+- `.opencode/superpowers/` содержит локальные планы и specs текущей работы агента
+  и не коммитится.
 
 ## Historical Documents
 
-`design/spec.md`, `design/requirements.md`, `docs/anketa.md`,
-`PRESENTATION.md` и `docs/superpowers/` сохраняются как история решений и
-сдачи. Они не переопределяют код, тесты, skills или `design/decisions/`.
+`design/spec.md`, `design/requirements.md`, `docs/anketa.md` и
+`PRESENTATION.md` сохраняются как история решений и сдачи. Они не
+переопределяют код, тесты, skills или `design/decisions/`.
 
 ## Skills
 
