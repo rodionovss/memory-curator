@@ -1,0 +1,30 @@
+{
+  "experiment": "01-routing-format",
+  "run_id": "T02_R1_weak_r3_691a27",
+  "task_id": "T02",
+  "task_class": "explicit_trigger",
+  "variant": "R1",
+  "model": "weak",
+  "expected_fact_ids": [
+    "F109"
+  ],
+  "memory_required": true,
+  "looks_easy": true,
+  "events": [],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "путь относительно base URL"
+  },
+  "metrics": {
+    "tool_calls": 9,
+    "input_tokens": 42361,
+    "output_tokens": 448,
+    "latency_ms": 8848,
+    "kb_reads": 0
+  },
+  "session_id": "ses_f5091bc18ffepTtGwnbIBXLPvz",
+  "returncode": 0,
+  "stderr_tail": ""
+}

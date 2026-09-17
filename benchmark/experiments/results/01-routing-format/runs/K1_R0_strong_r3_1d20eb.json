@@ -1,0 +1,28 @@
+{
+  "experiment": "01-routing-format",
+  "run_id": "K1_R0_strong_r3_1d20eb",
+  "task_id": "K1",
+  "task_class": "no_memory_control",
+  "variant": "R0",
+  "model": "strong",
+  "expected_fact_ids": [],
+  "memory_required": false,
+  "looks_easy": true,
+  "events": [],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "тривиальная задача решена"
+  },
+  "metrics": {
+    "tool_calls": 1,
+    "input_tokens": 7835,
+    "output_tokens": 127,
+    "latency_ms": 45872,
+    "kb_reads": 0
+  },
+  "session_id": "ses_f506d8357ffeaE7BHS0hbDX2aP",
+  "returncode": 0,
+  "stderr_tail": ""
+}

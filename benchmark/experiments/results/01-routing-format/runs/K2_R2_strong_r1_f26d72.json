@@ -1,0 +1,37 @@
+{
+  "experiment": "01-routing-format",
+  "run_id": "K2_R2_strong_r1_f26d72",
+  "task_id": "K2",
+  "task_class": "false_application_control",
+  "variant": "R2",
+  "model": "strong",
+  "expected_fact_ids": [
+    "F72"
+  ],
+  "memory_required": true,
+  "looks_easy": false,
+  "events": [
+    {
+      "event": "source_file_read",
+      "source": "file_read",
+      "fact_id": "F72",
+      "path": "kb/F72-withcontext-suspend-dao.md"
+    }
+  ],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "blocking-чтение корректно обёрнуто"
+  },
+  "metrics": {
+    "tool_calls": 5,
+    "input_tokens": 17481,
+    "output_tokens": 327,
+    "latency_ms": 12353,
+    "kb_reads": 1
+  },
+  "session_id": "ses_f50683268ffeGqvioXbZhq8qMi",
+  "returncode": 0,
+  "stderr_tail": ""
+}

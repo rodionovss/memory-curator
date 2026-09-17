@@ -1,0 +1,43 @@
+{
+  "experiment": "01-routing-format",
+  "run_id": "T04_R1_weak_r3_a3c8dd",
+  "task_id": "T04",
+  "task_class": "looks_easy_with_rule",
+  "variant": "R1",
+  "model": "weak",
+  "expected_fact_ids": [
+    "F86"
+  ],
+  "memory_required": true,
+  "looks_easy": true,
+  "events": [
+    {
+      "event": "index_read",
+      "source": "file_read",
+      "fact_id": null,
+      "path": "kb/index.md"
+    },
+    {
+      "event": "source_file_read",
+      "source": "file_read",
+      "fact_id": "F86",
+      "path": "kb/F86-required-fields-no-orempty.md"
+    }
+  ],
+  "checks": {
+    "application_pass": false,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "обязательное значение замаскировано заглушкой (orEmpty/?: \"\")"
+  },
+  "metrics": {
+    "tool_calls": 5,
+    "input_tokens": 34008,
+    "output_tokens": 401,
+    "latency_ms": 7149,
+    "kb_reads": 2
+  },
+  "session_id": "ses_f507d7bb3ffeLkEXs6EL4vWDBx",
+  "returncode": 0,
+  "stderr_tail": ""
+}

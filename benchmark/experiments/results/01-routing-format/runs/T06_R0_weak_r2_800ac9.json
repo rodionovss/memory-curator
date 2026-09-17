@@ -1,0 +1,30 @@
+{
+  "experiment": "01-routing-format",
+  "run_id": "T06_R0_weak_r2_800ac9",
+  "task_id": "T06",
+  "task_class": "explicit_trigger",
+  "variant": "R0",
+  "model": "weak",
+  "expected_fact_ids": [
+    "F68"
+  ],
+  "memory_required": true,
+  "looks_easy": false,
+  "events": [],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "без явного TextAlign.Start"
+  },
+  "metrics": {
+    "tool_calls": 5,
+    "input_tokens": 32197,
+    "output_tokens": 380,
+    "latency_ms": 16903,
+    "kb_reads": 0
+  },
+  "session_id": "ses_f507a0b95ffeSQutNYb26nJUcA",
+  "returncode": 0,
+  "stderr_tail": ""
+}

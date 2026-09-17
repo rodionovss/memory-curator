@@ -1,0 +1,43 @@
+{
+  "experiment": "01-routing-format",
+  "run_id": "T04_R2_weak_r3_89ee4d",
+  "task_id": "T04",
+  "task_class": "looks_easy_with_rule",
+  "variant": "R2",
+  "model": "weak",
+  "expected_fact_ids": [
+    "F86"
+  ],
+  "memory_required": true,
+  "looks_easy": true,
+  "events": [
+    {
+      "event": "source_file_read",
+      "source": "file_read",
+      "fact_id": "F121",
+      "path": "kb/F121-dagger-intomap.md"
+    },
+    {
+      "event": "source_file_read",
+      "source": "file_read",
+      "fact_id": "F86",
+      "path": "kb/F86-required-fields-no-orempty.md"
+    }
+  ],
+  "checks": {
+    "application_pass": false,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "обязательное значение замаскировано заглушкой (orEmpty/?: \"\")"
+  },
+  "metrics": {
+    "tool_calls": 6,
+    "input_tokens": 25190,
+    "output_tokens": 449,
+    "latency_ms": 10239,
+    "kb_reads": 2
+  },
+  "session_id": "ses_f507ca1dfffesvr4ZI9e9IgSuK",
+  "returncode": 0,
+  "stderr_tail": ""
+}

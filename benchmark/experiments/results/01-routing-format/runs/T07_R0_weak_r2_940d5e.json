@@ -1,0 +1,30 @@
+{
+  "experiment": "01-routing-format",
+  "run_id": "T07_R0_weak_r2_940d5e",
+  "task_id": "T07",
+  "task_class": "consensus_task",
+  "variant": "R0",
+  "model": "weak",
+  "expected_fact_ids": [
+    "F6"
+  ],
+  "memory_required": true,
+  "looks_easy": false,
+  "events": [],
+  "checks": {
+    "application_pass": false,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "решение (.kt) не создано"
+  },
+  "metrics": {
+    "tool_calls": 1,
+    "input_tokens": 7806,
+    "output_tokens": 46,
+    "latency_ms": 12091,
+    "kb_reads": 0
+  },
+  "session_id": "ses_f50733f7fffeLc1yHcvJmZoo6l",
+  "returncode": 0,
+  "stderr_tail": ""
+}

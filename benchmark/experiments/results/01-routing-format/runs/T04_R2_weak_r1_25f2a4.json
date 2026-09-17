@@ -1,0 +1,30 @@
+{
+  "experiment": "01-routing-format",
+  "run_id": "T04_R2_weak_r1_25f2a4",
+  "task_id": "T04",
+  "task_class": "looks_easy_with_rule",
+  "variant": "R2",
+  "model": "weak",
+  "expected_fact_ids": [
+    "F86"
+  ],
+  "memory_required": true,
+  "looks_easy": true,
+  "events": [],
+  "checks": {
+    "application_pass": false,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "обязательное значение замаскировано заглушкой (orEmpty/?: \"\")"
+  },
+  "metrics": {
+    "tool_calls": 3,
+    "input_tokens": 24573,
+    "output_tokens": 273,
+    "latency_ms": 7832,
+    "kb_reads": 0
+  },
+  "session_id": "ses_f507cdfcfffeccrr3tjmQwJDtc",
+  "returncode": 0,
+  "stderr_tail": ""
+}

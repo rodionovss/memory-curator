@@ -1,0 +1,30 @@
+{
+  "experiment": "01-routing-format",
+  "run_id": "K2_R1_weak_r3_adb5a3",
+  "task_id": "K2",
+  "task_class": "false_application_control",
+  "variant": "R1",
+  "model": "weak",
+  "expected_fact_ids": [
+    "F72"
+  ],
+  "memory_required": true,
+  "looks_easy": false,
+  "events": [],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "blocking-чтение корректно обёрнуто"
+  },
+  "metrics": {
+    "tool_calls": 5,
+    "input_tokens": 32684,
+    "output_tokens": 397,
+    "latency_ms": 8100,
+    "kb_reads": 0
+  },
+  "session_id": "ses_f506852c9ffej6c4WlMz3kFD7h",
+  "returncode": 0,
+  "stderr_tail": ""
+}

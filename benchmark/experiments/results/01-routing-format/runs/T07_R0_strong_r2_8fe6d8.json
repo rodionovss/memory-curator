@@ -1,0 +1,43 @@
+{
+  "experiment": "01-routing-format",
+  "run_id": "T07_R0_strong_r2_8fe6d8",
+  "task_id": "T07",
+  "task_class": "consensus_task",
+  "variant": "R0",
+  "model": "strong",
+  "expected_fact_ids": [
+    "F6"
+  ],
+  "memory_required": true,
+  "looks_easy": false,
+  "events": [
+    {
+      "event": "source_file_read",
+      "source": "file_read",
+      "fact_id": "F6",
+      "path": "kb/F6-modifier-root-compose.md"
+    },
+    {
+      "event": "index_read",
+      "source": "file_read",
+      "fact_id": null,
+      "path": "kb/index.md"
+    }
+  ],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "modifier применён один раз на корне"
+  },
+  "metrics": {
+    "tool_calls": 8,
+    "input_tokens": 14635,
+    "output_tokens": 429,
+    "latency_ms": 38718,
+    "kb_reads": 2
+  },
+  "session_id": "ses_f50745a92ffeqMLIrWek7CH5Xe",
+  "returncode": 0,
+  "stderr_tail": ""
+}

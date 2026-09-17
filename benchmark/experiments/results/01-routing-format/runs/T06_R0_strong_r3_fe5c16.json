@@ -1,0 +1,37 @@
+{
+  "experiment": "01-routing-format",
+  "run_id": "T06_R0_strong_r3_fe5c16",
+  "task_id": "T06",
+  "task_class": "explicit_trigger",
+  "variant": "R0",
+  "model": "strong",
+  "expected_fact_ids": [
+    "F68"
+  ],
+  "memory_required": true,
+  "looks_easy": false,
+  "events": [
+    {
+      "event": "source_file_read",
+      "source": "file_read",
+      "fact_id": "F68",
+      "path": "kb/F68-textalign-viewstart-port.md"
+    }
+  ],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "без явного TextAlign.Start"
+  },
+  "metrics": {
+    "tool_calls": 7,
+    "input_tokens": 10765,
+    "output_tokens": 348,
+    "latency_ms": 13726,
+    "kb_reads": 1
+  },
+  "session_id": "ses_f507a7153ffezFKV9KWRDDGHGS",
+  "returncode": 0,
+  "stderr_tail": ""
+}

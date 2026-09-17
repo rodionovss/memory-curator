@@ -1,0 +1,43 @@
+{
+  "experiment": "01-routing-format",
+  "run_id": "T03_R1_strong_r1_9d9c1a",
+  "task_id": "T03",
+  "task_class": "hidden_trigger",
+  "variant": "R1",
+  "model": "strong",
+  "expected_fact_ids": [
+    "F121"
+  ],
+  "memory_required": true,
+  "looks_easy": false,
+  "events": [
+    {
+      "event": "index_read",
+      "source": "file_read",
+      "fact_id": null,
+      "path": "kb/index.md"
+    },
+    {
+      "event": "source_file_read",
+      "source": "file_read",
+      "fact_id": "F121",
+      "path": "kb/F121-dagger-intomap.md"
+    }
+  ],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "контрибуции в map-фабрику добавлены"
+  },
+  "metrics": {
+    "tool_calls": 11,
+    "input_tokens": 8372,
+    "output_tokens": 932,
+    "latency_ms": 20752,
+    "kb_reads": 2
+  },
+  "session_id": "ses_f508c9c8cffenbE1gncPweZhPC",
+  "returncode": 0,
+  "stderr_tail": ""
+}

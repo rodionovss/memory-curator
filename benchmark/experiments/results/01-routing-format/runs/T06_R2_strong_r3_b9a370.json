@@ -1,0 +1,43 @@
+{
+  "experiment": "01-routing-format",
+  "run_id": "T06_R2_strong_r3_b9a370",
+  "task_id": "T06",
+  "task_class": "explicit_trigger",
+  "variant": "R2",
+  "model": "strong",
+  "expected_fact_ids": [
+    "F68"
+  ],
+  "memory_required": true,
+  "looks_easy": false,
+  "events": [
+    {
+      "event": "source_file_read",
+      "source": "file_read",
+      "fact_id": "F68",
+      "path": "kb/F68-textalign-viewstart-port.md"
+    },
+    {
+      "event": "source_file_read",
+      "source": "file_read",
+      "fact_id": "F6",
+      "path": "kb/F6-modifier-root-compose.md"
+    }
+  ],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "без явного TextAlign.Start"
+  },
+  "metrics": {
+    "tool_calls": 7,
+    "input_tokens": 20230,
+    "output_tokens": 427,
+    "latency_ms": 13785,
+    "kb_reads": 2
+  },
+  "session_id": "ses_f50771d4dffeuBHR0kCULy6OL6",
+  "returncode": 0,
+  "stderr_tail": ""
+}

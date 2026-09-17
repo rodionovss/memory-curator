@@ -1,0 +1,30 @@
+{
+  "experiment": "01-routing-format",
+  "run_id": "T07_R0_weak_r1_2f97a1",
+  "task_id": "T07",
+  "task_class": "consensus_task",
+  "variant": "R0",
+  "model": "weak",
+  "expected_fact_ids": [
+    "F6"
+  ],
+  "memory_required": true,
+  "looks_easy": false,
+  "events": [],
+  "checks": {
+    "application_pass": false,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "systemBarsPadding применяется повторно (уже во входном modifier)"
+  },
+  "metrics": {
+    "tool_calls": 5,
+    "input_tokens": 32634,
+    "output_tokens": 446,
+    "latency_ms": 11588,
+    "kb_reads": 0
+  },
+  "session_id": "ses_f50736db2ffe0HIzPo2riPIogk",
+  "returncode": 0,
+  "stderr_tail": ""
+}

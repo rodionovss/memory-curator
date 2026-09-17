@@ -1,0 +1,513 @@
+[
+  {
+    "repeat": 1,
+    "query_id": "Q01",
+    "class": "exact",
+    "backend": "S1",
+    "returned": [
+      "F72"
+    ],
+    "expected": [
+      "F72"
+    ],
+    "latency_ms": 0.023,
+    "result_tokens": 80
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q01",
+    "class": "exact",
+    "backend": "S2",
+    "returned": [
+      "F72"
+    ],
+    "expected": [
+      "F72"
+    ],
+    "latency_ms": 0.097,
+    "result_tokens": 80
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q02",
+    "class": "exact",
+    "backend": "S1",
+    "returned": [
+      "F109"
+    ],
+    "expected": [
+      "F109"
+    ],
+    "latency_ms": 0.026,
+    "result_tokens": 58
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q02",
+    "class": "exact",
+    "backend": "S2",
+    "returned": [],
+    "expected": [
+      "F109"
+    ],
+    "latency_ms": 0.071,
+    "result_tokens": 0
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q03",
+    "class": "exact",
+    "backend": "S1",
+    "returned": [
+      "F121",
+      "F86"
+    ],
+    "expected": [
+      "F121"
+    ],
+    "latency_ms": 0.02,
+    "result_tokens": 134
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q03",
+    "class": "exact",
+    "backend": "S2",
+    "returned": [
+      "F121"
+    ],
+    "expected": [
+      "F121"
+    ],
+    "latency_ms": 0.072,
+    "result_tokens": 62
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q04",
+    "class": "exact",
+    "backend": "S1",
+    "returned": [
+      "F86"
+    ],
+    "expected": [
+      "F86"
+    ],
+    "latency_ms": 0.018,
+    "result_tokens": 72
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q04",
+    "class": "exact",
+    "backend": "S2",
+    "returned": [],
+    "expected": [
+      "F86"
+    ],
+    "latency_ms": 0.055,
+    "result_tokens": 0
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q05",
+    "class": "exact",
+    "backend": "S1",
+    "returned": [
+      "F68",
+      "F6"
+    ],
+    "expected": [
+      "F68"
+    ],
+    "latency_ms": 0.019,
+    "result_tokens": 133
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q05",
+    "class": "exact",
+    "backend": "S2",
+    "returned": [
+      "F68"
+    ],
+    "expected": [
+      "F68"
+    ],
+    "latency_ms": 0.072,
+    "result_tokens": 72
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q06",
+    "class": "exact",
+    "backend": "S1",
+    "returned": [
+      "F6"
+    ],
+    "expected": [
+      "F6"
+    ],
+    "latency_ms": 0.018,
+    "result_tokens": 61
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q06",
+    "class": "exact",
+    "backend": "S2",
+    "returned": [
+      "F6"
+    ],
+    "expected": [
+      "F6"
+    ],
+    "latency_ms": 0.057,
+    "result_tokens": 61
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q07",
+    "class": "exact",
+    "backend": "S1",
+    "returned": [
+      "F72"
+    ],
+    "expected": [
+      "F72"
+    ],
+    "latency_ms": 0.03,
+    "result_tokens": 80
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q07",
+    "class": "exact",
+    "backend": "S2",
+    "returned": [],
+    "expected": [
+      "F72"
+    ],
+    "latency_ms": 0.055,
+    "result_tokens": 0
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q08",
+    "class": "exact",
+    "backend": "S1",
+    "returned": [
+      "F121"
+    ],
+    "expected": [
+      "F121"
+    ],
+    "latency_ms": 0.016,
+    "result_tokens": 62
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q08",
+    "class": "exact",
+    "backend": "S2",
+    "returned": [
+      "F121"
+    ],
+    "expected": [
+      "F121"
+    ],
+    "latency_ms": 0.052,
+    "result_tokens": 62
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q09",
+    "class": "reformulated",
+    "backend": "S1",
+    "returned": [
+      "F72",
+      "F6",
+      "F68"
+    ],
+    "expected": [
+      "F72"
+    ],
+    "latency_ms": 0.025,
+    "result_tokens": 212
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q09",
+    "class": "reformulated",
+    "backend": "S2",
+    "returned": [],
+    "expected": [
+      "F72"
+    ],
+    "latency_ms": 0.059,
+    "result_tokens": 0
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q10",
+    "class": "reformulated",
+    "backend": "S1",
+    "returned": [
+      "F109",
+      "F86",
+      "F121"
+    ],
+    "expected": [
+      "F109"
+    ],
+    "latency_ms": 0.026,
+    "result_tokens": 192
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q10",
+    "class": "reformulated",
+    "backend": "S2",
+    "returned": [],
+    "expected": [
+      "F109"
+    ],
+    "latency_ms": 0.76,
+    "result_tokens": 0
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q11",
+    "class": "reformulated",
+    "backend": "S1",
+    "returned": [
+      "F6"
+    ],
+    "expected": [
+      "F6"
+    ],
+    "latency_ms": 0.02,
+    "result_tokens": 61
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q11",
+    "class": "reformulated",
+    "backend": "S2",
+    "returned": [],
+    "expected": [
+      "F6"
+    ],
+    "latency_ms": 0.065,
+    "result_tokens": 0
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q12",
+    "class": "reformulated",
+    "backend": "S1",
+    "returned": [
+      "F68"
+    ],
+    "expected": [
+      "F68"
+    ],
+    "latency_ms": 0.019,
+    "result_tokens": 72
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q12",
+    "class": "reformulated",
+    "backend": "S2",
+    "returned": [],
+    "expected": [
+      "F68"
+    ],
+    "latency_ms": 0.059,
+    "result_tokens": 0
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q13",
+    "class": "no_result",
+    "backend": "S1",
+    "returned": [],
+    "expected": [],
+    "latency_ms": 0.018,
+    "result_tokens": 0
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q13",
+    "class": "no_result",
+    "backend": "S2",
+    "returned": [],
+    "expected": [],
+    "latency_ms": 0.051,
+    "result_tokens": 0
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q14",
+    "class": "no_result",
+    "backend": "S1",
+    "returned": [],
+    "expected": [],
+    "latency_ms": 0.016,
+    "result_tokens": 0
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q14",
+    "class": "no_result",
+    "backend": "S2",
+    "returned": [],
+    "expected": [],
+    "latency_ms": 0.049,
+    "result_tokens": 0
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q15",
+    "class": "no_result",
+    "backend": "S1",
+    "returned": [],
+    "expected": [],
+    "latency_ms": 0.018,
+    "result_tokens": 0
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q15",
+    "class": "no_result",
+    "backend": "S2",
+    "returned": [],
+    "expected": [],
+    "latency_ms": 0.055,
+    "result_tokens": 0
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q16",
+    "class": "no_result",
+    "backend": "S1",
+    "returned": [],
+    "expected": [],
+    "latency_ms": 0.017,
+    "result_tokens": 0
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q16",
+    "class": "no_result",
+    "backend": "S2",
+    "returned": [],
+    "expected": [],
+    "latency_ms": 0.052,
+    "result_tokens": 0
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q17",
+    "class": "ambiguous",
+    "backend": "S1",
+    "returned": [
+      "F72"
+    ],
+    "expected": [
+      "F72"
+    ],
+    "latency_ms": 0.017,
+    "result_tokens": 80
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q17",
+    "class": "ambiguous",
+    "backend": "S2",
+    "returned": [],
+    "expected": [
+      "F72"
+    ],
+    "latency_ms": 0.055,
+    "result_tokens": 0
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q18",
+    "class": "ambiguous",
+    "backend": "S1",
+    "returned": [
+      "F6",
+      "F68"
+    ],
+    "expected": [
+      "F68",
+      "F6"
+    ],
+    "latency_ms": 0.016,
+    "result_tokens": 133
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q18",
+    "class": "ambiguous",
+    "backend": "S2",
+    "returned": [],
+    "expected": [
+      "F68",
+      "F6"
+    ],
+    "latency_ms": 0.053,
+    "result_tokens": 0
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q19",
+    "class": "ambiguous",
+    "backend": "S1",
+    "returned": [
+      "F86"
+    ],
+    "expected": [
+      "F86"
+    ],
+    "latency_ms": 0.019,
+    "result_tokens": 72
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q19",
+    "class": "ambiguous",
+    "backend": "S2",
+    "returned": [],
+    "expected": [
+      "F86"
+    ],
+    "latency_ms": 0.055,
+    "result_tokens": 0
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q20",
+    "class": "deprecated_silence",
+    "backend": "S1",
+    "returned": [
+      "FD1"
+    ],
+    "expected": [],
+    "latency_ms": 0.021,
+    "result_tokens": 25
+  },
+  {
+    "repeat": 1,
+    "query_id": "Q20",
+    "class": "deprecated_silence",
+    "backend": "S2",
+    "returned": [],
+    "expected": [],
+    "latency_ms": 0.058,
+    "result_tokens": 0
+  }
+]

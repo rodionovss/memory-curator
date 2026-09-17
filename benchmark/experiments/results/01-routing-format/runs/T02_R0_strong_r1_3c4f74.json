@@ -1,0 +1,30 @@
+{
+  "experiment": "01-routing-format",
+  "run_id": "T02_R0_strong_r1_3c4f74",
+  "task_id": "T02",
+  "task_class": "explicit_trigger",
+  "variant": "R0",
+  "model": "strong",
+  "expected_fact_ids": [
+    "F109"
+  ],
+  "memory_required": true,
+  "looks_easy": true,
+  "events": [],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "путь относительно base URL"
+  },
+  "metrics": {
+    "tool_calls": 6,
+    "input_tokens": 3159,
+    "output_tokens": 273,
+    "latency_ms": 14017,
+    "kb_reads": 0
+  },
+  "session_id": "ses_f509427ecffeKiDqjSqKr0M5sa",
+  "returncode": 0,
+  "stderr_tail": ""
+}

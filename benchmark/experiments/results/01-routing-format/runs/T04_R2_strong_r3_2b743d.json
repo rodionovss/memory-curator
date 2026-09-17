@@ -1,0 +1,37 @@
+{
+  "experiment": "01-routing-format",
+  "run_id": "T04_R2_strong_r3_2b743d",
+  "task_id": "T04",
+  "task_class": "looks_easy_with_rule",
+  "variant": "R2",
+  "model": "strong",
+  "expected_fact_ids": [
+    "F86"
+  ],
+  "memory_required": true,
+  "looks_easy": true,
+  "events": [
+    {
+      "event": "source_file_read",
+      "source": "file_read",
+      "fact_id": "F86",
+      "path": "kb/F86-required-fields-no-orempty.md"
+    }
+  ],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "отсутствие id падает явно"
+  },
+  "metrics": {
+    "tool_calls": 4,
+    "input_tokens": 2707,
+    "output_tokens": 378,
+    "latency_ms": 11623,
+    "kb_reads": 1
+  },
+  "session_id": "ses_f507d0dfbffeyl9CSIzNRD9nGu",
+  "returncode": 0,
+  "stderr_tail": ""
+}

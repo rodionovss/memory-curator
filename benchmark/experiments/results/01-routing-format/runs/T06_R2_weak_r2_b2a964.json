@@ -1,0 +1,30 @@
+{
+  "experiment": "01-routing-format",
+  "run_id": "T06_R2_weak_r2_b2a964",
+  "task_id": "T06",
+  "task_class": "explicit_trigger",
+  "variant": "R2",
+  "model": "weak",
+  "expected_fact_ids": [
+    "F68"
+  ],
+  "memory_required": true,
+  "looks_easy": false,
+  "events": [],
+  "checks": {
+    "application_pass": false,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "явный TextAlign.Start задан — не нужен (RTL-aware по умолчанию)"
+  },
+  "metrics": {
+    "tool_calls": 4,
+    "input_tokens": 33074,
+    "output_tokens": 290,
+    "latency_ms": 16119,
+    "kb_reads": 0
+  },
+  "session_id": "ses_f5076ab82ffeC1xkJqglkRzenF",
+  "returncode": 0,
+  "stderr_tail": ""
+}

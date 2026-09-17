@@ -1,0 +1,30 @@
+{
+  "experiment": "01-routing-format",
+  "run_id": "T01_R0_weak_r2_78888d",
+  "task_id": "T01",
+  "task_class": "hidden_trigger",
+  "variant": "R0",
+  "model": "weak",
+  "expected_fact_ids": [
+    "F72"
+  ],
+  "memory_required": true,
+  "looks_easy": true,
+  "events": [],
+  "checks": {
+    "application_pass": false,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "новый метод обёрнут в withContext"
+  },
+  "metrics": {
+    "tool_calls": 5,
+    "input_tokens": 32735,
+    "output_tokens": 382,
+    "latency_ms": 6949,
+    "kb_reads": 0
+  },
+  "session_id": "ses_f50987dd6ffeRACQW7i7I4JO30",
+  "returncode": 0,
+  "stderr_tail": ""
+}

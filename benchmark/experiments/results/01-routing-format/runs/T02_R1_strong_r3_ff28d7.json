@@ -1,0 +1,49 @@
+{
+  "experiment": "01-routing-format",
+  "run_id": "T02_R1_strong_r3_ff28d7",
+  "task_id": "T02",
+  "task_class": "explicit_trigger",
+  "variant": "R1",
+  "model": "strong",
+  "expected_fact_ids": [
+    "F109"
+  ],
+  "memory_required": true,
+  "looks_easy": true,
+  "events": [
+    {
+      "event": "index_read",
+      "source": "file_read",
+      "fact_id": null,
+      "path": "kb/index.md"
+    },
+    {
+      "event": "source_file_read",
+      "source": "file_read",
+      "fact_id": "F109",
+      "path": "kb/F109-retrofit-path-prefix.md"
+    },
+    {
+      "event": "source_file_read",
+      "source": "file_read",
+      "fact_id": "F72",
+      "path": "kb/F72-withcontext-suspend-dao.md"
+    }
+  ],
+  "checks": {
+    "application_pass": true,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "путь относительно base URL"
+  },
+  "metrics": {
+    "tool_calls": 10,
+    "input_tokens": 19161,
+    "output_tokens": 390,
+    "latency_ms": 17883,
+    "kb_reads": 3
+  },
+  "session_id": "ses_f50924c24ffeK250MT5VLKPKfr",
+  "returncode": 0,
+  "stderr_tail": ""
+}

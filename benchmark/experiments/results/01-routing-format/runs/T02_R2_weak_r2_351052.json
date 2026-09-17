@@ -1,0 +1,30 @@
+{
+  "experiment": "01-routing-format",
+  "run_id": "T02_R2_weak_r2_351052",
+  "task_id": "T02",
+  "task_class": "explicit_trigger",
+  "variant": "R2",
+  "model": "weak",
+  "expected_fact_ids": [
+    "F109"
+  ],
+  "memory_required": true,
+  "looks_easy": true,
+  "events": [],
+  "checks": {
+    "application_pass": false,
+    "false_application": false,
+    "review_status": "not_needed",
+    "message": "задвоение префикса в пути: 'api/mobile/v1/user/settings'"
+  },
+  "metrics": {
+    "tool_calls": 8,
+    "input_tokens": 42236,
+    "output_tokens": 457,
+    "latency_ms": 7892,
+    "kb_reads": 0
+  },
+  "session_id": "ses_f5090b579ffezsMJlUbJ2ZKok0",
+  "returncode": 0,
+  "stderr_tail": ""
+}

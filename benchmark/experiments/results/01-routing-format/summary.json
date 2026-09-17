@@ -1,0 +1,50 @@
+{
+  "experiment": "01-routing-format",
+  "runs": 192,
+  "models": [
+    "strong",
+    "weak"
+  ],
+  "variants": [
+    "R0",
+    "R1",
+    "R2",
+    "R3"
+  ],
+  "primary_metric": "application_rate",
+  "rates": {
+    "routing_recall": 0.577,
+    "routing_precision_noisy_kb_reads": 0.125,
+    "application_rate": 0.804
+  },
+  "confidence_intervals": {
+    "application_rate": [
+      0.737,
+      0.857
+    ]
+  },
+  "per_variant": {
+    "R0": {
+      "runs": 48,
+      "routing_recall": 0.357,
+      "application_rate": 0.738
+    },
+    "R1": {
+      "runs": 48,
+      "routing_recall": 0.69,
+      "application_rate": 0.81
+    },
+    "R2": {
+      "runs": 48,
+      "routing_recall": 0.571,
+      "application_rate": 0.786
+    },
+    "R3": {
+      "runs": 48,
+      "routing_recall": 0.69,
+      "application_rate": 0.881
+    }
+  },
+  "failures": [],
+  "decision": "pending: full matrix required"
+}
