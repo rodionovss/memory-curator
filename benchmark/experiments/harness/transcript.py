@@ -3,12 +3,15 @@
 Схема та же, что читает curator.session_reader: session/message/part.
 Извлекаем:
 - tool calls (toolName + args) → события file read внутри kb/;
-- tokens_input/tokens_output сессии.
+- tokens_input/tokens_output сессии;
+- вызовы curator-инструментов → события manual_curator_query/get (02/03).
 """
 
 import json
 import sqlite3
 from pathlib import Path
+
+from workspace import CATALOG_FILE
 
 
 def _extract_args(part_data: dict) -> dict:
@@ -82,7 +85,8 @@ def parse_session_db(db_path: Path) -> dict:
 def kb_events(transcript: dict, ws: Path) -> list[dict]:
     """События навигации по базе знаний из tool calls.
 
-    Считаем навигацией read/glob/grep, чей target указывает внутрь kb/.
+    Считаем навигацией read/glob/grep, чей target указывает внутрь kb/
+    (или в каталожную карту p2-catalog.md — рука P2).
     Чтения fixture-файлов — обычная работа, не память.
 
     Пути нормализуются через resolve(): opencode может записать /private/tmp
@@ -113,6 +117,33 @@ def kb_events(transcript: dict, ws: Path) -> list[dict]:
                 "source": "file_read",
                 "fact_id": _fact_id_of(rel),
                 "path": rel,
+            })
+        elif rel == CATALOG_FILE:
+            events.append({
+                "event": "catalog_read",
+                "source": "file_read",
+                "fact_id": None,
+                "path": rel,
+            })
+    return events
+
+
+def curator_events(transcript: dict) -> list[dict]:
+    """Вызовы curator-инструментов: ручной доступ к базе (эксперименты 02/03).
+
+    Имя инструмента начинается с "curator" или содержит "curator_query"/
+    "curator_get" (MCP-имена вида "memory-curator_curator_query").
+    """
+    events = []
+    for call in transcript["tool_calls"]:
+        name = call["tool"] or ""
+        low = name.lower()
+        if low.startswith("curator") or "curator_query" in low or "curator_get" in low:
+            event = "manual_curator_get" if "curator_get" in low else "manual_curator_query"
+            events.append({
+                "event": event,
+                "source": "manual_curator_query",
+                "tool": name,
             })
     return events
 

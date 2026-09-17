@@ -93,7 +93,7 @@
   ],
   "models": {
     "strong": "bifrost_GA/glm-5.3",
-    "weak": "opencode-go/glm-5.2"
+    "weak": "bifrost_GA/GA.Qwen3.6"
   },
   "variants": {
     "R0": "no pointer (workspace без AGENTS.md)",
