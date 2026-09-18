@@ -118,6 +118,16 @@ class TestPluginContract:
         src = PLUGIN.read_text(encoding="utf-8")
         assert "curator get" in src
 
+    def test_gui_path_фолбэк_бинаря(self):
+        """Desktop OpenCode наследует дефолтный PATH без ~/.local/bin —
+        голое имя curator даёт exit 127 и глушится. Плагин резолвит
+        абсолютный фолбэк до вызова (existsSync, без сабпроцесса)."""
+        src = PLUGIN.read_text(encoding="utf-8")
+        assert "_curatorBin" in src, "резолв бинаря вынесен в функцию"
+        assert '".local"' in src and '"bin"' in src and '"curator"' in src, \
+            "фолбэк — ~/.local/bin/curator (uv/pipx)"
+        assert "existsSync" in src, "проверка существования без сабпроцесса"
+
     def test_синтаксис_esm(self):
         node = shutil.which("node")
         if not node:

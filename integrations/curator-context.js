@@ -10,7 +10,20 @@
 // плагин всегда делает один вызов `curator context` на substantive
 // turn; в shadow CLI возвращает пустой контракт — гард
 // one-delivery-per-session не срабатывает, и каждый оборот наблюдается.
+import { existsSync } from "node:fs"
+import { homedir } from "node:os"
+import { join } from "node:path"
+
 const deliveredSessions = new Set()
+
+// GUI-приложение (Desktop OpenCode) наследует дефолтный PATH без
+// ~/.local/bin — стандартной точки установки uv/pipx. Голое имя curator
+// тогда даёт exit 127, плагин молча глушит — телеметрия мертва.
+// Резолв: если фолбэк-путь существует, зовём его; иначе штатный PATH.
+function _curatorBin() {
+  const fallback = join(homedir(), ".local", "bin", "curator")
+  return existsSync(fallback) ? fallback : "curator"
+}
 
 function _triggerOf(output) {
   const parts = output.parts ?? []
@@ -49,7 +62,7 @@ export const CuratorContext = async ({ $ }) => {
         // Bun Shell: значение экранируется, остальное окружение наследуется.
         const sessionId = typeof input.sessionID === "string" ? input.sessionID : ""
         const proc =
-          await $`CURATOR_SESSION_ID=${sessionId} curator context ${trigger}`.quiet().nothrow()
+          await $`CURATOR_SESSION_ID=${sessionId} ${_curatorBin()} context ${trigger}`.quiet().nothrow()
         if (proc.exitCode !== 0) return
 
         const json = JSON.parse(proc.stdout)

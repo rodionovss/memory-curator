@@ -30,6 +30,10 @@ def seeded_backend(monkeypatch):
     monkeypatch.setattr(server_mod, "backend", be)
     monkeypatch.setattr(server_mod, "improve", ImproveLoop(be))
     monkeypatch.delenv("CURATOR_MAP", raising=False)
+    # Прод-конфигурация держит CURATOR_BASE_DIR глобально (launchctl/zshenv);
+    # find_map_path() тогда находит реальную карту базы и легаси-writeback
+    # скипается. Тест про «без карты» обязан быть герметичным к окружению.
+    monkeypatch.delenv("CURATOR_BASE_DIR", raising=False)
 
 
 def _improve_with_deprecated(monkeypatch):

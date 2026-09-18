@@ -5,6 +5,13 @@ proactive delivery) в `~/.config/opencode/plugins/` идемпотентно, �
 трогая пользовательские плагины. Обновление плагина — повторный
 `curator install`.
 
+Desktop-приложение OpenCode наследует дефолтный GUI PATH без
+`~/.local/bin` — голое имя `curator` даёт exit 127 и молча глушится.
+Плагин сам резолвит фолбэк `~/.local/bin/curator` (uv/pipx); env
+(`CURATOR_DELIVERY_MODE` и др.) для GUI-приложений задаётся
+`launchctl setenv` (переживает перезагрузку через LaunchAgent),
+для терминала — экспортом в shell-профиле.
+
 Вручную (global):
 
 ```bash
