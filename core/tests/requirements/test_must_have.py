@@ -76,7 +76,7 @@ topics:
 
         approved = json.loads(server_mod._capture_approve({
             "capture_id": reviewed["capture_id"],
-            "selected_candidate_ids": ["fact_1"],
+            "selected_candidate_ids": ["1"],
         }))
         assert approved["status"] == "update_project_docs"
         target = tmp_path / "docs" / "mcp.md"
@@ -85,7 +85,7 @@ topics:
         completed = json.loads(server_mod._capture_complete({
             "capture_id": reviewed["capture_id"],
             "placements": [{
-                "candidate_id": "fact_1", "topic": "mcp", "target": "docs/mcp.md",
+                "candidate_id": "1", "topic": "mcp", "target": "docs/mcp.md",
                 "capture": "knowledge", "canonical_file": "docs/mcp.md",
                 "changed_files": ["docs/mcp.md"],
             }],

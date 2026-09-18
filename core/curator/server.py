@@ -342,7 +342,9 @@ def _session_capture(args: dict) -> str:
     rejected: list[dict] = []
     seen_titles: set[str] = set()
     for i, c in enumerate(raw, 1):
-        candidate_id = f"fact_{i}"
+        # Короткий номер без префикса: agent показывает preview как есть,
+        # без чистки сырых id ("1", "2", "3" — не "fact_1")
+        candidate_id = str(i)
         if not isinstance(c, dict):
             rejected.append({"candidate_id": candidate_id, "reason": "кандидат должен быть объектом"})
             continue
@@ -794,6 +796,11 @@ def _status() -> str:
     ]
     for name, description in get_fact_types().items():
         lines.append(f"  {name} — {description}")
+
+    from curator.health import integration_status
+    lines += ["", "Интеграция OpenCode:"]
+    for ok, message in integration_status():
+        lines.append(f"  {'✅' if ok else '⛔'} {message}")
     return "\n".join(lines)
 
 

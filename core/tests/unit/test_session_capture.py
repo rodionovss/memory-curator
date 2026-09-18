@@ -95,7 +95,7 @@ def _complete(capture_id, placements):
     }))
 
 
-def _placement(candidate_id="fact_1", **overrides):
+def _placement(candidate_id="1", **overrides):
     placement = {
         "candidate_id": candidate_id,
         "topic": "knowledge",
@@ -116,7 +116,7 @@ class TestReview:
 
         assert out["status"] == "needs_human_approval"
         assert out["capture_id"].startswith("cap_")
-        assert [fact["candidate_id"] for fact in out["eligible"]] == ["fact_1", "fact_2"]
+        assert [fact["candidate_id"] for fact in out["eligible"]] == ["1", "2"]
         assert out["eligible"][0]["evidence"] == VALID_FACT["evidence"]
         assert out["rejected"] == []
         assert be.query_facts(FactQuery()) == []
@@ -154,7 +154,7 @@ class TestReview:
 
         out = _review([broken, noisy, VALID_FACT_2])
 
-        assert [fact["candidate_id"] for fact in out["eligible"]] == ["fact_3"]
+        assert [fact["candidate_id"] for fact in out["eligible"]] == ["3"]
         assert len(out["rejected"]) == 2
         assert "нет title" in out["rejected"][0]["reason"]
         assert "фичевую" in out["rejected"][1]["reason"]
@@ -174,7 +174,7 @@ class TestReview:
 
         out = _review([VALID_FACT, duplicate])
 
-        assert [fact["candidate_id"] for fact in out["eligible"]] == ["fact_1"]
+        assert [fact["candidate_id"] for fact in out["eligible"]] == ["1"]
         assert "дублирует title" in out["rejected"][0]["reason"]
 
     def test_candidates_json_string_and_invalid_input_return_json(self, memory_server):
@@ -214,7 +214,7 @@ class TestApprove:
         reviewed = _review(candidates)
         candidates[0]["title"] = "Изменено после review"
 
-        out = _approve(reviewed["capture_id"], ["fact_1"])
+        out = _approve(reviewed["capture_id"], ["1"])
 
         assert out == {
             "status": "update_project_docs",
@@ -222,10 +222,10 @@ class TestApprove:
             "capture_id": reviewed["capture_id"],
             "base_dir": str(tmp_path.resolve()),
             "map_path": str((tmp_path / "DOCUMENTATION-MAP.md").resolve()),
-            "facts": [{"candidate_id": "fact_1", **VALID_FACT}],
+            "facts": [{"candidate_id": "1", **VALID_FACT}],
         }
 
-        changed = _approve(reviewed["capture_id"], ["fact_2"])
+        changed = _approve(reviewed["capture_id"], ["2"])
         assert changed["status"] == "error"
         assert "зафиксирован" in changed["error"]
 
@@ -233,12 +233,12 @@ class TestApprove:
         assert cancelled["status"] == "error"
         assert "зафиксирован" in cancelled["error"]
 
-        same = _approve(reviewed["capture_id"], ["fact_1"])
+        same = _approve(reviewed["capture_id"], ["1"])
         assert same["facts"][0]["title"] == VALID_FACT["title"]
 
     def test_unknown_candidate_id_is_rejected(self, memory_server):
         reviewed = _review([VALID_FACT])
-        out = _approve(reviewed["capture_id"], ["fact_404"])
+        out = _approve(reviewed["capture_id"], ["404"])
         assert out["status"] == "error"
 
     def test_empty_selection_cancels_and_removes_capture(self, memory_server, monkeypatch):
@@ -248,14 +248,14 @@ class TestApprove:
             "status": "cancelled",
             "capture_id": reviewed["capture_id"],
         }
-        assert _approve(reviewed["capture_id"], ["fact_1"])["status"] == "error"
+        assert _approve(reviewed["capture_id"], ["1"])["status"] == "error"
 
     def test_approve_autodiscovers_map_in_base_root(self, memory_server, monkeypatch):
         # Конвенция: карта в корне базы работает без CURATOR_MAP —
         # апгрейд/установка без правки конфига не ломает сохранение
         reviewed = _review([VALID_FACT])
         monkeypatch.delenv("CURATOR_MAP")
-        out = _approve(reviewed["capture_id"], ["fact_1"])
+        out = _approve(reviewed["capture_id"], ["1"])
         assert out["status"] == "update_project_docs"
         assert out["map_path"].endswith("DOCUMENTATION-MAP.md")
 
@@ -272,7 +272,7 @@ class TestApprove:
         monkeypatch.setattr(server_mod, "router", MapRouter(map_path))
 
         reviewed = _review([VALID_FACT])
-        out = _approve(reviewed["capture_id"], ["fact_1"])
+        out = _approve(reviewed["capture_id"], ["1"])
 
         assert out["status"] == "update_project_docs"
         assert out["map_errors"] and "captures" in out["map_errors"][0], \
@@ -287,7 +287,7 @@ class TestApprove:
         reviewed = _review([VALID_FACT])
         monkeypatch.delenv("CURATOR_MAP")
         monkeypatch.setenv("CURATOR_BASE_DIR", str(tmp_path / "nowhere"))
-        out = _approve(reviewed["capture_id"], ["fact_1"])
+        out = _approve(reviewed["capture_id"], ["1"])
         assert out["status"] == "error"
         assert "/curator-setup" in out["error"]
 
@@ -305,7 +305,7 @@ class TestComplete:
     ):
         be, usage_path = memory_server
         reviewed = _review([VALID_FACT])
-        _approve(reviewed["capture_id"], ["fact_1"])
+        _approve(reviewed["capture_id"], ["1"])
 
         out = _complete(reviewed["capture_id"], [_placement(
             topic=topic,
@@ -344,7 +344,7 @@ class TestComplete:
     def test_invalid_placement_is_rejected_before_store(self, memory_server, overrides, message):
         be, _ = memory_server
         reviewed = _review([VALID_FACT])
-        _approve(reviewed["capture_id"], ["fact_1"])
+        _approve(reviewed["capture_id"], ["1"])
 
         out = _complete(reviewed["capture_id"], [_placement(**overrides)])
 
@@ -361,7 +361,7 @@ class TestComplete:
         session.mkdir()
         (session / "reference.md").write_text("# Session\n\nЗнание дня.\n", encoding="utf-8")
         reviewed = _review([VALID_FACT])
-        _approve(reviewed["capture_id"], ["fact_1"])
+        _approve(reviewed["capture_id"], ["1"])
 
         out = _complete(reviewed["capture_id"], [_placement(
             topic="default",
@@ -383,7 +383,7 @@ class TestComplete:
         session.mkdir()
         (session / "style.md").write_text("# Style\n\nЗнание.\n", encoding="utf-8")
         reviewed = _review([VALID_FACT])
-        _approve(reviewed["capture_id"], ["fact_1"])
+        _approve(reviewed["capture_id"], ["1"])
 
         out = _complete(reviewed["capture_id"], [_placement(
             topic="default",
@@ -397,14 +397,14 @@ class TestComplete:
 
     def test_requires_exactly_one_placement_per_selected_fact(self, memory_server):
         reviewed = _review([VALID_FACT, VALID_FACT_2])
-        _approve(reviewed["capture_id"], ["fact_1", "fact_2"])
-        out = _complete(reviewed["capture_id"], [_placement("fact_1")])
+        _approve(reviewed["capture_id"], ["1", "2"])
+        out = _complete(reviewed["capture_id"], [_placement("1")])
         assert out["status"] == "error"
         assert "ровно один placement" in out["error"]
 
     def test_malformed_candidate_id_returns_json_error(self, memory_server):
         reviewed = _review([VALID_FACT])
-        _approve(reviewed["capture_id"], ["fact_1"])
+        _approve(reviewed["capture_id"], ["1"])
         out = _complete(reviewed["capture_id"], [_placement(candidate_id=[])])
         assert out["status"] == "error"
 
@@ -424,7 +424,7 @@ class TestComplete:
         except OSError:
             pytest.skip("symlink недоступен в этом окружении")
         reviewed = _review([VALID_FACT])
-        _approve(reviewed["capture_id"], ["fact_1"])
+        _approve(reviewed["capture_id"], ["1"])
 
         out = _complete(reviewed["capture_id"], [_placement(
             topic="docs",

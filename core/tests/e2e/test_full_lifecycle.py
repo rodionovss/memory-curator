@@ -155,6 +155,7 @@ topics:
         assert "Всего фактов: 5" in out, "status отражает то, что сохранили"
         assert "Типы (словарь для агента):" in out
         assert "Reference —" in out, "описания типов — контракт для агента"
+        assert "Интеграция OpenCode:" in out, "health-чеки живой установки в status"
         out = server_mod._feedback()
         assert "kotlin" in out or A_TITLE in out, "телеметрия запросов живая"
 
@@ -288,7 +289,7 @@ class TestMapRoutingE2E:
         reviewed = json.loads(server_mod._session_capture({"candidates": candidates}))
         approved = json.loads(server_mod._capture_approve({
             "capture_id": reviewed["capture_id"],
-            "selected_candidate_ids": ["fact_1", "fact_2"],
+            "selected_candidate_ids": ["1", "2"],
         }))
         assert be.query_facts(FactQuery()) == []
 
@@ -300,12 +301,12 @@ class TestMapRoutingE2E:
             "capture_id": reviewed["capture_id"],
             "placements": [
                 {
-                    "candidate_id": "fact_1", "topic": "kotlin", "target": "docs/kotlin.md",
+                    "candidate_id": "1", "topic": "kotlin", "target": "docs/kotlin.md",
                     "capture": "knowledge", "canonical_file": "docs/kotlin.md",
                     "changed_files": ["docs/kotlin.md"],
                 },
                 {
-                    "candidate_id": "fact_2", "topic": "journal", "target": "docs/journal.md",
+                    "candidate_id": "2", "topic": "journal", "target": "docs/journal.md",
                     "capture": "records", "canonical_file": "docs/journal.md",
                     "changed_files": ["docs/journal.md"],
                 },
@@ -313,7 +314,7 @@ class TestMapRoutingE2E:
         }))
         assert completed["status"] == "completed"
         assert completed["saved"] == 2
-        assert [fact["candidate_id"] for fact in approved["facts"]] == ["fact_1", "fact_2"]
+        assert [fact["candidate_id"] for fact in approved["facts"]] == ["1", "2"]
 
         by_title = {f.title: f for f in be.query_facts(FactQuery())}
         assert by_title["Правило про kotlin inline классы и sealed"].source_file == "docs/kotlin.md"
