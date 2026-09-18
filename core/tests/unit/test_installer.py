@@ -214,6 +214,112 @@ class TestIdempotencyAndSafety:
         assert legacy.exists()
 
 
+class TestKnowledgeRoutesPointer:
+    """Placement M2 (эксперимент 05): каталог маршрутов живёт в базе,
+    в глобальном rules-файле — короткая pointer-секция (абсолютный путь
+    + инструкция + hint регенерации). instructions конфига не трогаем,
+    контент каталога в pointer не попадает."""
+
+    def _agents_md(self, tmp_path):
+        return tmp_path / ".config" / "opencode" / "AGENTS.md"
+
+    def test_instructions_untouched_by_install(self, tmp_path):
+        config_path = _opencode_dir(tmp_path) / "opencode.json"
+        config_path.write_text(json.dumps({
+            "instructions": ["/abs/AGENTS.md", "~/rules/*.md"],
+        }), encoding="utf-8")
+
+        installer.install_all()
+
+        data = json.loads(config_path.read_text(encoding="utf-8"))
+        assert data["instructions"] == ["/abs/AGENTS.md", "~/rules/*.md"], \
+            "instructions — не наш механизм доставки, install их не меняет"
+
+    def test_no_instructions_added_when_absent(self, tmp_path):
+        config_path = _opencode_dir(tmp_path) / "opencode.json"
+        config_path.write_text("{}", encoding="utf-8")
+
+        installer.install_all()
+
+        data = json.loads(config_path.read_text(encoding="utf-8"))
+        assert "instructions" not in data, "M2: ничего не грузим в контекст через конфиг"
+
+    def test_pointer_in_rules_file_with_abs_path_and_hint(self, tmp_path):
+        base = tmp_path / "kb"
+        base.mkdir()
+        _opencode_dir(tmp_path)
+
+        steps = installer.install_all(base_dir=str(base))
+
+        text = self._agents_md(tmp_path).read_text(encoding="utf-8")
+        assert "memory-curator-routes:begin" in text
+        assert str(base / "knowledge-routes.md") in text, "абсолютный путь каталога"
+        assert "curator knowledge-routes --write" in text, "hint регенерации"
+        assert any("pointer" in s.lower() for s in steps)
+
+    def test_pointer_idempotent_no_duplicates(self, tmp_path):
+        base = tmp_path / "kb"
+        base.mkdir()
+        _opencode_dir(tmp_path)
+
+        installer.install_all(base_dir=str(base))
+        installer.install_all(base_dir=str(base))
+
+        text = self._agents_md(tmp_path).read_text(encoding="utf-8")
+        assert text.count("memory-curator-routes:begin") == 1
+        assert text.count(str(base / "knowledge-routes.md")) == 1
+
+    def test_pointer_keeps_foreign_content(self, tmp_path):
+        _opencode_dir(tmp_path)
+        agents = self._agents_md(tmp_path)
+        agents.write_text("# Мои личные правила\n\nНе делать лишнего.\n", encoding="utf-8")
+
+        installer.install_all()
+
+        text = agents.read_text(encoding="utf-8")
+        assert "Мои личные правила" in text, "чужой контент вне маркеров не трогаем"
+        assert "memory-curator-routes:begin" in text
+
+    def test_no_catalog_content_in_pointer(self, tmp_path):
+        base = tmp_path / "kb"
+        base.mkdir()
+        (base / "knowledge-routes.md").write_text(
+            "## compose\n\n**When to use:**\n- секретный маршрут;\n",
+            encoding="utf-8")
+        _opencode_dir(tmp_path)
+
+        installer.install_all(base_dir=str(base))
+
+        text = self._agents_md(tmp_path).read_text(encoding="utf-8")
+        assert "**When to use:**" not in text, "pointer несёт путь, не контент каталога"
+        assert "секретный маршрут" not in text
+        assert str(base / "knowledge-routes.md") in text
+
+    def test_missing_catalog_file_install_still_writes_pointer(self, tmp_path):
+        base = tmp_path / "kb"
+        base.mkdir()  # без knowledge-routes.md
+        _opencode_dir(tmp_path)
+
+        installer.install_all(base_dir=str(base))
+
+        text = self._agents_md(tmp_path).read_text(encoding="utf-8")
+        assert "memory-curator-routes:begin" in text, \
+            "pointer пишется и без файла — hint регенерации в самом pointer"
+
+    def test_claude_pointer_in_claude_md(self, tmp_path, monkeypatch):
+        _claude_dir(tmp_path)
+        project = tmp_path / "proj"
+        project.mkdir()
+        monkeypatch.chdir(project)
+
+        installer.install_all(target="claude", base_dir=str(tmp_path / "kb"))
+
+        text = (tmp_path / ".claude" / "CLAUDE.md").read_text(encoding="utf-8")
+        assert "memory-curator-routes:begin" in text
+        assert str(tmp_path / "kb" / "knowledge-routes.md") in text
+        assert "curator knowledge-routes --write" in text
+
+
 class TestConfiguredBaseDir:
     def test_cli_status_reads_installed_config(self, tmp_path, capsys):
         from curator import control
@@ -429,6 +535,23 @@ class TestGlobalRules:
         plugin = tmp_path / ".config" / "opencode" / "plugins" / "curator-reminder.js"
         assert plugin.exists()
         assert "session.idle" in plugin.read_text(encoding="utf-8")
+
+    def test_context_plugin_installed_and_refreshed(self, tmp_path):
+        """Task 10: установщик копирует/обновляет curator-context.js, не трогая чужие."""
+        _opencode_dir(tmp_path)
+        plugins = tmp_path / ".config" / "opencode" / "plugins"
+        plugins.mkdir(parents=True)
+        stale = plugins / "curator-context.js"
+        stale.write_text("// старая копия", encoding="utf-8")
+        (plugins / "my-plugin.js").write_text("// пользовательский", encoding="utf-8")
+
+        installer.install_all()
+
+        assert "chat.message" in stale.read_text(encoding="utf-8"), \
+            "своя копия обновляется до версии репо (idемпотентный refresh)"
+        assert (plugins / "curator-reminder.js").exists()
+        assert (plugins / "my-plugin.js").read_text(encoding="utf-8") == "// пользовательский", \
+            "пользовательские плагины не трогаем"
 
     def test_claude_rules_in_claude_md(self, tmp_path, monkeypatch):
         _claude_dir(tmp_path)

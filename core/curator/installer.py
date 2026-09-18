@@ -19,9 +19,13 @@ import shutil
 import sys
 from pathlib import Path
 
+from curator.fs import atomic_write_text
+
 
 _RETIRED_COMMANDS = ("curator-project-save",)
 _RETIRED_SKILLS = ("curator-project-save",)
+# Синхронен control.KNOWLEDGE_ROUTES_CATALOG_NAME (локальная копия — без импорта control)
+_ROUTES_CATALOG_NAME = "knowledge-routes.md"
 
 
 def _server_command() -> tuple[str, list[str]]:
@@ -86,6 +90,8 @@ def _install_skills(dest_root: Path, mode: str = "preserve") -> list[Path]:
 
 _RULES_BEGIN = "<!-- memory-curator:begin -->"
 _RULES_END = "<!-- memory-curator:end -->"
+_ROUTES_POINTER_BEGIN = "<!-- memory-curator-routes:begin -->"
+_ROUTES_POINTER_END = "<!-- memory-curator-routes:end -->"
 
 
 def _rules_section() -> str:
@@ -97,32 +103,114 @@ def _rules_section() -> str:
         return ""
 
 
-def _install_global_rules(rules_path: Path, body: str) -> bool:
-    """Секция Memory Curator в глобальный файл правил (AGENTS.md / CLAUDE.md).
+def _install_marked_section(rules_path: Path, body: str, begin: str, end: str) -> bool:
+    """Своя секция между маркерами в файле правил (AGENTS.md / CLAUDE.md).
 
-    Read-side без хуков: правило «сверяйся с базой» попадает в контекст
-    каждой сессии. Файла может не быть — создаём; чужой контент не трогаем,
-    заменяем только свою секцию между маркерами (идемпотентно).
+    Read-side без хуков: секция попадает в контекст каждой сессии.
+    Файла может не быть — создаём; чужой контент не трогаем, заменяем
+    только свою секцию между маркерами (идемпотентно). Запись атомарная
+    (fs.atomic_write_text) — сбой посреди записи не обрезает чужой
+    rules-файл.
     """
     if not body:
         return False
     existing = rules_path.read_text(encoding="utf-8") if rules_path.exists() else ""
-    pattern = re.compile(re.escape(_RULES_BEGIN) + r".*?" + re.escape(_RULES_END) + r"\n?", re.DOTALL)
+    pattern = re.compile(re.escape(begin) + r".*?" + re.escape(end) + r"\n?", re.DOTALL)
     without_ours = pattern.sub("", existing).rstrip()
-    section = f"{_RULES_BEGIN}\n{body}\n{_RULES_END}"
-    rules_path.parent.mkdir(parents=True, exist_ok=True)
-    rules_path.write_text(without_ours + ("\n\n" if without_ours else "") + section + "\n", encoding="utf-8")
+    section = f"{begin}\n{body}\n{end}"
+    atomic_write_text(rules_path, without_ours + ("\n\n" if without_ours else "") + section + "\n")
     return True
 
 
-def _install_plugin(plugins_dir: Path) -> bool:
-    """Плагин-реминдер (session.idle → нотификация) в каталог плагинов opencode."""
-    source = _repo_root() / "integrations" / "curator-reminder.js"
-    if not source.exists():
-        return False
-    plugins_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(source, plugins_dir / source.name)
-    return True
+def _install_global_rules(rules_path: Path, body: str) -> bool:
+    """Секция Memory Curator в глобальный файл правил (AGENTS.md / CLAUDE.md)."""
+    return _install_marked_section(rules_path, body, _RULES_BEGIN, _RULES_END)
+
+
+def _routes_catalog_path(base: str) -> Path:
+    """Абсолютный путь каталога маршрутов в базе."""
+    return Path(os.path.abspath(os.path.expanduser(base))) / _ROUTES_CATALOG_NAME
+
+
+def _routes_pointer_body(base: str) -> str:
+    """Pointer-секция на каталог маршрутов: путь + инструкция + hint.
+
+    Placement M2 (эксперимент 05): каталог живёт в базе и читается по
+    требованию; в rules-файл попадает только указатель, не контент.
+    Путь подставляется при установке — текст генерируется, а не хранится
+    в curator-rules.md.
+    """
+    catalog = _routes_catalog_path(base)
+    return (
+        "## Memory Curator — каталог маршрутов базы\n"
+        "\n"
+        f"- Если задача касается тем из базы — сначала прочти каталог `{catalog}` "
+        "(разделы «When to use»), затем указанный в нём исходник.\n"
+        "- Каталог устарел или его нет — регенерируй: `curator knowledge-routes --write`."
+    )
+
+
+def _install_routes_pointer(rules_path: Path, base: str) -> bool:
+    """Pointer-секция каталога маршрутов в глобальный файл правил."""
+    return _install_marked_section(
+        rules_path, _routes_pointer_body(base), _ROUTES_POINTER_BEGIN, _ROUTES_POINTER_END)
+
+
+def publish_routes_pointers(base: str) -> list[str]:
+    """Pointer-секция каталога во все обнаруженные харнесы (publish шаг).
+
+    Вызывается после записи каталога (`curator knowledge-routes --write`)
+    и повторяет placement-контракт install: только указатель, не контент.
+    Fault-isolation per harness: незаписываемый rules-файл одного харнеса
+    (read-only, нет места) не валит publish остальных — деградирует в ⚠-шаг,
+    из publish-пути исключение не выходит. Возвращает publish-строки;
+    без найденных харнесов — пояснение.
+    """
+    home = Path(os.environ.get("HOME", str(Path.home())))
+    do_opencode, do_claude = detect_harnesses()
+    steps: list[str] = []
+    if do_opencode:
+        try:
+            if _install_routes_pointer(home / ".config" / "opencode" / "AGENTS.md", base):
+                steps.append("✅ opencode: pointer каталога маршрутов в глобальном AGENTS.md")
+        except Exception as e:
+            steps.append(f"⚠ opencode: pointer каталога маршрутов не записан: {e}")
+    if do_claude:
+        try:
+            if _install_routes_pointer(home / ".claude" / "CLAUDE.md", base):
+                steps.append("✅ Claude Code: pointer каталога маршрутов в ~/.claude/CLAUDE.md")
+        except Exception as e:
+            steps.append(f"⚠ Claude Code: pointer каталога маршрутов не записан: {e}")
+    if not steps:
+        steps.append("◦ opencode / Claude Code не обнаружены — pointer каталога не обновлён")
+    return steps
+
+
+def _install_plugin(plugins_dir: Path) -> list[str]:
+    """Плагины Memory Curator в каталог плагинов opencode.
+
+    Refresh своих копий (реминдер + proactive delivery) идемпотентен;
+    пользовательские плагины не трогаем. Возвращает шаги-сообщения.
+    """
+    sources = (
+        ("curator-reminder.js", "✅ opencode: плагин-реминдер session.idle → /curator-save"),
+        ("curator-context.js",
+         "✅ opencode: плагин proactive delivery curator-context.js "
+         "(режим доставки — env CURATOR_DELIVERY_MODE, см. integrations/README.md)"),
+    )
+    steps: list[str] = []
+    found = False
+    for name, message in sources:
+        source = _repo_root() / "integrations" / name
+        if not source.exists():
+            continue
+        found = True
+        plugins_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, plugins_dir / name)
+        steps.append(message)
+    if not found:
+        steps.append("⚠ плагины не найдены в репо (wheel-установка?)")
+    return steps
 
 
 def _commands_source() -> dict:
@@ -230,7 +318,7 @@ def _install_footer() -> list[str]:
     return [
         "",
         "Готово. Перезапусти opencode / Claude Code — появятся команды /curator-*, "
-        "тулзы curator_*, скиллы, правила памяти и плагин-реминдер.",
+        "тулзы curator_*, скиллы, правила памяти и плагины (реминдер + proactive delivery).",
         "База: дефолт ~/memory-curator, существующая настройка сохраняется при обновлении.",
         "Где база сейчас: curator status · смена: попроси агента «смени базу знаний на <путь>»",
     ]
@@ -296,8 +384,9 @@ def _install_opencode_steps(base_dir: str | None, skills_mode: str) -> list[str]
 
     if _install_global_rules(home / ".config" / "opencode" / "AGENTS.md", _rules_section()):
         steps.append("✅ opencode: правила памяти в глобальном AGENTS.md — база в контексте каждой сессии")
-    if _install_plugin(home / ".config" / "opencode" / "plugins"):
-        steps.append("✅ opencode: плагин-реминдер session.idle → /curator-save")
+    if _install_routes_pointer(home / ".config" / "opencode" / "AGENTS.md", base):
+        steps.append(f"✅ opencode: pointer каталога маршрутов в глобальном AGENTS.md: {_routes_catalog_path(base)}")
+    steps.extend(_install_plugin(home / ".config" / "opencode" / "plugins"))
 
     try:
         from curator.daemon import ensure_worker
@@ -350,4 +439,6 @@ def _install_claude_steps(base_dir: str | None, skills_mode: str) -> list[str]:
 
     if _install_global_rules(home / ".claude" / "CLAUDE.md", _rules_section()):
         steps.append("✅ Claude Code: правила памяти в ~/.claude/CLAUDE.md (хуков нет — правила вместо них)")
+    if _install_routes_pointer(home / ".claude" / "CLAUDE.md", base):
+        steps.append("✅ Claude Code: pointer каталога маршрутов в ~/.claude/CLAUDE.md")
     return steps

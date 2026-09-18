@@ -23,6 +23,9 @@ reports/
 # Local extraction-eval data (may contain private session transcripts)
 benchmark/extraction/local/
 
+# Local route inventory data (may contain fact titles/paths from real base)
+benchmark/experiments/local/
+
 # Secrets
 .env
 *.env

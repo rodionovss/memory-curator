@@ -79,3 +79,48 @@ bifrost_GA/glm-5.3 и слабая bifrost_GA/GA.Qwen3.6 модели) в арх
   03-proactive-delivery,04-storage}/ — отчёты и run-файлы.
 - Пост-мортем Sprint #2: «доступность ≠ применение» — воспроизведён
   на уровне тулов (02) и routing-слоя (01).
+
+## Приложение: Placement-эксперимент 05 и решение M2 (144 прогона)
+
+**Вопрос:** как доставлять каталог маршрутов `knowledge-routes.md`
+агенту — встроить в глобальный rules-файл (M1), оставить короткую
+pointer-секцию с путём (M2) или предзагружать через OpenCode
+`instructions` (M3)? 144 прогона (2 модели × 3 варианта × 24 прогона,
+`benchmark/experiments/results/05-route-placement/`), автоправило
+решения не сработало — trade-off разрешён человеком по данным.
+
+| Вариант | Application | Routing recall | Токены (input, mean) | Особое |
+|---|---|---|---|---|
+| M1 — каталог в AGENTS.md | 0.833 | 0.619 | 21319 | ~5.4k always-on |
+| **M2 — pointer-секция (решение)** | **0.881** | 0.667 | 23732 | hop 0.646 — каталог читается по требованию |
+| M3 — instructions preload | 0.643 | 0.762 | 19466 | marker 1.0 (загрузка подтверждена), ~5.4k always-on |
+
+Per-model (24 прогона на ячейку):
+
+- **strong M2**: routing 1.0 (указатель читает 24/24), application
+  0.952 — лучшая пара метрик эксперимента.
+- **weak M2**: каталог читает 29% нужных прогонов; после чтения
+  маршрутизирует 7/7 — проблема инициативы, не понимания.
+- **M3-weak routing 0.524 > M1-weak 0.286** — гипотеза: позиция
+  в system message помогает слабой модели замечать каталог.
+
+**Решение (human, data review):**
+
+- **M2 — единственный placement**: короткая pointer-секция в глобальном
+  rules-файле каждого харнеса (AGENTS.md / CLAUDE.md); каталог живёт
+  в базе и грузится pay-per-use. Почему: кросс-агентность (instructions —
+  только OpenCode, у Claude @import, у Codex нет), 0 always-on токенов
+  на старте, strong compliance 1.0.
+- **M3 — tested-and-removed**: application 0.643 ниже M1/M2 при
+  always-on ~5.4k токенов и OpenCode-only. Код удалён; воскрешение
+  из git-истории тривиально.
+- **M1 — отвергнут**: ~5.4k always-on, application-преимущество
+  в зоне шума.
+- **Override правила «M2 проигрывает из-за extra hop»**: pay-per-use
+  бьёт always-on при смешанном паттерне реальных сессий (не каждая
+  сессия касается тем базы), strong-модель следует указателю 24/24.
+
+**Coverage пропусков** (weak читает каталог в 29% нужных прогонов):
+плагин proactive delivery (shadow) + ручной `/curator-query`.
+
+Status: `accepted` без изменений.

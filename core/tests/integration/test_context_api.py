@@ -108,10 +108,14 @@ class TestMcpContextTool:
 
 
 class TestCliContext:
+    """CLI `curator context` — транспорт плагина: режим доставки задаёт
+    CURATOR_DELIVERY_MODE (Task 10), карточки возвращаются в inject."""
+
     def test_cli_выводит_json(self, tmpdir, capsys, monkeypatch):
         be = LocalBackend(str(tmpdir / "db.db"))
         be.store_fact(_fact("Хендлеры MCP", ["mcp"]))
         monkeypatch.setattr(control_mod, "_make_backend", lambda: be)
+        monkeypatch.setenv("CURATOR_DELIVERY_MODE", "inject")
 
         control_mod.cmd_context(["хендлеры", "MCP"])
         out = capsys.readouterr().out

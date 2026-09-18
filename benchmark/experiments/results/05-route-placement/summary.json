@@ -1,0 +1,155 @@
+{
+  "experiment": "05-route-placement",
+  "runs": 144,
+  "models": [
+    "strong",
+    "weak"
+  ],
+  "variants": [
+    "M1",
+    "M2",
+    "M3"
+  ],
+  "primary_metric": "application_rate",
+  "rates": {
+    "routing_recall": 0.683,
+    "application_rate": 0.786
+  },
+  "confidence_intervals": {
+    "application_rate": [
+      0.706,
+      0.848
+    ]
+  },
+  "per_variant": {
+    "M1": {
+      "runs": 48,
+      "routing_recall": 0.619,
+      "application_rate": 0.833,
+      "marker_rate": 1.0,
+      "marker_wiring_ok_rate": 1.0,
+      "source_file_reads_mean": 0.604,
+      "unnecessary_reads_mean": 0.062,
+      "routes_file_reads_mean": 0.0,
+      "input_tokens_mean": 21319.146,
+      "latency_ms_mean": 14618.396
+    },
+    "M2": {
+      "runs": 48,
+      "routing_recall": 0.667,
+      "application_rate": 0.881,
+      "marker_rate": 0.0,
+      "marker_wiring_ok_rate": 1.0,
+      "source_file_reads_mean": 0.729,
+      "unnecessary_reads_mean": 0.146,
+      "routes_file_reads_mean": 0.646,
+      "input_tokens_mean": 23732.417,
+      "latency_ms_mean": 14096.521
+    },
+    "M3": {
+      "runs": 48,
+      "routing_recall": 0.762,
+      "application_rate": 0.643,
+      "marker_rate": 1.0,
+      "marker_wiring_ok_rate": 1.0,
+      "source_file_reads_mean": 0.688,
+      "unnecessary_reads_mean": 0.021,
+      "routes_file_reads_mean": 0.062,
+      "input_tokens_mean": 19466.229,
+      "latency_ms_mean": 13904.667
+    }
+  },
+  "per_variant_model": {
+    "M1": {
+      "strong": {
+        "runs": 24,
+        "routing_recall": 0.952,
+        "application_rate": 1.0,
+        "marker_rate": 1.0,
+        "marker_wiring_ok_rate": 1.0,
+        "source_file_reads_mean": 0.958,
+        "unnecessary_reads_mean": 0.125,
+        "routes_file_reads_mean": 0.0,
+        "input_tokens_mean": 10988.708,
+        "latency_ms_mean": 19961.458
+      },
+      "weak": {
+        "runs": 24,
+        "routing_recall": 0.286,
+        "application_rate": 0.667,
+        "marker_rate": 1.0,
+        "marker_wiring_ok_rate": 1.0,
+        "source_file_reads_mean": 0.25,
+        "unnecessary_reads_mean": 0.0,
+        "routes_file_reads_mean": 0.0,
+        "input_tokens_mean": 31649.583,
+        "latency_ms_mean": 9275.333
+      }
+    },
+    "M2": {
+      "strong": {
+        "runs": 24,
+        "routing_recall": 1.0,
+        "application_rate": 0.952,
+        "marker_rate": 0.0,
+        "marker_wiring_ok_rate": 1.0,
+        "source_file_reads_mean": 1.083,
+        "unnecessary_reads_mean": 0.208,
+        "routes_file_reads_mean": 1.0,
+        "input_tokens_mean": 10249.917,
+        "latency_ms_mean": 19064.083
+      },
+      "weak": {
+        "runs": 24,
+        "routing_recall": 0.333,
+        "application_rate": 0.81,
+        "marker_rate": 0.0,
+        "marker_wiring_ok_rate": 1.0,
+        "source_file_reads_mean": 0.375,
+        "unnecessary_reads_mean": 0.083,
+        "routes_file_reads_mean": 0.292,
+        "input_tokens_mean": 37214.917,
+        "latency_ms_mean": 9128.958
+      }
+    },
+    "M3": {
+      "strong": {
+        "runs": 24,
+        "routing_recall": 1.0,
+        "application_rate": 0.81,
+        "marker_rate": 1.0,
+        "marker_wiring_ok_rate": 1.0,
+        "source_file_reads_mean": 0.917,
+        "unnecessary_reads_mean": 0.042,
+        "routes_file_reads_mean": 0.0,
+        "input_tokens_mean": 7422.583,
+        "latency_ms_mean": 16567.792
+      },
+      "weak": {
+        "runs": 24,
+        "routing_recall": 0.524,
+        "application_rate": 0.476,
+        "marker_rate": 1.0,
+        "marker_wiring_ok_rate": 1.0,
+        "source_file_reads_mean": 0.458,
+        "unnecessary_reads_mean": 0.0,
+        "routes_file_reads_mean": 0.125,
+        "input_tokens_mean": 31509.875,
+        "latency_ms_mean": 11241.542
+      }
+    }
+  },
+  "decision_inputs": {
+    "M3_marker_rate": 1.0,
+    "M3_marker_threshold": 0.95,
+    "M3_vs_M1_routing_recall_delta": 0.143,
+    "M3_vs_M1_application_rate_delta": -0.19,
+    "M3_vs_M2_input_tokens_delta": -4266.188,
+    "M2_routes_file_reads_mean": 0.646,
+    "M3_routes_file_reads_mean": 0.062,
+    "M2_extra_hop": true,
+    "probe_invalid_runs": 0
+  },
+  "failures": [],
+  "decision": "manual review: M3 loaded but trade-off conditions not all met (see decision_inputs)"
+}

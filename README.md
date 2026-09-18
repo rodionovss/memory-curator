@@ -160,7 +160,7 @@ AGENTS.md / CLAUDE.md — база в контексте каждой сесси
 |-------|-----|
 | `core/` | ядро (Python): backend (SQLite), gatekeeper, improve_loop, MCP-сервер; CLI и sync_engine (write-back в .md) |
 | `core/tests/requirements/` | тесты требований — имя теста = ID требования |
-| `design/` | архитектура: requirements, spec, decision-log (история), playbook-routing (контракт Router), backlog |
+| `design/` | архитектура: requirements, spec, decision-log (история), playbook-routing (контракт Router), knowledge-route-format ([контракт Knowledge Route Metadata](design/knowledge-route-format.md)), backlog |
 | `benchmark/` | A/B/C-бенчмарк применения знаний, extraction eval и runbook routing/access/proactive/storage экспериментов |
 | `docs/` | day-to-day: getting-started |
 
@@ -171,9 +171,11 @@ AGENTS.md / CLAUDE.md — база в контексте каждой сесси
   improve loop с eval-гейтом,
   реестр типов с описаниями, демо-тур. **400+ тестов**, включая 14
   тест-требований
-- **Read-side — готово**: правила памяти в глобальном AGENTS.md / CLAUDE.md
-  (база в контексте каждой сессии), плагин session.idle → `/curator-save`,
-  `curator status` показывает, что сделал последний improve
+- **Read-side — готово**: правила памяти и pointer на каталог маршрутов
+  (`knowledge-routes.md`) в глобальном AGENTS.md / CLAUDE.md — база
+  в контексте каждой сессии, каталог тем агент читает по требованию;
+  плагин session.idle → `/curator-save`, `curator status` показывает,
+  что сделал последний improve
 - **Карта документации — готова и интегрирована**: команда
   `/curator-create-map` (скилл mapping-documentation) генерирует карту проекта,
   нейронный `curator-update-docs` следует её
