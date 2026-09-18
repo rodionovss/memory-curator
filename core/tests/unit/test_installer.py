@@ -553,6 +553,35 @@ class TestGlobalRules:
         assert (plugins / "my-plugin.js").read_text(encoding="utf-8") == "// пользовательский", \
             "пользовательские плагины не трогаем"
 
+    def test_plugins_registered_in_config_plugin_array(self, tmp_path):
+        """Desktop OpenCode 1.18 не автозагружает ~/.config/opencode/plugins/ —
+        плагины обязаны быть прописаны в plugin[] абсолютными путями
+        (дебаг 2026-09-18)."""
+        import json
+        _opencode_dir(tmp_path)
+        cfg = tmp_path / ".config" / "opencode" / "opencode.json"
+        cfg.write_text(json.dumps({"plugin": ["superpowers@git+https://github.com/obra/superpowers.git"]}), encoding="utf-8")
+
+        installer.install_all()
+
+        config = json.loads(cfg.read_text(encoding="utf-8"))
+        plugin = config["plugin"]
+        assert "superpowers@git+https://github.com/obra/superpowers.git" in plugin, \
+            "чужие записи plugin[] не трогаем"
+        assert str(tmp_path / ".config" / "opencode" / "plugins" / "curator-context.js") in plugin
+        assert str(tmp_path / ".config" / "opencode" / "plugins" / "curator-reminder.js") in plugin
+
+    def test_plugins_registration_idempotent(self, tmp_path):
+        """Повторный install не дублирует записи plugin[]."""
+        import json
+        _opencode_dir(tmp_path)
+        installer.install_all()
+        installer.install_all()
+        cfg = tmp_path / ".config" / "opencode" / "opencode.json"
+        config = json.loads(cfg.read_text(encoding="utf-8"))
+        ctx_entries = [p for p in config["plugin"] if p.endswith("curator-context.js")]
+        assert len(ctx_entries) == 1, "повторный install не дублирует plugin[]"
+
     def test_claude_rules_in_claude_md(self, tmp_path, monkeypatch):
         _claude_dir(tmp_path)
         project = tmp_path / "proj"

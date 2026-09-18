@@ -2,13 +2,28 @@
 
 Установка — `curator install`: копирует оба плагина (реминдер и
 proactive delivery) в `~/.config/opencode/plugins/` идемпотентно, не
-трогая пользовательские плагины. Обновление плагина — повторный
-`curator install`.
+трогая пользовательские плагины, и регистрирует их абсолютными путями
+в `plugin[]` файла `~/.config/opencode/opencode.json`. Обновление
+плагина — повторный `curator install`.
 
-Desktop-приложение OpenCode наследует дефолтный GUI PATH без
-`~/.local/bin` — голое имя `curator` даёт exit 127 и молча глушится.
-Плагин сам резолвит фолбэк `~/.local/bin/curator` (uv/pipx); env
-(`CURATOR_DELIVERY_MODE` и др.) для GUI-приложений задаётся
+## Контракт Desktop-сборки OpenCode (проверено дебагом 2026-09-18, 1.18.18)
+
+Три несовместимости Desktop, каждая маскирует другую:
+
+1. **Автозагрузки из `~/.config/opencode/plugins/` нет** — плагины
+   обязаны быть прописаны в `plugin[]` конфига абсолютными путями
+   (`file:///`-префикс и относительные пути не работают;
+   `./name.js` трактуется как npm-спек и молча падает при установке).
+2. **Все экспорты модуля обязаны быть функциями** — загрузчик
+   отбрасывает плагин молча, если хоть один экспорт не функция
+   (`export default async function ...`; строковый `export const id`
+   валит загрузку). Ошибки загрузки глушатся — смотри
+   `~/.local/share/opencode/log/opencode.log` (`failed to load plugin`).
+3. **Bun shell `$` в контексте фабрики не работает** (`ctx.$ ===
+   undefined` в Desktop) — CLI зовётся через `node:child_process.execFile`
+   с резолвом `~/.local/bin/curator` (GUI PATH не содержит `~/.local/bin`).
+
+Env (`CURATOR_DELIVERY_MODE` и др.) для GUI-приложений задаётся
 `launchctl setenv` (переживает перезагрузку через LaunchAgent),
 для терминала — экспортом в shell-профиле.
 

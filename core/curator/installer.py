@@ -187,10 +187,13 @@ def publish_routes_pointers(base: str) -> list[str]:
 
 
 def _install_plugin(plugins_dir: Path) -> list[str]:
-    """Плагины Memory Curator в каталог плагинов opencode.
+    """Плагины Memory Curator: копия + регистрация в plugin[] opencode.json.
 
-    Refresh своих копий (реминдер + proactive delivery) идемпотентен;
-    пользовательские плагины не трогаем. Возвращает шаги-сообщения.
+    Копия в каталог плагинов идемпотентна; пользовательские плагины не
+    трогаем. Desktop-сборка OpenCode (1.18) не автозагружает файлы из
+    ~/.config/opencode/plugins/ — плагины обязаны быть прописаны в
+    plugin[] абсолютными путями (проверено дебагом 2026-09-18).
+    Возвращает шаги-сообщения.
     """
     sources = (
         ("curator-reminder.js", "✅ opencode: плагин-реминдер session.idle → /curator-save"),
@@ -210,7 +213,30 @@ def _install_plugin(plugins_dir: Path) -> list[str]:
         steps.append(message)
     if not found:
         steps.append("⚠ плагины не найдены в репо (wheel-установка?)")
+        return steps
+    steps.extend(_register_plugins_in_config(plugins_dir, [name for name, _ in sources]))
     return steps
+
+
+def _register_plugins_in_config(plugins_dir: Path, names: list[str]) -> list[str]:
+    """Абсолютные пути плагинов в plugin[] ~/.config/opencode/opencode.json.
+
+    Идемпотентно: свои записи обновляем, чужие не трогаем. OpenCode грузит
+    file-плагины только явно из plugin[] (Desktop 1.18; auto-discovery
+    из глобального каталога нет).
+    """
+    config_path = plugins_dir.parent / "opencode.json"
+    config, error = _read_json_config(config_path)
+    if config is None:
+        return [f"⚠ opencode.json не читается ({error}) — плагины не зарегистрированы, "
+                f"пропиши в plugin[] вручную: {plugins_dir}/<имя>.js"]
+    entries = [str(plugins_dir / name) for name in names]
+    plugins = [p for p in config.get("plugin", []) if isinstance(p, str)]
+    without_ours = [p for p in plugins if p not in entries and
+                    not any(p.endswith(f"/{name}") for name in names)]
+    config["plugin"] = without_ours + entries if entries else without_ours
+    _write_json_config(config_path, config)
+    return [f"✅ opencode: плагины зарегистрированы в plugin[] {config_path}"]
 
 
 def _commands_source() -> dict:

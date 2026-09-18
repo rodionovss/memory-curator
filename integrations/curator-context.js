@@ -6,10 +6,11 @@
 // плагин знает только CLI/JSON контракт, не бэкенд. Любая ошибка
 // глушится — сбой доставки не ломает сессию.
 //
-// Режим доставки (off/shadow/inject) читает Python CLI, не плагин:
-// плагин всегда делает один вызов `curator context` на substantive
-// turn; в shadow CLI возвращает пустой контракт — гард
-// one-delivery-per-session не срабатывает, и каждый оборот наблюдается.
+// Вызов CLI через node:child_process (не Bun shell): в Desktop-сборке
+// OpenCode контекст плагина не содержит рабочего `$` (проверено дебагом
+// 2026-09-18: ctx.$ === undefined) — execFile работает одинаково в
+// Desktop, CLI и TUI.
+import { execFile } from "node:child_process"
 import { existsSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
@@ -17,12 +18,24 @@ import { join } from "node:path"
 const deliveredSessions = new Set()
 
 // GUI-приложение (Desktop OpenCode) наследует дефолтный PATH без
-// ~/.local/bin — стандартной точки установки uv/pipx. Голое имя curator
-// тогда даёт exit 127, плагин молча глушит — телеметрия мертва.
-// Резолв: если фолбэк-путь существует, зовём его; иначе штатный PATH.
+// ~/.local/bin — стандартной точки установки uv/pipx. Резолв: если
+// фолбэк-путь существует, зовём его; иначе штатный PATH.
 function _curatorBin() {
   const fallback = join(homedir(), ".local", "bin", "curator")
   return existsSync(fallback) ? fallback : "curator"
+}
+
+function _execCuratorContext(trigger, sessionId) {
+  return new Promise((resolve) => {
+    execFile(
+      _curatorBin(),
+      ["context", trigger],
+      {
+        env: { ...process.env, CURATOR_SESSION_ID: sessionId },
+        timeout: 15000,
+      },
+      (err, stdout) => resolve({ exitCode: err ? (err.code ?? 1) : 0, stdout: stdout ?? "" }))
+  })
 }
 
 function _triggerOf(output) {
@@ -37,7 +50,6 @@ function _cardsToContext(json) {
   const cards = (json && json.cards) || []
   if (!cards.length) return null
   const lines = cards.map((c) => {
-    const tags = Array.isArray(c.tags) ? c.tags.join(", ") : ""
     const file = c.source_file ? ` · полный текст: ${c.source_file} (curator get '${c.title}')` : ""
     return `- **${c.title}** [${c.score}] ${c.reason}\n  ${String(c.summary).trim().slice(0, 400)}${file}`
   })
@@ -48,7 +60,7 @@ function _cardsToContext(json) {
   ].join("\n")
 }
 
-export const CuratorContext = async ({ $ }) => {
+export default async function CuratorContext() {
   return {
     "chat.message": async (input, output) => {
       try {
@@ -58,11 +70,10 @@ export const CuratorContext = async ({ $ }) => {
         if (!trigger.trim()) return
 
         // Сессия OpenCode → env CLI: shadow/inject события привязаны
-        // к реальной сессии. Присваивание env-префиксом — контракт
-        // Bun Shell: значение экранируется, остальное окружение наследуется.
+        // к реальной сессии. Режим доставки решает Python CLI — плагин
+        // наследует env процесса как есть.
         const sessionId = typeof input.sessionID === "string" ? input.sessionID : ""
-        const proc =
-          await $`CURATOR_SESSION_ID=${sessionId} ${_curatorBin()} context ${trigger}`.quiet().nothrow()
+        const proc = await _execCuratorContext(trigger, sessionId)
         if (proc.exitCode !== 0) return
 
         const json = JSON.parse(proc.stdout)

@@ -5,11 +5,12 @@
 `curator context`), ошибки глушатся, доставка один раз на сессию,
 ручной fallback (curator get) остаётся.
 
-Task 10: плагин форвардит CURATOR_SESSION_ID в env подпроцесса CLI;
-режим доставки читает CLI, не плагин. Shadow: CLI не возвращает карточки
-→ гард one-delivery-per-session никогда не срабатывает → каждый
-substantive turn наблюдается. Inject: карточка добавлена → сессия
-помечена delivered → повторный вызов CLI не происходит.
+Desktop-контракт (проверено дебагом 2026-09-18, OpenCode 1.18.18):
+- default export — функция-фабрика (все экспорты модуля обязаны быть
+  функциями, иначе загрузчик отбрасывает плагин молча);
+- контекст фабрики не содержит рабочего Bun shell `$` — CLI зовётся
+  через node:child_process.execFile;
+- плагин подключается абсолютным путём в plugin[] opencode.json.
 """
 
 import json
@@ -22,56 +23,65 @@ import pytest
 REPO = Path(__file__).resolve().parents[3]
 PLUGIN = REPO / "integrations" / "curator-context.js"
 
-# Поведенческий драйвер: подделываем $ (Bun Shell) объектом
-# {exitCode, stdout} — реальный контракт вывода opencode (Bun.$),
-# и прогоняем оба сценария жизненного цикла плагина.
+# Поведенческий драйвер: подделываем сам curator-бинарь (fake HOME) —
+# тестируется реальная цепочка execFile → env → JSON, без моков child_process.
+# node запускается с HOME=<tmp>, где лежит .local/bin/curator (shell-скрипт,
+# пишущий session_id в счётчик и печатающий FAKE_RESPONSE).
 _DRIVER = r"""
-const [,, pluginPath, scenario] = process.argv
-const calls = []
+const [,, pluginPath, scenario, homeDir] = process.argv
+const fs = await import("node:fs")
+const path = await import("node:path")
 
-function makeFake$(response) {
-  return (strings, ...values) => {
-    const cmd = strings.reduce((acc, s, i) => acc + s + (i < values.length ? String(values[i]) : ""), "")
-    calls.push(cmd)
-    return {
-      quiet() { return this },
-      nothrow() { return this },
-      then(resolve, reject) { return Promise.resolve(response).then(resolve, reject) },
-    }
-  }
-}
+const binDir = path.join(homeDir, ".local", "bin")
+fs.mkdirSync(binDir, { recursive: true })
+const callsFile = path.join(homeDir, "calls.log")
+fs.writeFileSync(callsFile, "")
+fs.writeFileSync(path.join(binDir, "curator"), [
+  "#!/bin/sh",
+  'echo "$CURATOR_SESSION_ID" >> "$CALLS_FILE"',
+  'echo "$FAKE_RESPONSE"',
+  "",
+].join("\n"), { mode: 0o755 })
+
+const card = { title: "T", summary: "s", tags: [], type: "Reference",
+               status: "verified", source_file: "a.md", score: 0.8, reason: "r" }
+const cards = scenario === "inject" ? [card] : []
+process.env.FAKE_RESPONSE = JSON.stringify({ cards, count: cards.length })
+process.env.CALLS_FILE = callsFile
+
+const { pathToFileURL } = await import("node:url")
+const mod = await import(pathToFileURL(pluginPath).href)
+const factory = mod.default
+if (typeof factory !== "function") throw new Error("default export is not a function")
+const plugin = await factory({})
+const sessionId = "ses_node_1"
 
 function output(text) {
   return { parts: [{ type: "text", text }] }
 }
 
-const { pathToFileURL } = await import("node:url")
-const mod = await import(pathToFileURL(pluginPath).href)
-const sessionId = "ses_node_1"
-const card = { title: "T", summary: "s", tags: [], type: "Reference",
-               status: "verified", source_file: "a.md", score: 0.8, reason: "r" }
-
 if (scenario === "inject") {
-  const plugin = await mod.CuratorContext({ $: makeFake$({ exitCode: 0, stdout: JSON.stringify({ cards: [card], count: 1 }) }) })
   const out1 = output("задача один")
   await plugin["chat.message"]({ sessionID: sessionId }, out1)
-  const afterFirst = { calls: calls.length, parts: out1.parts.length }
+  const afterFirst = { calls: fs.readFileSync(callsFile, "utf-8").trim().split("\n").filter(Boolean).length,
+                       parts: out1.parts.length }
   const out2 = output("задача два")
   await plugin["chat.message"]({ sessionID: sessionId }, out2)
+  const totalCalls = fs.readFileSync(callsFile, "utf-8").trim().split("\n").filter(Boolean).length
   console.log(JSON.stringify({
     firstTurnDelivered: afterFirst.parts === 2,
     firstTurnCliCalls: afterFirst.calls,
-    secondTurnCliCalls: calls.length - afterFirst.calls,
+    secondTurnCliCalls: totalCalls - afterFirst.calls,
     secondTurnParts: out2.parts.length,
   }))
 } else {
-  const plugin = await mod.CuratorContext({ $: makeFake$({ exitCode: 0, stdout: JSON.stringify({ cards: [], count: 0 }) }) })
   const outs = [output("a"), output("b"), output("c")]
   for (const o of outs) await plugin["chat.message"]({ sessionID: sessionId }, o)
+  const calls = fs.readFileSync(callsFile, "utf-8").trim().split("\n").filter(Boolean)
   console.log(JSON.stringify({
     cliCalls: calls.length,
     appendedParts: outs.reduce((n, o) => n + o.parts.length, 0) - outs.length,
-    sessionForwarded: calls.length > 0 && calls.every((c) => c.includes("CURATOR_SESSION_ID=" + sessionId)),
+    sessionForwarded: calls.length > 0 && calls.every((c) => c === sessionId),
   }))
 }
 """
@@ -85,9 +95,16 @@ def _run_node(tmp_path, scenario):
     driver.write_text(_DRIVER, encoding="utf-8")
     plugin_mjs = tmp_path / "curator-context.mjs"
     shutil.copy(PLUGIN, plugin_mjs)
+    fake_home = tmp_path / "fake-home"
+    fake_home.mkdir()
+    env_patch = {"HOME": str(fake_home), "CALLS_FILE": "", "FAKE_RESPONSE": ""}
+    import os
+    env = {k: v for k, v in os.environ.items() if k not in env_patch}
+    env.update({k: v for k, v in env_patch.items() if v})
+    env["HOME"] = str(fake_home)
     proc = subprocess.run(
-        [node, str(driver), str(plugin_mjs), scenario],
-        check=True, capture_output=True, text=True, timeout=30,
+        [node, str(driver), str(plugin_mjs), scenario, str(fake_home)],
+        check=True, capture_output=True, text=True, timeout=30, env=env,
     )
     return json.loads(proc.stdout)
 
@@ -104,7 +121,10 @@ class TestPluginContract:
         src = PLUGIN.read_text(encoding="utf-8")
         for forbidden in ("curator.", "knowledge.db", "sqlite", "Backend"):
             assert forbidden not in src, f"плагин не должен знать про storage: {forbidden}"
-        assert "curator context" in src, "доставка через CLI-контракт ADR 002"
+        assert "curator context" not in src or "context" in src
+        # CLI-контракт: execFile зовёт curator с args ["context", trigger]
+        assert '"context"' in src or "'context'" in src or "[\"context\"" in src, \
+            "доставка через CLI-контракт ADR 002"
 
     def test_ошибки_глушатся(self):
         src = PLUGIN.read_text(encoding="utf-8")
@@ -118,16 +138,6 @@ class TestPluginContract:
         src = PLUGIN.read_text(encoding="utf-8")
         assert "curator get" in src
 
-    def test_gui_path_фолбэк_бинаря(self):
-        """Desktop OpenCode наследует дефолтный PATH без ~/.local/bin —
-        голое имя curator даёт exit 127 и глушится. Плагин резолвит
-        абсолютный фолбэк до вызова (existsSync, без сабпроцесса)."""
-        src = PLUGIN.read_text(encoding="utf-8")
-        assert "_curatorBin" in src, "резолв бинаря вынесен в функцию"
-        assert '".local"' in src and '"bin"' in src and '"curator"' in src, \
-            "фолбэк — ~/.local/bin/curator (uv/pipx)"
-        assert "existsSync" in src, "проверка существования без сабпроцесса"
-
     def test_синтаксис_esm(self):
         node = shutil.which("node")
         if not node:
@@ -140,24 +150,43 @@ class TestPluginContract:
             tmp.unlink(missing_ok=True)
 
 
-class TestModeForwardingContract:
-    """Task 10: session id форвардится в env CLI; режим читает CLI, не плагин."""
+class TestDesktopContract:
+    """Контракт Desktop-сборки OpenCode 1.18 (дебаг 2026-09-18):
+    default export-функция, без Bun shell, CLI через node:child_process."""
 
-    def test_session_id_форвардится_в_cli(self):
+    def test_default_экспорт_функция(self):
+        """Загрузчик: все экспорты модуля обязаны быть функциями;
+        фабрика — default export."""
+        src = PLUGIN.read_text(encoding="utf-8")
+        assert "export default" in src, \
+            "фабрика обязана быть default export (named export отбрасывается молча)"
+
+    def test_cli_через_child_process_не_bun_shell(self):
+        """ctx.$ в Desktop === undefined — Bun shell недоступен."""
+        src = PLUGIN.read_text(encoding="utf-8")
+        assert "child_process" in src, "CLI зовётся через node:child_process"
+        assert "execFile" in src
+        assert "await $" not in src, "Bun shell $ в Desktop не работает"
+
+    def test_gui_path_фолбэк_бинаря(self):
+        """Desktop наследует дефолтный PATH без ~/.local/bin — плагин
+        резолвит абсолютный фолбэк (existsSync, без сабпроцесса)."""
+        src = PLUGIN.read_text(encoding="utf-8")
+        assert "_curatorBin" in src, "резолв бинаря вынесен в функцию"
+        assert '".local"' in src and '"bin"' in src and '"curator"' in src, \
+            "фолбэк — ~/.local/bin/curator (uv/pipx)"
+        assert "existsSync" in src, "проверка существования без сабпроцесса"
+
+    def test_session_id_передаётся_в_env_cli(self):
         src = PLUGIN.read_text(encoding="utf-8")
         assert "CURATOR_SESSION_ID" in src, \
-            "сессия OpenCode передаётся CLI через env"
+            "сессия OpenCode передаётся CLI через env execFile"
         assert "input.sessionID" in src, "источник — sessionID входа хука"
 
     def test_режим_доставки_не_читается_плагином(self):
         src = PLUGIN.read_text(encoding="utf-8")
         assert "CURATOR_DELIVERY_MODE" not in src, \
             "off/shadow/inject решает CLI; плагин не знает про режим"
-
-    def test_один_spawn_на_субстантивный_оборот(self):
-        src = PLUGIN.read_text(encoding="utf-8")
-        assert src.count("await $`") == 1, \
-            "контракт — один вызов curator context на substantive turn"
 
 
 class TestPluginLifecycle:
