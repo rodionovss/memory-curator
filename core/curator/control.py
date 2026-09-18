@@ -436,8 +436,9 @@ def cmd_context(args: list[str] | None = None):
 
         session_id = os.getenv("CURATOR_SESSION_ID") or None
         started = time.perf_counter()
+        near_misses: list[tuple[str, float]] = []
         try:
-            cards = fetch_context(trigger, _make_backend(), None, **options)
+            cards = fetch_context(trigger, _make_backend(), None, near_misses=near_misses, **options)
         except Exception as e:
             # Сбой retrieval — не наблюдение: событие не пишется, CLI жив
             print(f"curator: context delivery недоступен: {e}", file=sys.stderr, flush=True)
@@ -448,6 +449,8 @@ def cmd_context(args: list[str] | None = None):
                 trigger, cards, mode=mode, session_id=session_id,
                 delivered=(mode == "inject" and bool(cards)),
                 latency_ms=latency_ms,
+                near_miss_titles=[t for t, _ in near_misses],
+                near_miss_scores=[s for _, s in near_misses],
             )
             if mode == "inject":
                 result = {"cards": [card.__dict__ for card in cards], "count": len(cards)}

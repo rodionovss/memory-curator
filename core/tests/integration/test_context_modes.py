@@ -107,8 +107,9 @@ class TestShadowMode:
         assert len(events) == 1
         event = events[0]
         assert set(event) == {
-            "session_id", "trigger_hash", "mode", "candidate_titles", "scores",
+            "ts", "session_id", "trigger_hash", "mode", "candidate_titles", "scores",
             "delivered", "silent", "latency_ms", "source_files",
+            "near_miss_titles", "near_miss_scores",
         }
         assert event["mode"] == "shadow"
         assert event["candidate_titles"] == ["Хендлеры MCP"]
@@ -228,6 +229,7 @@ class TestBuildEvent:
             session_id="ses_1", delivered=False, latency_ms=7,
         )
         assert event == {
+            "ts": event["ts"],  # динамический — проверяется отдельным ассертом
             "session_id": "ses_1",
             "trigger_hash": hashlib.sha256("триггер".encode("utf-8")).hexdigest(),
             "mode": "shadow",
@@ -237,7 +239,29 @@ class TestBuildEvent:
             "silent": False,
             "latency_ms": 7,
             "source_files": ["x.md"],
+            "near_miss_titles": [],
+            "near_miss_scores": [],
         }
+
+    def test_ts_времени_события(self):
+        """ts обязателен: без него delivery rate нельзя строить по дням."""
+        from datetime import datetime
+        event = shadow_log.build_event(
+            "триггер", [], mode="shadow", session_id=None,
+            delivered=False, latency_ms=1,
+        )
+        parsed = datetime.fromisoformat(event["ts"])
+        assert abs((datetime.now() - parsed).total_seconds()) < 60
+
+    def test_near_miss_кандидаты_в_событии(self):
+        event = shadow_log.build_event(
+            "триггер", [], mode="shadow", session_id=None,
+            delivered=False, latency_ms=1,
+            near_miss_titles=["Почти найдено", "Ещё кандидат"],
+            near_miss_scores=[0.39, 0.31],
+        )
+        assert event["near_miss_titles"] == ["Почти найдено", "Ещё кандидат"]
+        assert event["near_miss_scores"] == [0.39, 0.31]
 
     def test_кандидаты_по_title_без_row_id(self):
         event = shadow_log.build_event(

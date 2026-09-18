@@ -63,9 +63,17 @@ def build_event(
     session_id: str | None,
     delivered: bool,
     latency_ms: int,
+    near_miss_titles: list[str] | None = None,
+    near_miss_scores: list[float] | None = None,
 ) -> dict:
-    """Событие доставки по контракту Task 10 (natural key — title, без row id)."""
+    """Событие доставки по контракту Task 10 (natural key — title, без row id).
+
+    ts — время события (временные ряды delivery rate); near-miss — кандидаты
+    чуть ниже порога переранжирования (данные для подстройки порога/алиасов:
+    «искали — почти нашли»).
+    """
     return {
+        "ts": datetime.now().isoformat(timespec="seconds"),
         "session_id": session_id,
         "trigger_hash": trigger_hash(trigger),
         "mode": mode,
@@ -75,6 +83,8 @@ def build_event(
         "silent": not cards,
         "latency_ms": latency_ms,
         "source_files": _source_files(cards),
+        "near_miss_titles": list(near_miss_titles or []),
+        "near_miss_scores": list(near_miss_scores or []),
     }
 
 
@@ -127,12 +137,16 @@ def log_event(
     session_id: str | None,
     delivered: bool,
     latency_ms: int,
+    near_miss_titles: list[str] | None = None,
+    near_miss_scores: list[float] | None = None,
 ) -> None:
     """Записать событие доставки. Телеметрия не роняет вызвавший CLI."""
     try:
         append_event(build_event(
             trigger, cards, mode=mode, session_id=session_id,
             delivered=delivered, latency_ms=latency_ms,
+            near_miss_titles=near_miss_titles,
+            near_miss_scores=near_miss_scores,
         ))
     except Exception as e:
         print(f"curator: shadow-лог доставки недоступен: {e}",

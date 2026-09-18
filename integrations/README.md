@@ -83,18 +83,27 @@ one-delivery-per-session не срабатывает, и каждый substantiv
 Формат — JSONL, одна строка на вызов:
 
 ```json
-{"session_id": "ses_...", "trigger_hash": "sha256...", "mode": "shadow",
- "candidate_titles": ["Не оборачивай suspend DAO в withContext"],
+{"ts": "2026-09-18T21:15:00", "session_id": "ses_...", "trigger_hash": "sha256...",
+ "mode": "shadow", "candidate_titles": ["Не оборачивай suspend DAO в withContext"],
  "scores": [0.62], "delivered": false, "silent": false, "latency_ms": 12,
- "source_files": ["reference/coroutines.md"]}
+ "source_files": ["reference/coroutines.md"],
+ "near_miss_titles": ["Смежный кандидат ниже порога"],
+ "near_miss_scores": [0.37]}
 ```
 
+- `ts` — время события: без него delivery rate не построить по дням;
 - кандидаты идентифицируются по `title` (natural key) — row id из базы
   в события не попадают;
 - `silent: true` — retrieval ничего не нашёл; `delivered` — факт
   возврата карточек (`inject`); `latency_ms` — время retrieval;
+- `near_miss_*` — кандидаты чуть ниже порога переранжирования
+  (топ-3 по скору): «искали — почти нашли». Прямые данные для
+  подстройки порога 0.40 и словаря алиасов;
 - **приватность**: сырой промпт не персистится никогда — только
-  SHA-256 хэш (`trigger_hash`);
+  SHA-256 хэш (`trigger_hash`). Исключение — событие `query` в
+  server.log: текст поиска пишется plaintext (сознательное решение,
+  decision-log 2026-09-18: хэш лишит лог главного — «что искали и где
+  поиск молчал»);
 - запись под файловым локом; ротация при 10 MB — активный файл
   переименовывается с суффиксом-таймстампом
   (`delivery-shadow.20260917T101500.jsonl`);

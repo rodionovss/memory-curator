@@ -212,3 +212,46 @@ class TestSilence:
             now=0.0,
         )
         assert cards_with_usage[0].score > cards_no_usage[0].score
+
+
+class TestNearMissTelemetry:
+    """Кандидаты ниже порога: сбор для shadow-телеметрии, не для выдачи."""
+
+    def test_near_miss_собирается_и_топ3(self):
+        good = _fact("MCP SDK: правильная сигнатура хендлеров", ["python", "mcp"])
+        near = [
+            _fact(f"Слабый кандидат номер {i}", ["python", "mcp"],
+                  summary="Смежное знание про MCP и сигнатуры хендлеров.")
+            for i in range(1, 6)
+        ]
+        misses: list[tuple[str, float]] = []
+        cards = retrieve(
+            ContextQuery(trigger="как правильно писать хендлеры MCP"),
+            [good] + near,
+            usage={},
+            near_misses=misses,
+        )
+        assert len(cards) == 1, "выдача без изменений: near-miss только телеметрия"
+        assert 1 <= len(misses) <= 3, "топ-3, не больше"
+        assert all(score < 0.4 for _, score in misses), "все ниже порога"
+        scores = [s for _, s in misses]
+        assert scores == sorted(scores, reverse=True), "score desc"
+
+    def test_near_miss_пуст_когда_всё_выше_порога(self):
+        good = _fact("Хендлеры MCP", ["mcp"])
+        misses: list[tuple[str, float]] = []
+        retrieve(
+            ContextQuery(trigger="хендлеры MCP"),
+            [good],
+            usage={},
+            near_misses=misses,
+        )
+        assert misses == [], "нет кандидатов ниже порога — сборщик пуст"
+
+    def test_без_сборщика_поведение_не_меняется(self):
+        good = _fact("Хендлеры MCP", ["mcp"])
+        cards = retrieve(
+            ContextQuery(trigger="хендлеры MCP"),
+            [good], usage={},
+        )
+        assert cards, "обратная совместимость: параметр опционален"

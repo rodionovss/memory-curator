@@ -197,3 +197,31 @@ class TestQueryDefaultStatus:
         out = _query({"status": "all"})
         assert "Отозванный факт" in out
         assert "ImmutableList" in out
+
+
+class TestQueryTelemetry:
+    """Каждый curator_query пишется в server.log (search, results, titles) —
+    данные для подстройки алиасов: что искали и где поиск молчал.
+    Плaintext-запрос — осознанное решение (decision-log 2026-09-18)."""
+
+    def test_query_пишет_событие_в_лог(self, monkeypatch, tmp_path):
+        log_path = tmp_path / "server.log"
+        monkeypatch.setenv("CURATOR_LOG_PATH", str(log_path))
+        _query({"search": "ImmutableList"})
+        text = log_path.read_text(encoding="utf-8")
+        assert '"query"' in text
+        assert '"search": "ImmutableList"' in text
+        assert '"results": 1' in text
+
+    def test_пустой_результат_тоже_логируется(self, monkeypatch, tmp_path):
+        log_path = tmp_path / "server.log"
+        monkeypatch.setenv("CURATOR_LOG_PATH", str(log_path))
+        _query({"search": "несуществующее-слово-xyz"})
+        text = log_path.read_text(encoding="utf-8")
+        assert '"results": 0' in text, "тишина поиска — главные данные"
+
+    def test_сбой_лога_не_роняет_запрос(self, monkeypatch, tmp_path):
+        import curator.server_log as sl
+        monkeypatch.setattr(sl, "log", lambda *a, **k: (_ for _ in ()).throw(OSError("disk")))
+        out = _query({"search": "ImmutableList"})
+        assert "ImmutableList" in out, "запрос жив даже если телеметрия упала"

@@ -737,6 +737,22 @@ def _query(args: dict) -> str:
         # явный status=deprecated/all управляет полнотой выдачи
         facts = [f for f in facts if f.status != "deprecated"]
 
+    # Телеметрия запросов: что искали и что вернулось (включая тишину) —
+    # данные для подстройки алиасов и ручной fallback-статистики.
+    # Плaintext-запрос — сознательное решение (см. decision-log 2026-09-18):
+    # хэш лишит лог главного — «что искали и где поиск молчал».
+    try:
+        from curator import server_log
+        server_log.log(
+            "query",
+            search=str(args.get("search") or ""),
+            filters=bool(args.get("type") or args.get("tags")),
+            results=len(facts),
+            titles=[f.title for f in facts[:5]],
+        )
+    except Exception:
+        pass  # телеметрия не роняет запрос
+
     if facts:
         feedback.record_query(len(facts), [f.title for f in facts])
 

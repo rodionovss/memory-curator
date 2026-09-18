@@ -284,11 +284,16 @@ def retrieve(
     usage: dict[str, dict] | None = None,
     now: float | None = None,
     routes: Sequence[KnowledgeRoute] = (),
+    near_misses: list[tuple[str, float]] | None = None,
 ) -> list[ContextCard]:
     """Ранжированные карточки verified-фактов под триггер запроса.
 
     Deterministic: одинаковый вход → одинаковый выход. Слабое совпадение
     (ниже relevance_threshold) не возвращается — silence вместо шума.
+
+    near_misses — опциональный сборщик (title, score) кандидатов ниже
+    порога (топ-3 по скору): телеметрия для подстройки порога/алиасов,
+    на выдачу не влияет.
 
     Retrieval v2: маршруты (routes) дают file-level кандидаты — метаданные
     маршрута матчатся текстом запроса, факты из сматченных файлов получают
@@ -367,6 +372,10 @@ def retrieve(
 
         score = _W_TAGS * tag_s + _W_TEXT * text_s + _W_USAGE * usage_s
         if score < query.relevance_threshold:
+            # Near-miss телеметрия: кандидат чуть ниже порога — данные для
+            # подстройки порога/алиасов (shadow-событие, не выдача)
+            if near_misses is not None:
+                near_misses.append((fact.title, round(score, 4)))
             continue
 
         candidates.append(ContextCard(
@@ -396,6 +405,9 @@ def retrieve(
             continue
         selected.append(card)
         budget_left -= cost
+    if near_misses is not None:
+        # Топ-3 почти-дошедших: score desc, затем title — детерминированно
+        near_misses[:] = sorted(near_misses, key=lambda nm: (-nm[1], nm[0]))[:3]
     return selected
 
 
@@ -456,6 +468,7 @@ def fetch_context(
     relevance_threshold: float = _DEFAULTS["relevance_threshold"],
     now: float | None = None,
     base_dir: Path | None = None,
+    near_misses: list[tuple[str, float]] | None = None,
 ) -> list[ContextCard]:
     """Proactive delivery: текст задачи → ranked context cards (ADR 002).
 
@@ -464,7 +477,8 @@ def fetch_context(
 
     Retrieval v2: маршруты собираются из тех же фактов (build_routes) и
     дают file-level кандидатов до переранжирования. Сбой сборки маршрутов
-    не ломает доставку — fact-only fallback.
+    не ломает доставку — fact-only fallback. near_misses — опциональный
+    сборщик кандидатов ниже порога (телеметрия, на выдачу не влияет).
     """
     facts = backend.query_facts(FactQuery())
     usage = feedback.usage_map() if feedback else {}
@@ -484,6 +498,7 @@ def fetch_context(
         usage=usage,
         now=now,
         routes=routes,
+        near_misses=near_misses,
     )
     if cards and feedback is not None:
         feedback.record_query(len(cards), [c.title for c in cards])
