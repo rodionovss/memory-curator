@@ -271,6 +271,8 @@ class TestMapRoutingE2E:
         )
 
         be = LocalBackend(str(home / "db" / "knowledge.db"))
+        server_log_path = home / "server.log"
+        monkeypatch.setenv("CURATOR_LOG_PATH", str(server_log_path))
         server_mod = _wire_server(monkeypatch, be, md_dir, home / "usage.json")
         from curator.routing.map_router import MapRouter
         monkeypatch.setattr(server_mod, "router", MapRouter(md_dir / "DOCUMENTATION-MAP.md"))
@@ -315,6 +317,15 @@ class TestMapRoutingE2E:
         assert completed["status"] == "completed"
         assert completed["saved"] == 2
         assert [fact["candidate_id"] for fact in approved["facts"]] == ["1", "2"]
+
+        # Маршрутная телеметрия: каждое placement-решение в server.log
+        # (topic/target/canonical_file) — основа для подкрутки карты
+        log_text = server_log_path.read_text(encoding="utf-8")
+        placement_events = [line for line in log_text.splitlines() if '"placement"' in line]
+        assert len(placement_events) == 2, \
+            f"каждое placement пишет событие: {len(placement_events)} из 2"
+        assert any('"topic": "kotlin"' in line for line in placement_events)
+        assert any('"canonical_file": "docs/journal.md"' in line for line in placement_events)
 
         by_title = {f.title: f for f in be.query_facts(FactQuery())}
         assert by_title["Правило про kotlin inline классы и sealed"].source_file == "docs/kotlin.md"

@@ -129,7 +129,7 @@ def check_shadow_log(state_dir: Path) -> tuple[bool, str]:
     return True, f"shadow-лог: {recent} записей за 24ч (последняя сессия {last_session[:16]})"
 
 
-def integration_status(state_dir: Path | None = None) -> list[tuple[bool, str]]:
+def checks(state_dir: Path | None = None) -> list[tuple[bool, str]]:
     """Все чеки интеграции OpenCode: [(ok, сообщение), ...]."""
     from curator.state import state_dir as default_state_dir
     checks = [

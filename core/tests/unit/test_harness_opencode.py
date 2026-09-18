@@ -10,7 +10,8 @@ from pathlib import Path
 
 import pytest
 
-from curator import health
+from curator.harness import opencode
+from curator.harness import integration_status
 
 
 @pytest.fixture
@@ -23,7 +24,7 @@ def fake_env(tmp_path, monkeypatch):
     repo.mkdir(parents=True)
     (repo / "curator-context.js").write_text("// ctx v2", encoding="utf-8")
     (repo / "curator-reminder.js").write_text("// reminder v2", encoding="utf-8")
-    monkeypatch.setattr(health, "_repo_root", lambda: tmp_path / "repo")
+    monkeypatch.setattr(opencode, "_repo_root", lambda: tmp_path / "repo")
     return {
         "home": home,
         "repo": repo,
@@ -49,18 +50,18 @@ def _register(env):
 class TestPluginsSync:
     def test_ok_when_installed(self, fake_env):
         _install_plugins(fake_env)
-        ok, message = health.check_plugins_sync()
+        ok, message = opencode.check_plugins_sync()
         assert ok, message
 
     def test_fail_when_missing(self, fake_env):
-        ok, message = health.check_plugins_sync()
+        ok, message = opencode.check_plugins_sync()
         assert not ok
         assert "curator install" in message
 
     def test_fail_when_stale(self, fake_env):
         _install_plugins(fake_env)
         (fake_env["plugins_dir"] / "curator-context.js").write_text("// старая", encoding="utf-8")
-        ok, message = health.check_plugins_sync()
+        ok, message = opencode.check_plugins_sync()
         assert not ok
         assert "устарели" in message
 
@@ -68,12 +69,12 @@ class TestPluginsSync:
 class TestPluginsRegistered:
     def test_ok_when_in_plugin_array(self, fake_env):
         _register(fake_env)
-        ok, message = health.check_plugins_registered()
+        ok, message = opencode.check_plugins_registered()
         assert ok, message
 
     def test_fail_when_absent(self, fake_env):
         fake_env["config"].write_text(json.dumps({"plugin": []}), encoding="utf-8")
-        ok, message = health.check_plugins_registered()
+        ok, message = opencode.check_plugins_registered()
         assert not ok
         assert "plugin[]" in message
 
@@ -82,11 +83,11 @@ class TestPluginsRegistered:
         fake_env["config"].write_text(json.dumps({
             "plugin": ["./plugins/curator-context.js"],
         }), encoding="utf-8")
-        ok, message = health.check_plugins_registered()
+        ok, message = opencode.check_plugins_registered()
         assert not ok
 
     def test_fail_when_no_config(self, fake_env):
-        ok, message = health.check_plugins_registered()
+        ok, message = opencode.check_plugins_registered()
         assert not ok
 
 
@@ -96,36 +97,36 @@ class TestCuratorBin:
         fake_bin = fake_env["home"] / ".local" / "bin"
         fake_bin.mkdir(parents=True)
         (fake_bin / "curator").write_text("#!/bin/sh\n", encoding="utf-8")
-        ok, _ = health.check_curator_bin()
+        ok, _ = opencode.check_curator_bin()
         assert ok
 
     def test_ok_when_in_path(self, fake_env, monkeypatch):
         monkeypatch.setattr("shutil.which", lambda name: "/usr/local/bin/curator")
-        ok, _ = health.check_curator_bin()
+        ok, _ = opencode.check_curator_bin()
         assert ok
 
     def test_fail_when_nowhere(self, fake_env, monkeypatch):
         monkeypatch.setattr("shutil.which", lambda name: None)
-        ok, message = health.check_curator_bin()
+        ok, message = opencode.check_curator_bin()
         assert not ok
 
 
 class TestDeliveryMode:
     def test_ok_shadow(self, fake_env, monkeypatch):
         monkeypatch.setenv("CURATOR_DELIVERY_MODE", "shadow")
-        ok, message = health.check_delivery_mode()
+        ok, message = opencode.check_delivery_mode()
         assert ok
         assert "shadow" in message
 
     def test_fail_when_unset(self, fake_env, monkeypatch):
         monkeypatch.delenv("CURATOR_DELIVERY_MODE", raising=False)
-        ok, message = health.check_delivery_mode()
+        ok, message = opencode.check_delivery_mode()
         assert not ok
         assert "launchctl" in message
 
     def test_fail_when_typo(self, fake_env, monkeypatch):
         monkeypatch.setenv("CURATOR_DELIVERY_MODE", "banana")
-        ok, message = health.check_delivery_mode()
+        ok, message = opencode.check_delivery_mode()
         assert not ok
 
 
@@ -137,7 +138,7 @@ class TestShadowLog:
     def test_ok_when_recent(self, tmp_path):
         from datetime import datetime
         self._log(tmp_path, [{"session_id": "ses_1", "ts": datetime.now().isoformat()}])
-        ok, message = health.check_shadow_log(tmp_path)
+        ok, message = opencode.check_shadow_log(tmp_path)
         assert ok, message
         assert "ses_1" in message
 
@@ -145,12 +146,12 @@ class TestShadowLog:
         from datetime import datetime, timedelta
         old = datetime.now() - timedelta(days=3)
         self._log(tmp_path, [{"session_id": "ses_old", "ts": old.isoformat()}])
-        ok, message = health.check_shadow_log(tmp_path)
+        ok, message = opencode.check_shadow_log(tmp_path)
         assert not ok
         assert "24ч" in message
 
     def test_fail_when_missing(self, tmp_path):
-        ok, message = health.check_shadow_log(tmp_path)
+        ok, message = opencode.check_shadow_log(tmp_path)
         assert not ok
 
 
@@ -159,7 +160,7 @@ class TestIntegrationStatus:
         monkeypatch.delenv("CURATOR_DELIVERY_MODE", raising=False)
         from curator.state import state_dir
         monkeypatch.setattr("curator.state.state_dir", lambda: tmp_path)
-        results = health.integration_status()
+        results = integration_status()
         assert len(results) == 5
         assert all(isinstance(ok, bool) for ok, _ in results)
 
@@ -177,6 +178,6 @@ class TestIntegrationStatus:
         self_log.write_text(
             json.dumps({"session_id": "ses_live", "ts": datetime.now().isoformat()}) + "\n",
             encoding="utf-8")
-        results = health.integration_status()
+        results = integration_status()
         failed = [m for ok, m in results if not ok]
         assert not failed, failed

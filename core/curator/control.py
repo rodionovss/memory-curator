@@ -170,7 +170,7 @@ def cmd_status():
     interval = os.getenv("IMPROVE_INTERVAL_MINUTES", "1440")
     print(f"\n  Интервал improve: {interval} мин ({_human_interval(int(interval))})")
 
-    from curator.health import integration_status
+    from curator.harness import integration_status
     print("\n  Интеграция OpenCode:")
     for ok, message in integration_status():
         print(f"    {'✅' if ok else '⛔'} {message}")

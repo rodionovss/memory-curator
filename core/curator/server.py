@@ -662,6 +662,18 @@ def _capture_complete(args: dict) -> str:
         session_id=None,
         declined_by_human=False,
     )
+    # Маршрутная телеметрия: куда каждый факт реально лёг (topic/target/file).
+    # Основа для подкрутки карты: дрейф source_file при следующем ingest
+    # покажет переносы, unmatched-паттерны видны по topic=default.
+    from curator import server_log
+    for raw_placement in placements:
+        server_log.log(
+            "placement",
+            candidate_id=str(raw_placement.get("candidate_id", "")),
+            topic=str(raw_placement.get("topic", "")),
+            target=str(raw_placement.get("target", "")),
+            canonical_file=str(raw_placement.get("canonical_file", "")),
+        )
     return _json_response(
         status="completed",
         capture_id=capture_id,
@@ -797,7 +809,7 @@ def _status() -> str:
     for name, description in get_fact_types().items():
         lines.append(f"  {name} — {description}")
 
-    from curator.health import integration_status
+    from curator.harness import integration_status
     lines += ["", "Интеграция OpenCode:"]
     for ok, message in integration_status():
         lines.append(f"  {'✅' if ok else '⛔'} {message}")
