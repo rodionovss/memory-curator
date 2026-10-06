@@ -19,7 +19,8 @@ watch_for (с пробелами) не парсим (это инструкция
 5. on_unmatched: report → stderr + дефолт session/{type}.md.
 
 Подключение: ROUTER_CLASS=curator.routing.map_router.MapRouter
-Карта: env CURATOR_MAP → <CURATOR_BASE_DIR>/DOCUMENTATION-MAP.md
+Карта: env CURATOR_MAP → <CURATOR_BASE_DIR>/knowledge-map.md
+(legacy DOCUMENTATION-MAP.md поддерживается)
 """
 
 import fnmatch
@@ -34,21 +35,26 @@ from curator.routing.default import DefaultRouter
 VALID_MODES = ("update", "append", "readonly")
 VALID_CAPTURES = ("knowledge", "rules", "records")
 
+MAP_FILENAMES = ("knowledge-map.md", "DOCUMENTATION-MAP.md")
+
 
 def find_map_path() -> Path | None:
     """Цепочка поиска карты: явный env → конвенция (корень базы).
 
-    Явное всегда выигрывает; без env карта ищется как DOCUMENTATION-MAP.md
-    в CURATOR_BASE_DIR — апгрейд/установка без правки конфига работает.
+    Явное всегда выигрывает; без env карта ищется как knowledge-map.md
+    (legacy: DOCUMENTATION-MAP.md) в CURATOR_BASE_DIR — апгрейд/установка
+    без правки конфига работает.
     """
     env = os.getenv("CURATOR_MAP", "").strip()
     if env:
         return Path(env).expanduser()
     base = os.getenv("CURATOR_BASE_DIR", "").strip()
     if base:
-        candidate = Path(base).expanduser() / "DOCUMENTATION-MAP.md"
-        if candidate.exists():
-            return candidate
+        root = Path(base).expanduser()
+        for filename in MAP_FILENAMES:
+            candidate = root / filename
+            if candidate.exists():
+                return candidate
     return None
 
 

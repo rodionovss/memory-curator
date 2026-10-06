@@ -11,7 +11,8 @@ def isolated_curator_logs(tmp_path, monkeypatch):
     env-override уводит их в песочницу для каждого теста, независимо от слоя."""
     monkeypatch.setenv("CURATOR_OBS_PATH", str(tmp_path / "improve_events.jsonl"))
     monkeypatch.setenv("CURATOR_USAGE_PATH", str(tmp_path / "usage.json"))
-    monkeypatch.setenv("CURATOR_CANDIDATES_PATH", str(tmp_path / "candidates.jsonl"))
+    monkeypatch.setenv("CURATOR_ANALYTICS_PATH", str(tmp_path / "analytics.jsonl"))
+    monkeypatch.delenv("CURATOR_CANDIDATES_PATH", raising=False)
     monkeypatch.setenv("CURATOR_SHADOW_LOG_PATH", str(tmp_path / "delivery-shadow.jsonl"))
 
 

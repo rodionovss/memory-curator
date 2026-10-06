@@ -1,9 +1,11 @@
 """Health-чеки живой интеграции OpenCode для curator status.
 
-Каждый чек закрывает конкретный режим отказа, найденный дебагом
-2026-09-18 (см. reference/opencode.md личной базы):
-плагины не зарегистрированы, копия на диске устарела, env не доходит
-до GUI, бинарь вне PATH, shadow-лог не растёт.
+Пивот 2026-10-03: push-доставка отклонена, плагины curator-context и
+curator-reminder удалены из живой конфигурации. В агрегаторе checks()
+остался только чек бинаря CLI; чеки плагинов/delivery/shadow-лога
+сохранены ниже как архив (и их тесты), но в status больше не входят.
+Изначально каждый чек закрывал конкретный режим отказа, найденный
+дебагом 2026-09-18 (см. reference/opencode.md личной базы).
 """
 
 import json
@@ -130,13 +132,10 @@ def check_shadow_log(state_dir: Path) -> tuple[bool, str]:
 
 
 def checks(state_dir: Path | None = None) -> list[tuple[bool, str]]:
-    """Все чеки интеграции OpenCode: [(ok, сообщение), ...]."""
-    from curator.state import state_dir as default_state_dir
-    checks = [
-        check_plugins_sync(),
-        check_plugins_registered(),
-        check_curator_bin(),
-        check_delivery_mode(),
-    ]
-    checks.append(check_shadow_log(state_dir or default_state_dir()))
-    return checks
+    """Живые чеки интеграции OpenCode: [(ok, сообщение), ...].
+
+    Пивот 2026-10-03: плагины и доставка удалены — остаётся только
+    доступность бинаря CLI. state_dir сохранён в сигнатуре для
+    совместимости с вызывающими (server.py, control.py).
+    """
+    return [check_curator_bin()]

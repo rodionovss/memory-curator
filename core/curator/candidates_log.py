@@ -1,14 +1,14 @@
-"""Телеметрия кандидатов знаний: что предложил агент, что сохранилось и почему отказано.
+"""Журнал аналитики сохранений: что предложил агент, что сохранилось и почему отказано.
 
-Каждый вызов capture (CLI save / MCP curator_session_capture) пишет одну строку JSONL:
+Каждый вызов сохранения (CLI save / save --doc / майнинг) пишет одну строку JSONL:
   {"ts": "2026-09-05T10:00:00", "source": "mining", "session": "ses_abc",
    "proposed": 5, "saved": 3, "declined_by_human": false, "final_status": "hypothesis",
    "candidates": [{"title": "...", "type": "Reference", "decision": "rejected",
-                   "reason": "Дубликат: ..."}]}
+                    "reason": "Дубликат: ..."}]}
 
 Отвечает на два вопроса:
   1. Точность извлечения: сколько из предложенного выжило и по каким причинам нет —
-     карта «что докрутить в extraction».
+      карта «что докрутить в extraction».
   2. Прямая рука для эксперимента: доля отказов gatekeeper до/после обучения базы.
 """
 
@@ -19,9 +19,11 @@ from pathlib import Path
 
 
 def _path() -> Path:
-    # Инвариант: тесты изолируют лог через CURATOR_CANDIDATES_PATH,
-    # прод пишет в ~/.curator/ пользователя
-    base = os.getenv("CURATOR_CANDIDATES_PATH", "~/.curator/candidates.jsonl")
+    # Инвариант: тесты изолируют журнал через CURATOR_ANALYTICS_PATH
+    # (legacy CURATOR_CANDIDATES_PATH поддерживается), прод пишет в
+    # ~/.curator/analytics.jsonl пользователя
+    base = os.getenv("CURATOR_ANALYTICS_PATH") or os.getenv("CURATOR_CANDIDATES_PATH") \
+        or "~/.curator/analytics.jsonl"
     return Path(base).expanduser()
 
 

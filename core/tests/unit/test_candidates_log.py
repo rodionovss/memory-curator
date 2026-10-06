@@ -36,7 +36,7 @@ class TestLogCapture:
     def test_broken_lines_skipped(self, tmp_path, monkeypatch):
         log = tmp_path / "candidates.jsonl"
         log.write_text("не json\n", encoding="utf-8")
-        monkeypatch.setenv("CURATOR_CANDIDATES_PATH", str(log))
+        monkeypatch.setenv("CURATOR_ANALYTICS_PATH", str(log))
         candidates_log.log_capture("cli", [(_fact(), "approved", "")], saved=1,
                                    final_status="verified")
         entries = candidates_log.read_entries()
@@ -44,14 +44,14 @@ class TestLogCapture:
 
     def test_logging_failure_does_not_raise(self, monkeypatch):
         # Недоступный путь — телеметрия глушится, capture продолжается
-        monkeypatch.setenv("CURATOR_CANDIDATES_PATH", "/dev/null/не/существует/ф.jsonl")
+        monkeypatch.setenv("CURATOR_ANALYTICS_PATH", "/dev/null/не/существует/ф.jsonl")
         candidates_log.log_capture("cli", [(_fact(), "approved", "")], saved=1,
                                    final_status="verified")
 
 
 class TestPrecisionStats:
     def test_aggregation(self, monkeypatch, tmp_path):
-        monkeypatch.setenv("CURATOR_CANDIDATES_PATH", str(tmp_path / "candidates.jsonl"))
+        monkeypatch.setenv("CURATOR_ANALYTICS_PATH", str(tmp_path / "analytics.jsonl"))
         # Вызов 1: майнинг, 3 предложено, 1 дубликат, 2 сохранено как hypothesis
         candidates_log.log_capture("mining", [
             (_fact("A"), "approved", ""),
@@ -75,7 +75,7 @@ class TestPrecisionStats:
         assert stats["by_type_approved"] == {"Reference": 2, "Style": 1}
 
     def test_empty_log(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("CURATOR_CANDIDATES_PATH", str(tmp_path / "none.jsonl"))
+        monkeypatch.setenv("CURATOR_ANALYTICS_PATH", str(tmp_path / "none.jsonl"))
         stats = candidates_log.precision_stats()
         assert stats["calls"] == 0
         assert stats["precision_pct"] == 0.0

@@ -38,15 +38,14 @@ class TestRouterProtocol:
         assert isinstance(r, Router)
 
 class TestGetRouter:
-    def test_returns_default_when_no_env(self):
-        import os
-        old = os.environ.pop("ROUTER_CLASS", None)
-        try:
-            r = get_router()
-            assert isinstance(r, DefaultRouter)
-        finally:
-            if old:
-                os.environ["ROUTER_CLASS"] = old
+    def test_returns_default_when_no_env(self, tmp_path, monkeypatch):
+        # изоляция от прод-env: launchd задаёт CURATOR_BASE_DIR глобально,
+        # без очистки find_map_path нашёл бы прод-карту и вернул MapRouter
+        monkeypatch.delenv("ROUTER_CLASS", raising=False)
+        monkeypatch.delenv("CURATOR_MAP", raising=False)
+        monkeypatch.setenv("CURATOR_BASE_DIR", str(tmp_path))
+        r = get_router()
+        assert isinstance(r, DefaultRouter)
 
     def test_returns_default_when_invalid_class(self):
         import os

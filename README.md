@@ -2,12 +2,17 @@
 
 # Memory Curator
 
-Фоновый агент памяти для OpenCode и Claude Code.
+Библиотекарь для базы знаний AI-агента.
 
-Знания из AI-сессий не умирают вместе с чатом - извлекаются, валидируются
-и возвращаются в следующую задачу.
+Знания из сессий не умирают вместе с чатом: модель пишет, куратор решает
+«куда», ловит дубликаты, фиксирует git-коммит и ведёт журнал аналитики.
 
 </div>
+
+> **Статус: stable, build for myself, use it if you want.**
+> Работающий инструмент: CLI + скилл curator-save, детерминированные
+> проверки (без LLM в бэкенде), оффлайн. История решений -
+> [decision-log.md](decision-log.md).
 
 ---
 
@@ -16,30 +21,41 @@
 ```bash
 git clone https://github.com/rodionovss/memory-curator.git
 cd memory-curator
-./install.sh          # Windows: install.bat
+uv tool install --force ./core   # CLI `curator` в PATH
 ```
 
-Инсталлер сам находит OpenCode / Claude Code и вписывает MCP-сервер,
-команды `/curator-*`, скиллы, плагины и worker. Перезапусти харнес - готово.
+Проверка:
 
 ```bash
-# проверка
 cd core && python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 .venv/bin/python -m pytest tests/ -q --ignore=tests/smoke   # все зелёные
 .venv/bin/curator demo                                      # полный цикл жизни знания
 ```
 
-Project-local память для репозитория: `/curator-create-map`, затем
-`/curator-setup` - см. [docs/getting-started.md](docs/getting-started.md).
+База знаний задаётся `CURATOR_BASE_DIR` (по умолчанию
+`~/Documents/AI/personal/learnings`).
 
 ## Что делает
 
-- **Сохраняет** проверенные знания из сессий (человек подтверждает кандидатов)
-- **Доставляет** их в следующие сессии - каталог маршрутов в глобальном AGENTS.md, proactive-доставка в OpenCode
-- **Самоулучшается** - схлопывает дубликаты, разрешает противоречия, помечает устаревшее; eval-гейт не даёт базе деградировать
+Контент всегда пишет модель - куратор отвечает за размещение и дисциплину:
+
+- **Карта тем** (`knowledge-map.md`) - единственный рукописный источник
+  «тема → файл». Маршрутизация детерминированная: теги кандидата ∩
+  токены темы. Каталог `knowledge-routes.md` - генеримая проекция карты
+  для навигации (чтение).
+- **Карточки**: `curator save --yes` - валидация формата, дедуп
+  (совпадение заголовков по словам → отказ с подсказкой), маршрутизация,
+  запись в `.md` + SQLite, git-коммит.
+- **Файлы-знания**: модель пишет файл темы (теория + грабли), затем
+  `curator save --doc <path>` - проверка пути по карте, git-коммит,
+  событие в журнале аналитики.
+- **Журнал аналитики** (`analytics.jsonl`) - каждое событие: что
+  предлагалось, что сохранено, что отклонено и почему.
+- **Гигиена**: `curator improve` - дубликаты, противоречия, устаревшее
+  (правила над базой, без LLM).
 
 База - обычные `.md`-файлы (человекочитаемы, живут в гите) + локальная
-SQLite-копия для поиска. LLM-вызовов в бэкенде нет. Работает офлайн.
+SQLite-копия для поиска. Работает офлайн.
 
 ## Измерено
 
@@ -52,7 +68,7 @@ Fisher exact p = 0.0011. Методология: [benchmark/application/](benchm
 
 | Папка | Что |
 |-------|-----|
-| `core/` | ядро (Python): backend, gatekeeper, improve loop, MCP-сервер, CLI, harness-чеки |
+| `core/` | ядро (Python): backend, gatekeeper, improve loop, routing, CLI, harness-чеки |
 | `core/tests/requirements/` | тесты требований - имя теста = ID требования |
 | `design/` | контракты (Router, Knowledge Route Metadata), ADR, backlog |
 | `benchmark/` | эксперименты: применение знаний, extraction eval, retrieval |

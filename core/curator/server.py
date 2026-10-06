@@ -449,13 +449,13 @@ def _project_paths() -> tuple[Path, Path] | tuple[None, str]:
         if not map_path.is_file():
             return None, f"CURATOR_MAP не существует: {map_path}"
         return root, map_path
-    # 2. Конвенция: DOCUMENTATION-MAP.md в корне базы — работает без env
+    # 2. Конвенция: knowledge-map.md (legacy: DOCUMENTATION-MAP.md) в корне базы
     found = find_map_path()
     if found is not None:
         return root, found.expanduser().resolve()
     # 3. Карты нет вообще — ведём человека к настройке, а не сухой ошибкой
     return None, (
-        "карта документации не настроена: создай DOCUMENTATION-MAP.md в корне базы "
+        "карта документации не настроена: создай knowledge-map.md в корне базы "
         "(CURATOR_BASE_DIR) или задай CURATOR_MAP, затем вызови /curator-setup — "
         "шаги настройки в docs/getting-started.md"
     )

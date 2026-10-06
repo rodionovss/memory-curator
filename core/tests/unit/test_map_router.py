@@ -353,3 +353,47 @@ class TestSyntheticMap:
         assert len(router.list_routes()) == 1, \
             "reload с явным путём читает его же, а не уходит в find_map_path (#4)"
         assert router.list_routes()[0]["type"] == "kotlin"
+
+
+class TestFindMapPath:
+    """0.5.0: карта называется knowledge-map.md; DOCUMENTATION-MAP.md — legacy."""
+
+    def test_knowledge_map_preferred(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("CURATOR_MAP", "")
+        monkeypatch.setenv("CURATOR_BASE_DIR", str(tmp_path))
+        (tmp_path / "knowledge-map.md").write_text("---\ntopics: []\n---\n", encoding="utf-8")
+        (tmp_path / "DOCUMENTATION-MAP.md").write_text("---\ntopics: []\n---\n", encoding="utf-8")
+        from curator.routing.map_router import find_map_path
+        assert find_map_path().name == "knowledge-map.md"
+
+    def test_legacy_documentation_map_fallback(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("CURATOR_MAP", "")
+        monkeypatch.setenv("CURATOR_BASE_DIR", str(tmp_path))
+        (tmp_path / "DOCUMENTATION-MAP.md").write_text("---\ntopics: []\n---\n", encoding="utf-8")
+        from curator.routing.map_router import find_map_path
+        assert find_map_path().name == "DOCUMENTATION-MAP.md"
+
+
+class TestGetRouterDefault:
+    """0.5.0: MapRouter — дефолт при наличии карты (без ROUTER_CLASS);
+    до этого MapRouter требовал env и в проде молча не работал."""
+
+    def test_map_router_default_when_map_exists(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("ROUTER_CLASS", raising=False)
+        monkeypatch.setenv("CURATOR_MAP", str(tmp_path / "knowledge-map.md"))
+        (tmp_path / "knowledge-map.md").write_text(
+            "---\ntopics:\n  - name: t\n    watch_for: x\n    targets:\n"
+            "      - path: 'a.md'\n        captures: [knowledge]\n        mode: update\n---\n",
+            encoding="utf-8",
+        )
+        from curator.routing import get_router
+        from curator.routing.map_router import MapRouter
+        assert isinstance(get_router(), MapRouter)
+
+    def test_default_router_when_no_map(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("ROUTER_CLASS", raising=False)
+        monkeypatch.delenv("CURATOR_MAP", raising=False)
+        monkeypatch.setenv("CURATOR_BASE_DIR", str(tmp_path))
+        from curator.routing import get_router
+        from curator.routing.default import DefaultRouter
+        assert isinstance(get_router(), DefaultRouter)

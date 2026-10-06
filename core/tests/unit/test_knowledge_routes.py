@@ -4,6 +4,7 @@ import json
 
 from curator.knowledge_routes import (
     build_routes,
+    build_routes_from_map,
     render_routes_json,
     render_routes_markdown,
 )
@@ -220,3 +221,50 @@ class TestRenderJson:
 
     def test_empty_routes(self):
         assert render_routes_json([]) == []
+
+
+class TestBuildRoutesFromMap:
+    """0.5.0: карта тем — источник истины, каталог — её проекция."""
+
+    TOPICS = [{
+        "name": "vpn",
+        "tokens": {"vpn", "mihomo", "clash"},
+        "targets": ["vpn/nodemaven-clash.md", "vpn/*.md"],
+    }]
+
+    def test_route_from_map_target_with_fact_titles(self, tmp_path):
+        result = build_routes_from_map(
+            self.TOPICS,
+            [make_fact("Грабля 1", source_file="vpn/nodemaven-clash.md"),
+             make_fact("Грабля 2", source_file="vpn/nodemaven-clash.md")],
+            tmp_path,
+        )
+        assert len(result.routes) == 1  # glob-таргет не становится маршрутом
+        route = result.routes[0]
+        assert route.source_file == "vpn/nodemaven-clash.md"
+        assert "vpn" in route.description
+        assert set(route.contains) == {"Грабля 1", "Грабля 2"}
+        assert "mihomo" in route.when_to_use
+
+    def test_map_target_without_facts_still_listed(self, tmp_path):
+        result = build_routes_from_map(self.TOPICS, [], tmp_path)
+        assert [r.source_file for r in result.routes] == ["vpn/nodemaven-clash.md"]
+        assert result.routes[0].contains == ()
+
+    def test_facts_outside_map_are_visible_errors(self, tmp_path):
+        result = build_routes_from_map(
+            self.TOPICS, [make_fact("Чужой", source_file="other/loose.md")], tmp_path,
+        )
+        assert result.validation_errors
+        assert "other/loose.md" in result.validation_errors[0]
+
+    def test_session_facts_become_review_route(self, tmp_path):
+        result = build_routes_from_map(
+            self.TOPICS,
+            [make_fact("Неразобранное", source_file="session/reference.md")],
+            tmp_path,
+        )
+        session = [r for r in result.routes if r.source_file == "session/"]
+        assert session, "факты session/ должны стать маршрутом «на разбор»"
+        assert "Неразобранное" in session[0].contains
+        assert not result.validation_errors

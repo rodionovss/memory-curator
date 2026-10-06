@@ -23,8 +23,12 @@ class SyncEngine:
         env = os.getenv("CURATOR_MAP", "").strip()
         if env:
             return Path(env).expanduser()
-        candidate = self.base_dir / "DOCUMENTATION-MAP.md"
-        return candidate if candidate.exists() else None
+        from curator.routing.map_router import MAP_FILENAMES
+        for filename in MAP_FILENAMES:
+            candidate = self.base_dir / filename
+            if candidate.exists():
+                return candidate
+        return None
 
     def _mode_for(self, source_file: str) -> str:
         """mode таргета карты для пути (update/append/readonly); нет карты

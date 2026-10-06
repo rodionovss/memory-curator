@@ -170,6 +170,16 @@ def cmd_status():
     interval = os.getenv("IMPROVE_INTERVAL_MINUTES", "1440")
     print(f"\n  Интервал improve: {interval} мин ({_human_interval(int(interval))})")
 
+    try:
+        from curator import candidates_log
+        stats = candidates_log.precision_stats()
+        if stats["calls"]:
+            print(f"\n  Capture за всё время: {stats['calls']} вызовов, "
+                  f"{stats['proposed']} предложено / {stats['saved']} сохранено / "
+                  f"{stats['rejected_by_gatekeeper']} отклонено gatekeeper")
+    except Exception:
+        pass
+
     from curator.harness import integration_status
     print("\n  Интеграция OpenCode:")
     for ok, message in integration_status():
@@ -319,10 +329,17 @@ def cmd_save(auto_yes: bool = False, hypothesis: bool = False,
             print(f"    ⛔ {fact.title[:70]} — {reason}")
 
     if result.approved:
+        from curator.routing import get_router, route_fact_safe
+        router = get_router()
+        # Маршрут резолвим до показа: «что» и «куда» в одном preview
+        routes = {id(f): route_fact_safe(router, f) for f in result.approved}
         print("\n  Одобренные:")
         for fact in result.approved:
             print(f"    ✅ {fact.title[:70]}")
-            print(f"       {fact.type} | {', '.join(fact.tags[:5])}")
+            line = f"       {fact.type} | {', '.join(fact.tags[:5])}"
+            if routes[id(fact)]:
+                line += f" | → {routes[id(fact)]}"
+            print(line)
 
         if auto_yes:
             answer = "y"
@@ -330,10 +347,8 @@ def cmd_save(auto_yes: bool = False, hypothesis: bool = False,
             print(f"\n  Сохранить {len(result.approved)} фактов (статус: {status})? [y/N]: ", end="")
             answer = input().strip().lower()
         if answer == "y":
-            from curator.routing import get_router, route_fact_safe
             from curator.sync_engine import SyncEngine
             from curator.retrieval_feedback import RetrievalFeedback
-            router = get_router()
             base_dir = Path(os.getenv("CURATOR_BASE_DIR", os.path.expanduser("~/Documents/AI/personal/learnings")))
             sync = SyncEngine(backend, base_dir)
             fb = RetrievalFeedback()
@@ -343,7 +358,7 @@ def cmd_save(auto_yes: bool = False, hypothesis: bool = False,
                     type=fact.type, title=fact.title, tags=fact.tags,
                     status=status,
                     content_summary=fact.content_summary,
-                    source_file=route_fact_safe(router, fact),
+                    source_file=routes[id(fact)],
                 )
                 backend.store_fact(structured)
                 try:
@@ -354,6 +369,14 @@ def cmd_save(auto_yes: bool = False, hypothesis: bool = False,
                 fb.record_save(fact.title)
                 saved += 1
             print(f"  ✅ Сохранено: {saved} фактов (статус: {status})")
+            if saved:
+                first_title = result.approved[0].title
+                if saved == 1:
+                    message = f"curator: {first_title}"
+                else:
+                    message = f"curator: {saved} фактов ({first_title[:50]})"
+                if _git_commit(base_dir, message):
+                    print(f"  git: локальный коммит — {message}")
             _log_candidates("mining" if session_id else "cli", result, saved, status,
                             session_id, declined_by_human=False)
         else:
@@ -374,6 +397,98 @@ def _log_candidates(source: str, result, saved: int, status: str,
     candidates += [(f, "rejected", reason) for f, reason in result.rejected]
     candidates_log.log_capture(source, candidates, saved=saved, final_status=status,
                                session_id=session_id, declined_by_human=declined_by_human)
+
+
+def _git_commit(base_dir: Path, message: str) -> bool:
+    """Локальный git-коммит базы после save. Push не делается никогда.
+
+    База пишется автоматами без ревью - git даёт diff и откат точечно.
+    Любая ошибка (нет git, нет репо, нет identity) глотается: коммит -
+    страховка, save важнее.
+    """
+    import subprocess
+    try:
+        status = subprocess.run(
+            ["git", "-C", str(base_dir), "status", "--porcelain"],
+            capture_output=True, text=True, timeout=15,
+        )
+        if status.returncode != 0 or not status.stdout.strip():
+            return False
+        subprocess.run(
+            ["git", "-C", str(base_dir), "add", "-A"],
+            capture_output=True, text=True, timeout=15,
+        )
+        commit = subprocess.run(
+            ["git", "-C", str(base_dir), "commit", "-m", message, "--no-verify"],
+            capture_output=True, text=True, timeout=30,
+        )
+        return commit.returncode == 0
+    except Exception:
+        return False
+
+
+def cmd_save_doc(path: str):
+    """Зафиксировать файл-знание: проверка полки по карте + git-коммит + аналитика.
+
+    Контент пишет модель (файл уже существует на диске) — куратор здесь
+    библиотекарь: сверяет путь с картой тем, коммитит и протоколирует событие.
+    В SQLite ничего не пишется: файл-знание сам себе единица.
+    """
+    _header("Curator Save — фиксация документа")
+    base_dir = Path(os.getenv("CURATOR_BASE_DIR",
+                              os.path.expanduser("~/Documents/AI/personal/learnings")))
+
+    raw = Path(path).expanduser()
+    resolved = raw.resolve() if raw.is_absolute() else (base_dir / raw).resolve()
+    root = base_dir.resolve()
+    if not resolved.is_relative_to(root):
+        print(f"  ⛔ Путь вне базы ({base_dir}) — фиксация отменена")
+        _log_doc(path, saved=0, reason="путь вне базы")
+        return
+    if not resolved.is_file():
+        print(f"  ⛔ Файл не найден: {path}")
+        print("     Сначала запиши/дополни файл, потом вызывай curator save --doc <path>")
+        _log_doc(path, saved=0, reason="файл не найден")
+        return
+    relative = resolved.relative_to(root).as_posix()
+
+    from curator.routing.map_router import MapRouter, find_map_path
+    map_path = find_map_path()
+    known = relative.startswith("session/")  # дефолт-приёмник валиден всегда
+    if not known and map_path is not None and map_path.exists():
+        router = MapRouter(map_path)
+        if any(MapRouter.matches_target(relative, t.path) for t in router._all_targets):
+            known = True
+    if not known:
+        print(f"  ⛔ Путь '{relative}' не совпадает ни с одним таргетом карты.")
+        if map_path is not None and map_path.exists():
+            concrete = sorted({t.path for t in MapRouter(map_path)._all_targets if not t.is_glob})
+            for c in concrete[:8]:
+                print(f"     - {c}")
+            if len(concrete) > 8:
+                print(f"     ... и ещё {len(concrete) - 8}")
+        print("     Новая тема? Сначала добавь её в knowledge-map.md (тема + таргет).")
+        _log_doc(relative, saved=0, reason="путь вне карты")
+        return
+
+    if _git_commit(base_dir, f"curator: doc {relative}"):
+        print(f"  ✅ Документ зафиксирован: {relative}")
+        print(f"  git: локальный коммит — curator: doc {relative}")
+    else:
+        print(f"  ✅ Документ зафиксирован: {relative}"
+              f" (без git-коммита: изменений нет или репо недоступно)")
+    _log_doc(relative, saved=1, reason="")
+
+
+def _log_doc(path: str, saved: int, reason: str):
+    """Событие save --doc в журнале аналитики. Не роняет фиксацию."""
+    from types import SimpleNamespace
+    from curator import candidates_log
+    doc = SimpleNamespace(title=path, type="Doc")
+    candidates_log.log_capture(
+        "doc", [(doc, "approved" if saved else "rejected", reason)],
+        saved=saved, final_status="verified",
+    )
 
 
 def cmd_get(query: str = ""):
@@ -650,13 +765,29 @@ def cmd_knowledge_routes(args: list[str] | None = None) -> int:
 
     from curator.knowledge_routes import (
         build_routes,
+        build_routes_from_map,
         render_routes_json,
         render_routes_markdown,
     )
     from curator.models import FactQuery
 
     facts = _make_backend().query_facts(FactQuery())
-    result = build_routes(facts, base_dir)
+
+    # Карта тем — источник истины: есть карта → каталог её проекция
+    # (маршруты из таргетов карты, contains — заголовки фактов DB).
+    # Нет карты — старое поведение: каталог из самих фактов.
+    from curator.routing.map_router import MapRouter, find_map_path
+    map_path = find_map_path()
+    if map_path is not None and map_path.exists():
+        router = MapRouter(map_path)
+        topics = [
+            {"name": t.name, "tokens": t.tokens,
+             "targets": [tg.path for tg in t.targets]}
+            for t in router._topics
+        ]
+        result = build_routes_from_map(topics, facts, base_dir)
+    else:
+        result = build_routes(facts, base_dir)
     routes = list(result.routes)
 
     exit_code = 0
@@ -760,7 +891,7 @@ def cmd_candidates():
     from curator import candidates_log
     stats = candidates_log.precision_stats()
     if not stats["calls"]:
-        print("  Нет данных: лог кандидатов пуст (~/.curator/candidates.jsonl).")
+        print("  Нет данных: журнал аналитики пуст (~/.curator/analytics.jsonl).")
         print("  Заполняется при каждом curator save / curator_session_capture.")
         return
 
@@ -857,66 +988,46 @@ def main():
         print("curator — Memory Curator CLI")
         print("Использование:")
         print("  curator save              — сохранить кандидатов (JSON из stdin, извлекает агент)")
-        print("  curator get <query>       — поиск фактов")
-        print("  curator context '<задача>' — ranked context cards (JSON, ADR 002)")
         print("  curator start             — запустить worker daemon")
         print("  curator stop              — остановить worker")
-        print("  curator status            — worker + факты + последний improve")
-        print("  curator report [-d N]    — сводка (за N дней или всё время)")
+        print("  curator status            — worker + факты + improve + capture-сводка")
         print("  curator improve           — ручной improve цикл")
-        print("  curator routes            — правила маршрутизации")
-        print("  curator knowledge-routes [--json|--write|--check] [--base-dir ПУТЬ] — каталог маршрутов базы")
-        print("  curator sessions [list|show] — реестр/транскрипты сессий OpenCode (майнинг)")
-        print("  curator candidates        — precision-отчёт: предложено/сохранено/отказано")
-        print("  curator install [--opencode|--claude] [--base-dir ПУТЬ] [--skills-link|--skills-copy] — установка без вопросов")
-        print("  curator demo [--keep] — тур: полный цикл жизни знания")
         print()
+        print("Служебные: knowledge-routes (каталог маршрутов базы)")
         print("Конфигурация: IMPROVE_INTERVAL_MINUTES")
         return
 
     cmd = sys.argv[1].lower()
     if cmd == "status":
         cmd_status()
-    elif cmd == "report":
-        days = 0
-        if len(sys.argv) >= 4 and sys.argv[2] == "-d":
-            days = int(sys.argv[3])
-        cmd_report(days=days)
     elif cmd == "save":
-        auto_yes = any(a in ("-y", "--yes") for a in sys.argv[2:])
-        hypothesis = "--hypothesis" in sys.argv[2:]
+        args = sys.argv[2:]
+        if "--doc" in args:
+            idx = args.index("--doc")
+            if idx + 1 >= len(args) or args[idx + 1].startswith("-"):
+                print("Использование: curator save --doc <путь до файла в базе>")
+                return
+            cmd_save_doc(args[idx + 1])
+            return
+        auto_yes = any(a in ("-y", "--yes", "--auto-yes") for a in args)
+        hypothesis = "--hypothesis" in args
         session_id = None
-        if "--session" in sys.argv[2:]:
-            idx = sys.argv[2:].index("--session")
+        if "--session" in args:
+            idx = args.index("--session")
             if idx + 2 < len(sys.argv):
-                session_id = sys.argv[2:][idx + 2]
+                session_id = args[idx + 2]
         cmd_save(auto_yes=auto_yes, hypothesis=hypothesis, session_id=session_id)
-    elif cmd == "get":
-        query = " ".join(sys.argv[2:]) if len(sys.argv) > 2 else ""
-        cmd_get(query)
-    elif cmd == "context":
-        cmd_context()
     elif cmd == "start":
         cmd_start()
     elif cmd == "stop":
         cmd_stop()
     elif cmd == "improve":
         cmd_improve()
-    elif cmd == "routes":
-        cmd_routes()
     elif cmd == "knowledge-routes":
         sys.exit(cmd_knowledge_routes(sys.argv[2:]))
-    elif cmd == "install":
-        cmd_install()
-    elif cmd == "demo":
-        cmd_demo()
-    elif cmd == "sessions":
-        cmd_sessions()
-    elif cmd == "candidates":
-        cmd_candidates()
     else:
         print(f"Неизвестная команда: {cmd}")
-        print("Доступные: save, get, start, stop, status, report, improve, routes, knowledge-routes, sync, demo, sessions, candidates")
+        print("Доступные: save, start, stop, status, improve (+ служебная knowledge-routes)")
 
 
 if __name__ == "__main__":

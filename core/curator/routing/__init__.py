@@ -1,8 +1,10 @@
-"""Routing module — контракт и default-реализация.
+"""Routing module — контракт и реализации.
 
 Кастомный роутер подключается через ROUTER_CLASS (см. interface.py —
-контракт Router). Встроенный MapRouter читает карту документации
-(см. map_router.py); без карты молча ведёт себя как DefaultRouter.
+контракт Router). Дефолт (0.5.0): карта в базе есть → MapRouter,
+нет → DefaultRouter. До 0.5.0 MapRouter требовал ROUTER_CLASS - в проде
+env не был задан, роутер по карте молча не работал и факты уезжали
+в session/ (найдено смоуком 06.10).
 """
 
 from curator.routing.interface import Router
@@ -25,6 +27,12 @@ def get_router() -> Router:
             # иначе опечатка в ROUTER_CLASS молча перенаправляет все факты в session/
             print(f"[curator] ROUTER_CLASS '{cls_path}' не загрузился: {e} — использую DefaultRouter",
                   file=sys.stderr)
+            return DefaultRouter()
+    # Дефолт: карта базы есть → MapRouter (невалидная карта внутри него
+    # деградирует на DefaultRouter с заметкой); карты нет → DefaultRouter
+    from curator.routing.map_router import MapRouter, find_map_path
+    if find_map_path() is not None:
+        return MapRouter()
     return DefaultRouter()
 
 

@@ -108,6 +108,72 @@ def build_routes(facts: list[StructuredFact], base_dir: Path) -> RouteBuildResul
     return RouteBuildResult(routes=routes, validation_errors=tuple(errors))
 
 
+def build_routes_from_map(topics: list[dict], facts: list[StructuredFact],
+                          base_dir: Path) -> RouteBuildResult:
+    """Проекция карты тем (источник истины) + заголовки фактов DB.
+
+    topics: [{"name": str, "tokens": set[str], "targets": [str]}] — таргеты
+    темы карты; glob-таргеты в маршруты не попадают (нет конкретного файла).
+    contains каждого маршрута — заголовки фактов с этим source_file.
+    Факты вне таргетов карты попадают в validation_errors (кроме session/ —
+    дефолт-приёмник становится маршрутом «на разбор»).
+    """
+    groups: dict[str, list[StructuredFact]] = {}
+    for fact in facts:
+        if fact.status == "deprecated":
+            continue
+        source = (fact.source_file or "").strip()
+        if source:
+            groups.setdefault(source.replace("\\", "/"), []).append(fact)
+
+    routes: list[KnowledgeRoute] = []
+    errors: list[str] = []
+    seen_targets: set[str] = set()
+    for topic in topics:
+        tokens = sorted(t for t in topic.get("tokens", ()) if t.strip())
+        for target in topic.get("targets", ()):
+            if any(ch in target for ch in "*?[{"):
+                continue
+            if target in seen_targets:
+                continue  # две темы в один файл — маршрут уже есть
+            seen_targets.add(target)
+            group = groups.pop(target, [])
+            name = Path(target).stem
+            description = (
+                f"тема '{topic['name']}'"
+                + (f": {', '.join(tokens)}" if tokens else "")
+            )
+            when_to_use = tuple(tokens) or (topic["name"],)
+            contains = tuple(sorted({f.title for f in group}, key=_ci_key))
+            routes.append(KnowledgeRoute(
+                name=name, source_file=target, description=description,
+                when_to_use=when_to_use, contains=contains,
+            ))
+
+    # Остаток: факты вне карты. session/ — легитимный дефолт-приёмник,
+    # становится маршрутом «на разбор»; всё прочее — видимая рассинхронизация.
+    session_facts: list[StructuredFact] = []
+    for source in sorted(groups):
+        if source.startswith("session/"):
+            session_facts.extend(groups[source])
+        else:
+            errors.append(
+                f"Факты вне таргетов карты ({source}): "
+                f"{', '.join(f.title[:40] for f in groups[source][:3])}"
+            )
+    if session_facts:
+        routes.append(KnowledgeRoute(
+            name="session",
+            source_file="session/",
+            description="Неразобранное: факты без темы в карте — кандидаты на маршрутизацию",
+            when_to_use=("неразобранное", "без темы"),
+            contains=tuple(sorted({f.title for f in session_facts}, key=_ci_key)),
+        ))
+
+    routes.sort(key=lambda r: _ci_key(r.name))
+    return RouteBuildResult(routes=tuple(routes), validation_errors=tuple(errors))
+
+
 def _bullets(items: tuple[str, ...]) -> list[str]:
     """Список по схеме контракта: `- item;`, последний пункт заканчивается точкой."""
     if not items:

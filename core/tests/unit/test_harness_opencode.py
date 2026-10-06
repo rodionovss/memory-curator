@@ -161,23 +161,14 @@ class TestIntegrationStatus:
         from curator.state import state_dir
         monkeypatch.setattr("curator.state.state_dir", lambda: tmp_path)
         results = integration_status()
-        assert len(results) == 5
+        # Пивот 2026-10-03: плагины и доставка удалены — только чек бинаря
+        assert len(results) == 1
         assert all(isinstance(ok, bool) for ok, _ in results)
 
     def test_full_green_path(self, fake_env, monkeypatch, tmp_path):
-        from datetime import datetime
-        from curator.state import state_dir
-        _install_plugins(fake_env)
-        _register(fake_env)
-        monkeypatch.setenv("CURATOR_DELIVERY_MODE", "shadow")
         fake_bin = fake_env["home"] / ".local" / "bin"
         fake_bin.mkdir(parents=True)
         (fake_bin / "curator").write_text("#!/bin/sh\n", encoding="utf-8")
-        monkeypatch.setattr("curator.state.state_dir", lambda: tmp_path)
-        self_log = tmp_path / "delivery-shadow.jsonl"
-        self_log.write_text(
-            json.dumps({"session_id": "ses_live", "ts": datetime.now().isoformat()}) + "\n",
-            encoding="utf-8")
         results = integration_status()
         failed = [m for ok, m in results if not ok]
         assert not failed, failed
