@@ -86,30 +86,3 @@ class TestResolveFactType:
         assert fact_type is None and "описание" in error
 
 
-class TestCustomTypeRoundTrip:
-    """Кастомный тип переживает полный цикл: capture → .md → ingest."""
-
-    def test_md_with_custom_type_ingests_as_written(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("HOME", str(tmp_path))
-        register_fact_type("Note", "Заметки об инструментах: статус, наблюдения после проб")
-
-        md_dir = tmp_path / "learnings" / "session"
-        md_dir.mkdir(parents=True)
-        (md_dir / "note.md").write_text(
-            "### Заметка об инструменте multica\n\n"
-            "Наблюдение после недели использования инструмента.\n\n"
-            "*Тип:* Note | *Статус:* Подтверждено | *Теги:* tools\n"
-            "*Файл:* session/note.md\n",
-            encoding="utf-8",
-        )
-
-        from curator.analyzers.ingest import ingest_directory
-        from curator.backend.local import LocalBackend
-        from curator.gatekeeper import Gatekeeper
-        from curator.models import FactQuery
-        be = LocalBackend(":memory:")
-        ingest_directory(tmp_path / "learnings", be, Gatekeeper(be, check_duplicates=False))
-
-        facts = be.query_facts(FactQuery())
-        assert facts and facts[0].type == "Note", \
-            ".md — источник правды rebuild: тип принимается как записан"

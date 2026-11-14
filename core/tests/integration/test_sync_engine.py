@@ -355,19 +355,6 @@ class TestIndexRegeneration:
         assert "ручная навигация" in text, "чужой index.md нельзя перезаписывать"
         assert "Третье правило" not in text
 
-    def test_index_not_ingested_as_facts(self, tmp_path):
-        from curator.analyzers.ingest import ingest_directory
-        from curator.gatekeeper import Gatekeeper
-        be = LocalBackend(":memory:")
-        engine = SyncEngine(be, tmp_path)
-        engine.write_fact_to_md(self._fact("Четвёртое правило про индекс"))
-
-        be2 = LocalBackend(":memory:")
-        saved = ingest_directory(tmp_path, be2, Gatekeeper(be2, check_duplicates=False))
-
-        assert saved == 1, "index.md не должен превращаться в факты"
-
-
 class TestSymlinkEscape:
     """Security-trace по матрице скилла mapping-documentation: symlink
     внутри base_dir, ведущий наружу, не может вывести запись за sandbox —

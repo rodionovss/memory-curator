@@ -3,12 +3,8 @@
 Использование:
     curator save               — сохранить кандидатов знаний (JSON из stdin, извлекает агент)
     curator get "kotlin"       — поиск фактов
-    curator start              — запустить worker daemon в фоне
-    curator stop               — остановить worker
-    curator status              — worker жив? последний improve? фактов в базе?
-    curator report             — сводка: сегодня / 3 дня / неделя
-    curator improve            — ручной запуск improve цикла
-    curator routes             — текущие правила маршрутизации
+    curator status             — база, факты, capture-сводка
+    curator install            — установка в opencode / Claude Code
     curator knowledge-routes   — каталог маршрутов базы (Markdown/JSON/write/check)
 
 Конфигурация:
@@ -24,21 +20,6 @@ from pathlib import Path
 from datetime import datetime, timedelta
 
 from curator.fs import atomic_write_text
-
-def _report_dir() -> Path:
-    from curator.state import env_path
-    return env_path("IMPROVE_REPORT_DIR", "reports")
-
-
-def _improve_log() -> Path:
-    from curator.state import env_path
-    return env_path("CURATOR_OBS_PATH", "improve_events.jsonl")
-
-
-def _usage_json() -> Path:
-    from curator.state import env_path
-    return env_path("CURATOR_USAGE_PATH", "usage.json")
-
 
 def _header(title: str):
     try:
@@ -83,7 +64,7 @@ def _configured_base_dir() -> str | None:
 
 
 def _resolve_base_dir() -> Path:
-    """База для write-путей (save / save --doc / improve): полная цепочка.
+    """База для write-путей (save / save --doc): полная цепочка.
 
     env CURATOR_BASE_DIR > state-конфиг > нейтральный дефолт. Единая
     точка: смена цепочки меняется здесь, а не в каждом вызове.
@@ -116,17 +97,6 @@ def cmd_status():
     except Exception as e:
         print(f"  Ошибка чтения фактов: {e}")
 
-    last_report = _last_report_summary()
-    if last_report:
-        print(f"\n  Последний improve: {last_report}")
-
-    if _improve_log().exists():
-        events = _read_events()
-        today = [e for e in events if _is_today(e.get("ts", ""))]
-        applied = sum(1 for e in today if e.get("applied"))
-        skipped = sum(1 for e in today if not e.get("applied"))
-        print(f"  Событий сегодня: {len(today)} (применено: {applied}, отклонено: {skipped})")
-
     try:
         from curator import candidates_log
         stats = candidates_log.precision_stats()
@@ -141,80 +111,6 @@ def cmd_status():
     print("\n  Интеграция OpenCode:")
     for ok, message in integration_status():
         print(f"    {'✅' if ok else '⛔'} {message}")
-
-
-def cmd_report(days: int = 0):
-    period = "за всё время" if days == 0 else f"за {days} дн."
-    _header(f"Curator Report — {period}")
-
-    cutoff = None
-    if days > 0:
-        cutoff = datetime.now() - timedelta(days=days)
-
-    _section_usage(cutoff)
-    _section_improve_log(cutoff)
-
-
-def _section_usage(cutoff):
-    usage_json = _usage_json()
-    if not usage_json.exists():
-        print("  Нет данных об использовании.")
-        return
-
-    try:
-        data = json.loads(usage_json.read_text())
-    except Exception:
-        return
-
-    sorted_items = sorted(data.items(), key=lambda x: x[1].get("count", 0), reverse=True)
-    active = [(t, d["count"], d.get("last_access", 0)) for t, d in sorted_items[:10] if d.get("count", 0) > 0]
-    if active:
-        rows = []
-        for i, (title, count, last) in enumerate(active[:10], 1):
-            last_str = datetime.fromtimestamp(last).strftime("%d.%m %H:%M") if last else "—"
-            rows.append([str(i), title[:60], str(count), last_str])
-        _table(["#", "Факт", "Запросов", "Последний доступ"], rows, "Топ запросов")
-
-    now = time.time()
-    unused_30 = [t for t, d in sorted_items if d.get("last_access", 0) < now - 30 * 86400]
-    unused_90 = [t for t, d in sorted_items if d.get("last_access", 0) < now - 90 * 86400]
-    if unused_30 or unused_90:
-        print(f"\n  Забытые: >30д: {len(unused_30)}, >90д: {len(unused_90)}")
-
-
-def _section_improve_log(cutoff):
-    events = _read_events()
-    if not events:
-        print("  Нет данных improve-лога.")
-        return
-
-    if cutoff:
-        events = [e for e in events if e.get("ts", "") >= cutoff.isoformat()[:10]]
-
-    applied = sum(1 for e in events if e.get("applied"))
-    skipped = sum(1 for e in events if not e.get("applied"))
-    by_action = {}
-    for e in events:
-        a = e.get("action", "unknown")
-        by_action[a] = by_action.get(a, 0) + 1
-
-    print(f"\n  Всего событий: {len(events)} (✅ {applied}, ⛔ {skipped})")
-    for action, count in sorted(by_action.items()):
-        print(f"    {action}: {count}")
-
-    recent = events[-5:]
-    if recent:
-        rows = []
-        for e in recent:
-            ts = e.get("ts", "")[:16].replace("T", " ")
-            applied_str = "✅" if e.get("applied") else "⛔"
-            before = e.get("eval_before")
-            after = e.get("eval_after")
-            eval_str = f"{before:.0%}→{after:.0%}" if isinstance(before, (int, float)) and isinstance(after, (int, float)) else "—"
-            facts = e.get("facts", [])
-            detail = facts[0][:60] if facts else "—"
-            rows.append([ts, e.get("action", "?"), applied_str, eval_str, detail])
-        _table(["Время", "Действие", "", "Eval", "Детали"], rows, "Последние события")
 
 
 def cmd_save(auto_yes: bool = False, hypothesis: bool = False,
@@ -305,10 +201,8 @@ def cmd_save(auto_yes: bool = False, hypothesis: bool = False,
             answer = input().strip().lower()
         if answer == "y":
             from curator.sync_engine import SyncEngine
-            from curator.retrieval_feedback import RetrievalFeedback
             base_dir = _resolve_base_dir()
             sync = SyncEngine(backend, base_dir)
-            fb = RetrievalFeedback()
             saved = 0
             for fact in result.approved:
                 structured = StructuredFact(
@@ -323,7 +217,6 @@ def cmd_save(auto_yes: bool = False, hypothesis: bool = False,
                 except Exception as e:
                     # Факт в DB, но в .md его нет — молчать нельзя
                     print(f"    ⚠ write-back в .md не удался для '{fact.title[:50]}': {e}")
-                fb.record_save(fact.title)
                 saved += 1
             print(f"  ✅ Сохранено: {saved} фактов (статус: {status})")
             # Петля чтения не протухает: каталог регенерируется тем же
@@ -477,13 +370,6 @@ def cmd_get(query: str = ""):
     _table(["Факт", "Тип", "Статус", "Теги"], rows)
 
 
-def cmd_demo():
-    args = sys.argv[2:]
-    keep = "--keep" in args
-    from curator.tour import run_tour
-    run_tour(keep=keep)
-
-
 def cmd_install():
     """Установить Memory Curator без вопросов: автодетект opencode/Claude Code."""
     _header("Curator Install")
@@ -515,98 +401,6 @@ def cmd_install():
     print()
     for step in steps:
         print(f"  {step}")
-
-
-def cmd_improve():
-    _header("Curator Improve")
-    backend = _make_backend()
-    from curator.improve_loop import ImproveLoop
-    loop = ImproveLoop(backend)
-    report = loop.run()
-
-    # Semantic project docs меняет нейронный write-back. Без project map
-    # сохраняем legacy lifecycle-синхронизацию Curator-секций.
-    from curator.routing.map_router import find_map_path
-    if find_map_path() is None:
-        base_dir = _resolve_base_dir()
-        from curator.sync_engine import SyncEngine
-        sync = SyncEngine(backend, base_dir)
-        for f in report.deprecated:
-            try:
-                sync.rewrite_status(f)
-            except Exception as e:
-                print(f"  ⚠ write-back в .md не удался для '{f.title[:50]}': {e}")
-
-    # Отчёт цикла (раньше писал worker): человек и curator status смотрят
-    # историю improve по этим файлам.
-    report_file = _report_dir() / f"improve_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.json"
-    report_data = {
-        "timestamp": datetime.now().isoformat(),
-        "stats": report.stats,
-        "duplicates": [
-            {"title1": f1.title, "title2": f2.title}
-            for f1, f2 in report.duplicates
-        ],
-        "stale": [
-            {"title": f.title, "status": f.status}
-            for f in report.stale
-        ],
-    }
-    if report.metrics_before and report.metrics_after:
-        report_data["metrics"] = {
-            "before": {"query_coverage": report.metrics_before.query_coverage,
-                       "total_facts": report.metrics_before.total_facts},
-            "after": {"query_coverage": report.metrics_after.query_coverage,
-                      "total_facts": report.metrics_after.total_facts},
-        }
-    try:
-        report_file.parent.mkdir(parents=True, exist_ok=True)
-        report_file.write_text(json.dumps(report_data, ensure_ascii=False, indent=2), encoding="utf-8")
-    except OSError as e:
-        print(f"  ⚠ отчёт improve не записан: {e}")
-
-    print(f"  Фактов: {report.stats['total_facts']}")
-    print(f"  Дубликатов: {report.stats['duplicates_found']}")
-    print(f"  Устаревших: {report.stats['stale_found']}")
-    print(f"  Противоречий: {report.stats['contradictions_found']}")
-    if report.metrics_before and report.metrics_after:
-        b, a = report.metrics_before, report.metrics_after
-        print(f"\n  Метрики (до → после): coverage {b.query_coverage:.0%} → {a.query_coverage:.0%}, "
-              f"факты {b.total_facts} → {a.total_facts}")
-    if report.duplicates:
-        print(f"\n  Дубликаты ({len(report.duplicates)}):")
-        for f1, f2 in report.duplicates[:5]:
-            print(f"    '{f1.title[:50]}' ↔ '{f2.title[:50]}'")
-    if report.contradictions:
-        print(f"\n  Противоречия ({len(report.contradictions)}):")
-        for f1, f2 in report.contradictions[:5]:
-            print(f"    ⚡ '{f1.title[:50]}' ↔ '{f2.title[:50]}'")
-    if getattr(report, "resolutions", None):
-        print(f"\n  Разрешено ({len(report.resolutions)}):")
-        for r in report.resolutions[:5]:
-            print(f"    ✅ {r.winner.title[:50]} ← {r.loser.title[:50]}")
-            print(f"       {r.reason}")
-    if report.events:
-        print("\n  Eval-решения:")
-        for e in report.events[-5:]:
-            status = "✅" if e.get("applied") else "⛔"
-            print(f"    {e['action']}: {status}")
-
-
-def cmd_routes():
-    _header("Curator Routes")
-    from curator.routing import get_router
-    router = get_router()
-    routes = router.list_routes()
-    rows = []
-    for r in routes:
-        path = r.get("path", "?")
-        desc = r.get("description", "")
-        rules = r.get("rules", "")
-        if isinstance(rules, list):
-            rules = ", ".join(str(rule) for rule in rules)
-        rows.append([path, desc, str(rules)[:60]])
-    _table(["Путь", "Описание", "Правила"], rows)
 
 
 KNOWLEDGE_ROUTES_CATALOG_NAME = "knowledge-routes.md"
@@ -736,153 +530,9 @@ def cmd_knowledge_routes(args: list[str] | None = None) -> int:
     return exit_code
 
 
-def cmd_sessions():
-    """Реестр и транскрипты сессий OpenCode — источник для майнинга знаний."""
-    args = sys.argv[2:] if len(sys.argv) > 2 else []
-    sub = args[0] if args else "list"
-
-    from curator.session_reader import list_opencode_sessions, read_opencode_session
-
-    if sub == "list":
-        since = None
-        limit = 100
-        if "--since" in args:
-            idx = args.index("--since")
-            if idx + 1 < len(args):
-                since = args[idx + 1]
-        if "--limit" in args:
-            idx = args.index("--limit")
-            if idx + 1 < len(args):
-                limit = int(args[idx + 1])
-        sessions = list_opencode_sessions(since=since, limit=limit)
-        if not sessions:
-            print("  Сессий не найдено (opencode.db пуст или нет по пути по умолчанию).")
-            return
-        _header(f"Curator Sessions — {len(sessions)} сессий (свежие сверху)")
-        rows = []
-        for s in sessions:
-            title = (s.title or s.id)[:60]
-            rows.append([s.created or "—", str(s.messages), f"{s.tokens // 1000}k", title])
-        _table(["Дата", "Сообщ.", "Токены", "Заголовок"], rows)
-        print("\n  Полный транскрипт: curator sessions show <id> [--out файл]")
-        print("  id — полный идентификатор сессии из opencode.db")
-
-    elif sub == "show":
-        if len(args) < 2:
-            print("Использование: curator sessions show <session_id> [--out файл]")
-            return
-        session_id = args[1]
-        out_file = None
-        if "--out" in args:
-            idx = args.index("--out")
-            if idx + 1 < len(args):
-                out_file = args[idx + 1]
-        session = read_opencode_session(session_id)
-        if session is None:
-            print(f"  Сессия не найдена или пуста: {session_id}")
-            return
-        header = (f"# Сессия: {session.name}\n"
-                  f"# Сообщений (parts): {session.messages}, токенов: {session.tokens}\n\n")
-        if out_file:
-            Path(out_file).write_text(header + session.text, encoding="utf-8")
-            print(f"  ✅ Транскрипт записан: {out_file} ({len(session.text)} символов)")
-        else:
-            print(header + session.text)
-    else:
-        print(f"Неизвестная подкоманда sessions: {sub} (доступны list, show)")
-
-
-def cmd_candidates():
-    """Precision-отчёт: что предлагал агент, что сохранилось, почему отказано."""
-    _header("Curator Candidates — точность извлечения")
-    from curator import candidates_log
-    stats = candidates_log.precision_stats()
-    if not stats["calls"]:
-        print("  Нет данных: журнал аналитики пуст (~/.curator/analytics.jsonl).")
-        print("  Заполняется при каждом curator save / curator_session_capture.")
-        return
-
-    print(f"  Вызовов capture: {stats['calls']} "
-          f"(источники: {json.dumps(stats['by_source'], ensure_ascii=False)})")
-    print(f"  Предложено кандидатов: {stats['proposed']}")
-    print(f"  Сохранено: {stats['saved']} (precision {stats['precision_pct']}%)")
-    print(f"  Отклонено gatekeeper: {stats['rejected_by_gatekeeper']}")
-    print(f"  Отказов человека (весь batch): {stats['declined_by_human']}")
-
-    if stats["by_reason"]:
-        print("\n  Отказы по причинам:")
-        for reason, count in sorted(stats["by_reason"].items(), key=lambda x: -x[1]):
-            print(f"    {reason}: {count}")
-
-    if stats["by_type_approved"]:
-        print("\n  Одобренные по типам:")
-        for ftype, count in sorted(stats["by_type_approved"].items(), key=lambda x: -x[1]):
-            print(f"    {ftype}: {count}")
-
-    if stats["top_rejected"]:
-        print("\n  Чаще всего отклоняют:")
-        for title, count in stats["top_rejected"][:5]:
-            print(f"    {count}x {title[:70]}")
-
-
 def _make_backend():
     from curator.backend.local import LocalBackend
     return LocalBackend()
-
-
-def _read_events():
-    improve_log = _improve_log()
-    if not improve_log.exists():
-        return []
-    events = []
-    with open(improve_log) as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                try:
-                    events.append(json.loads(line))
-                except json.JSONDecodeError:
-                    pass
-    return events
-
-
-def _is_today(ts: str) -> bool:
-    return ts[:10] == datetime.now().isoformat()[:10]
-
-
-def _last_report_summary():
-    """Последний improve-отчёт: время + суть (что нашёл worker), не только дата."""
-    report_dir = _report_dir()
-    if not report_dir.exists():
-        return None
-    reports = sorted(report_dir.glob("improve_*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
-    if not reports:
-        return None
-    when = datetime.fromtimestamp(reports[0].stat().st_mtime).strftime("%d.%m.%Y %H:%M")
-    try:
-        stats = json.loads(reports[0].read_text(encoding="utf-8")).get("stats", {})
-    except (OSError, json.JSONDecodeError):
-        stats = {}
-    parts = []
-    for key, label in (("duplicates_found", "дубликатов"), ("stale_found", "устаревших"), ("contradictions_found", "противоречий")):
-        if key in stats:
-            parts.append(f"{label}: {stats[key]}")
-    if not parts:
-        return when
-    summary = f"{when} — " + ", ".join(parts)
-    if all(stats.get(k, 1) == 0 for k in ("duplicates_found", "stale_found", "contradictions_found")):
-        summary += " (база чистая)"
-    return summary
-
-
-def _human_interval(minutes: int) -> str:
-    if minutes < 60:
-        return f"{minutes} мин"
-    hours = minutes // 60
-    if hours < 24:
-        return f"{hours} ч"
-    days = hours // 24
-    return f"{days} д"
 
 
 def main():
@@ -894,14 +544,11 @@ def main():
         print("curator — Memory Curator CLI")
         print("Использование:")
         print("  curator save              — сохранить кандидатов (JSON из stdin, извлекает агент)")
-        print("  curator status            — база + факты + improve + capture-сводка")
-        print("  curator improve           — ручной improve цикл")
+        print("  curator status            — база + факты + capture-сводка")
         print("  curator install           — установка в opencode / Claude Code")
         print("  curator get '<запрос>'    — поиск фактов по ключевым словам")
-        print("  curator report            — отчёт: факты + топ запросов")
-        print("  curator demo              — полный цикл жизни знания (тур)")
         print()
-        print("Служебные: knowledge-routes (каталог маршрутов базы), sessions, candidates")
+        print("Служебные: knowledge-routes (каталог маршрутов базы)")
         return
 
     cmd = sys.argv[1].lower()
@@ -909,16 +556,8 @@ def main():
         cmd_status()
     elif cmd == "install":
         cmd_install()
-    elif cmd == "demo":
-        cmd_demo()
     elif cmd == "get":
         cmd_get(" ".join(sys.argv[2:]) if len(sys.argv) > 2 else "")
-    elif cmd == "report":
-        cmd_report()
-    elif cmd == "sessions":
-        cmd_sessions()
-    elif cmd == "candidates":
-        cmd_candidates()
     elif cmd == "save":
         args = sys.argv[2:]
         if "--doc" in args:
@@ -936,14 +575,11 @@ def main():
             if idx + 1 < len(args):
                 session_id = args[idx + 1]
         cmd_save(auto_yes=auto_yes, hypothesis=hypothesis, session_id=session_id)
-    elif cmd == "improve":
-        cmd_improve()
     elif cmd == "knowledge-routes":
         sys.exit(cmd_knowledge_routes(sys.argv[2:]))
     else:
         print(f"Неизвестная команда: {cmd}")
-        print("Доступные: save, status, improve, install, get, report, demo "
-              "(+ служебные knowledge-routes, sessions, candidates)")
+        print("Доступные: save, status, get, install (+ служебная knowledge-routes)")
 
 
 if __name__ == "__main__":
