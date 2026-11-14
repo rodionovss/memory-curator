@@ -6,16 +6,13 @@
 curator install --claude
 ```
 
-Спросит, куда класть базу знаний (любой путь, по умолчанию
-`~/memory-curator`), затем сам:
+Без вопросов и флагов: ставит слэш-команды в `~/.claude/commands/`,
+скиллы в `~/.claude/skills/` и одну секцию правил памяти в
+`~/.claude/CLAUDE.md`. Фоновых процессов нет (решение 2026-10-03):
+MCP-сервер и worker удалены, вся механика — в CLI `curator`.
+Установка старой версии чистится автоматически: мёртвые MCP-записи
+и plugin[]-артефакты удаляются, база мигрирует в `~/.curator/config.json`.
 
-- пишет `.mcp.json` в текущий проект (MCP-сервер, тулзы `curator_*`);
-- ставит слэш-команды в `~/.claude/commands/` (`/curator-save`,
-  `/curator-create-map`, `/curator-status` и другие);
-- ставит скиллы в `~/.claude/skills/` (curator-save и
-  curator-create-map);
-- поднимает фоновый worker самоулучшения.
-
-Перезапусти Claude Code в проекте — готово. Карта документации проекта —
-`/curator-create-map`, изоляция состояния проекта — `/curator-setup`;
-подробности: `docs/getting-started.md`.
+Перезапусти Claude Code — готово. Карта тем проекта —
+`/curator-create-map`; контракт адаптера: [../README.md](../README.md);
+подробности: [docs/getting-started.md](../../docs/getting-started.md).

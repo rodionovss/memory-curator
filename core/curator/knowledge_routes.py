@@ -174,6 +174,46 @@ def build_routes_from_map(topics: list[dict], facts: list[StructuredFact],
     return RouteBuildResult(routes=tuple(routes), validation_errors=tuple(errors))
 
 
+def build_catalog(backend, base_dir: Path) -> RouteBuildResult:
+    """Сборка каталога: карта есть → проекция карты, нет → из фактов.
+
+    Единая точка для CLI (`curator knowledge-routes`) и авто-регенерации
+    после `curator save` — пути не расходятся.
+
+    Карта, которая есть на диске, но не парсится (или без тем) — ошибка:
+    молчаливая деградация MapRouter выкатила бы каталог без тем карты и
+    затёрла бы существующие маршруты. ValueError ловят оба потребителя:
+    save деградирует в ⚠ (факты важнее), CLI честно выходит с ошибкой.
+    """
+    from curator.models import FactQuery
+    from curator.routing.map_router import MapRouter, find_map_path
+
+    facts = backend.query_facts(FactQuery())
+    map_path = find_map_path()
+    if map_path is not None and map_path.exists():
+        router = MapRouter(map_path)
+        errors = router.validation_errors()
+        if errors or not router._topics:
+            detail = "; ".join(errors[:3]) if errors else "тем нет"
+            raise ValueError(f"карта {map_path.name} невалидна: {detail}")
+        topics = [
+            {"name": t.name, "tokens": t.tokens,
+             "targets": [tg.path for tg in t.targets]}
+            for t in router._topics
+        ]
+        return build_routes_from_map(topics, facts, base_dir)
+    return build_routes(facts, base_dir)
+
+
+def render_catalog(backend, base_dir: Path) -> str:
+    """Полный Markdown-каталог маршрутов (общая сборка для save и CLI).
+
+    Детерминированный рендер уровня файла; только метаданные, без
+    содержимого фактов (контракт design/knowledge-route-format.md).
+    """
+    return render_routes_markdown(list(build_catalog(backend, base_dir).routes))
+
+
 def _bullets(items: tuple[str, ...]) -> list[str]:
     """Список по схеме контракта: `- item;`, последний пункт заканчивается точкой."""
     if not items:

@@ -22,28 +22,73 @@ from pathlib import Path
 from curator.fs import atomic_write_text
 
 
-_RETIRED_COMMANDS = ("curator-project-save",)
+_RETIRED_COMMANDS = ("curator-project-save", "curator-setup",
+                     "curator-start", "curator-stop", "curator-worker",
+                     "curator-report", "curator-full")
 _RETIRED_SKILLS = ("curator-project-save",)
 # Синхронен control.KNOWLEDGE_ROUTES_CATALOG_NAME (локальная копия — без импорта control)
 _ROUTES_CATALOG_NAME = "knowledge-routes.md"
 
+# Дефолтная карта для нового пользователя: стандартная структура базы,
+# правка опциональна. Формат — скилл mapping-documentation (MapRouter).
+_DEFAULT_MAP_TEMPLATE = """---
+title: Карта знаний — маршрутизация фактов по темам базы
+on_unmatched: report
 
-def _server_command() -> tuple[str, list[str]]:
-    """(command, args) запуска MCP-сервера из этого окружения.
+topics:
+  - name: reference
+    watch_for: kotlin, android, compose, архитектура, тесты, производительность
+    targets:
+      - path: "reference/general.md"
+        captures: [knowledge]
+        mode: update
+        instructions: "Справочные знания: языки, платформа, архитектура, тесты"
+  - name: style
+    watch_for: стиль, код, ревью, процесс, коммиты
+    targets:
+      - path: "style/general.md"
+        captures: [knowledge]
+        mode: update
+        instructions: "Правила стиля кода, ревью и рабочего процесса"
+  - name: tools
+    watch_for: инструмент, tool, cli, терминал, настройка
+    targets:
+      - path: "tools/general.md"
+        captures: [knowledge]
+        mode: update
+        instructions: "Заметки об инструментах разработки"
+  - name: agent-memory
+    watch_for: память, память агента, знания, база
+    targets:
+      - path: "reference/agent-memory.md"
+        captures: [knowledge]
+        mode: update
+        instructions: "Знания о памяти агентов и базах знаний"
+---
+"""
 
-    Prefer готовый entrypoint-скрипт в venv; editable-окружение без
-    скрипта откатывается на `python -m curator.server`.
-    """
-    exe_dir = Path(sys.executable).parent
-    candidate = exe_dir / "curator-mcp-server"
-    if candidate.exists():
-        return str(candidate), []
-    return sys.executable, ["-m", "curator.server"]
+
+def _ensure_default_map(base: str) -> bool:
+    """Дефолтная knowledge-map.md, если карты ещё нет.
+
+    True — карта создана; False — уже есть (не трогаем: существующая
+    карта — источник истины пользователя) или база недоступна для
+    записи (карта опциональна: save работает и без неё, в session/)."""
+    map_path = Path(os.path.abspath(os.path.expanduser(base))) / "knowledge-map.md"
+    if map_path.exists():
+        return False
+    try:
+        map_path.parent.mkdir(parents=True, exist_ok=True)
+        map_path.write_text(_DEFAULT_MAP_TEMPLATE, encoding="utf-8")
+    except OSError:
+        return False
+    return True
 
 
 def default_base_dir() -> str:
     """Дефолт базы знаний — нейтральный путь (не привязан к машине автора)."""
-    return os.path.expanduser("~/memory-curator")
+    from curator.state import default_base_dir as _default
+    return _default()
 
 
 def _repo_root() -> Path:
@@ -94,13 +139,20 @@ _ROUTES_POINTER_BEGIN = "<!-- memory-curator-routes:begin -->"
 _ROUTES_POINTER_END = "<!-- memory-curator-routes:end -->"
 
 
-def _rules_section() -> str:
-    """Текст правил памяти из репо (integrations/curator-rules.md)."""
+def _rules_section(base: str) -> str:
+    """Текст правил памяти из репо (integrations/curator-rules.md).
+
+    Единая секция Memory Curator: правила памяти + pointer каталога
+    маршрутов + hint регенерации. Путь каталога подставляется при
+    установке (плейсхолдер {catalog}) — текст генерируется, а не
+    хранится с абсолютным путём.
+    """
     path = _repo_root() / "integrations" / "curator-rules.md"
     try:
-        return path.read_text(encoding="utf-8").strip()
+        text = path.read_text(encoding="utf-8").strip()
     except OSError:
         return ""
+    return text.replace("{catalog}", str(_routes_catalog_path(base)))
 
 
 def _install_marked_section(rules_path: Path, body: str, begin: str, end: str) -> bool:
@@ -132,35 +184,36 @@ def _routes_catalog_path(base: str) -> Path:
     return Path(os.path.abspath(os.path.expanduser(base))) / _ROUTES_CATALOG_NAME
 
 
-def _routes_pointer_body(base: str) -> str:
-    """Pointer-секция на каталог маршрутов: путь + инструкция + hint.
+def _remove_marked_section(rules_path: Path, begin: str, end: str) -> bool:
+    """Удалить свою маркированную секцию (переход форматов, откат install).
 
-    Placement M2 (эксперимент 05): каталог живёт в базе и читается по
-    требованию; в rules-файл попадает только указатель, не контент.
-    Путь подставляется при установке — текст генерируется, а не хранится
-    в curator-rules.md.
+    True — блок был и удалён; False — блока/файла не было. Чужой контент
+    не трогаем; запись атомарная, как у _install_marked_section.
     """
-    catalog = _routes_catalog_path(base)
-    return (
-        "## Memory Curator — каталог маршрутов базы\n"
-        "\n"
-        f"- Если задача касается тем из базы — сначала прочти каталог `{catalog}` "
-        "(разделы «When to use»), затем указанный в нём исходник.\n"
-        "- Каталог устарел или его нет — регенерируй: `curator knowledge-routes --write`."
-    )
+    if not rules_path.exists():
+        return False
+    existing = rules_path.read_text(encoding="utf-8")
+    pattern = re.compile(re.escape(begin) + r".*?" + re.escape(end) + r"\n?", re.DOTALL)
+    without, removed = pattern.subn("", existing)
+    if not removed:
+        return False
+    atomic_write_text(
+        rules_path, without.rstrip() + "\n" if without.strip() else "")
+    return True
 
 
-def _install_routes_pointer(rules_path: Path, base: str) -> bool:
-    """Pointer-секция каталога маршрутов в глобальный файл правил."""
-    return _install_marked_section(
-        rules_path, _routes_pointer_body(base), _ROUTES_POINTER_BEGIN, _ROUTES_POINTER_END)
+def _remove_stale_routes_pointer(rules_path: Path) -> bool:
+    """Протухшая routes-секция от старых установок (до слияния в единую)."""
+    return _remove_marked_section(
+        rules_path, _ROUTES_POINTER_BEGIN, _ROUTES_POINTER_END)
 
 
-def publish_routes_pointers(base: str) -> list[str]:
-    """Pointer-секция каталога во все обнаруженные харнесы (publish шаг).
+def publish_rules_sections(base: str) -> list[str]:
+    """Единая секция Memory Curator (правила + pointer каталога) во все
+    обнаруженные харнесы (publish шаг).
 
-    Вызывается после записи каталога (`curator knowledge-routes --write`)
-    и повторяет placement-контракт install: только указатель, не контент.
+    Вызывается после записи каталога (`curator knowledge-routes --write`).
+    Протухший routes-pointer блок от старых установок удаляется.
     Fault-isolation per harness: незаписываемый rules-файл одного харнеса
     (read-only, нет места) не валит publish остальных — деградирует в ⚠-шаг,
     из publish-пути исключение не выходит. Возвращает publish-строки;
@@ -170,73 +223,24 @@ def publish_routes_pointers(base: str) -> list[str]:
     do_opencode, do_claude = detect_harnesses()
     steps: list[str] = []
     if do_opencode:
+        rules_path = home / ".config" / "opencode" / "AGENTS.md"
         try:
-            if _install_routes_pointer(home / ".config" / "opencode" / "AGENTS.md", base):
-                steps.append("✅ opencode: pointer каталога маршрутов в глобальном AGENTS.md")
+            _remove_stale_routes_pointer(rules_path)
+            if _install_global_rules(rules_path, _rules_section(base)):
+                steps.append("✅ opencode: единая секция Memory Curator в глобальном AGENTS.md")
         except Exception as e:
-            steps.append(f"⚠ opencode: pointer каталога маршрутов не записан: {e}")
+            steps.append(f"⚠ opencode: секция Memory Curator не записана: {e}")
     if do_claude:
+        rules_path = home / ".claude" / "CLAUDE.md"
         try:
-            if _install_routes_pointer(home / ".claude" / "CLAUDE.md", base):
-                steps.append("✅ Claude Code: pointer каталога маршрутов в ~/.claude/CLAUDE.md")
+            _remove_stale_routes_pointer(rules_path)
+            if _install_global_rules(rules_path, _rules_section(base)):
+                steps.append("✅ Claude Code: единая секция Memory Curator в ~/.claude/CLAUDE.md")
         except Exception as e:
-            steps.append(f"⚠ Claude Code: pointer каталога маршрутов не записан: {e}")
+            steps.append(f"⚠ Claude Code: секция Memory Curator не записана: {e}")
     if not steps:
-        steps.append("◦ opencode / Claude Code не обнаружены — pointer каталога не обновлён")
+        steps.append("◦ opencode / Claude Code не обнаружены — секция не обновлена")
     return steps
-
-
-def _install_plugin(plugins_dir: Path) -> list[str]:
-    """Плагины Memory Curator: копия + регистрация в plugin[] opencode.json.
-
-    Копия в каталог плагинов идемпотентна; пользовательские плагины не
-    трогаем. Desktop-сборка OpenCode (1.18) не автозагружает файлы из
-    ~/.config/opencode/plugins/ — плагины обязаны быть прописаны в
-    plugin[] абсолютными путями (проверено дебагом 2026-09-18).
-    Возвращает шаги-сообщения.
-    """
-    sources = (
-        ("curator-reminder.js", "✅ opencode: плагин-реминдер session.idle → /curator-save"),
-        ("curator-context.js",
-         "✅ opencode: плагин proactive delivery curator-context.js "
-         "(режим доставки — env CURATOR_DELIVERY_MODE, см. integrations/README.md)"),
-    )
-    steps: list[str] = []
-    found = False
-    for name, message in sources:
-        source = _repo_root() / "integrations" / name
-        if not source.exists():
-            continue
-        found = True
-        plugins_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, plugins_dir / name)
-        steps.append(message)
-    if not found:
-        steps.append("⚠ плагины не найдены в репо (wheel-установка?)")
-        return steps
-    steps.extend(_register_plugins_in_config(plugins_dir, [name for name, _ in sources]))
-    return steps
-
-
-def _register_plugins_in_config(plugins_dir: Path, names: list[str]) -> list[str]:
-    """Абсолютные пути плагинов в plugin[] ~/.config/opencode/opencode.json.
-
-    Идемпотентно: свои записи обновляем, чужие не трогаем. OpenCode грузит
-    file-плагины только явно из plugin[] (Desktop 1.18; auto-discovery
-    из глобального каталога нет).
-    """
-    config_path = plugins_dir.parent / "opencode.json"
-    config, error = _read_json_config(config_path)
-    if config is None:
-        return [f"⚠ opencode.json не читается ({error}) — плагины не зарегистрированы, "
-                f"пропиши в plugin[] вручную: {plugins_dir}/<имя>.js"]
-    entries = [str(plugins_dir / name) for name in names]
-    plugins = [p for p in config.get("plugin", []) if isinstance(p, str)]
-    without_ours = [p for p in plugins if p not in entries and
-                    not any(p.endswith(f"/{name}") for name in names)]
-    config["plugin"] = without_ours + entries if entries else without_ours
-    _write_json_config(config_path, config)
-    return [f"✅ opencode: плагины зарегистрированы в plugin[] {config_path}"]
 
 
 def _commands_source() -> dict:
@@ -274,42 +278,6 @@ def _write_json_config(config_path: Path, config: dict) -> None:
     config_path.write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
-def _mcp_entry_opencode(base_dir: str, existing_env: dict | None = None) -> dict:
-    """MCP-секция по официальной схеме opencode (opencode.ai/docs/mcp-servers):
-    command — МАССИВ (команда и аргументы), переменные окружения — ключ
-    environment (не env), type/enabled обязательны. Отклонение от схемы =
-    молча не стартовавший сервер (не видно в списке MCP)."""
-    command, args = _server_command()
-    return {
-        "type": "local",
-        "enabled": True,
-        "command": [command, *args],
-        "environment": _mcp_env(base_dir, existing_env),
-    }
-
-
-def _mcp_entry_claude(base_dir: str, existing_env: dict | None = None) -> dict:
-    """Формат Claude Code (.mcp.json): command (строка) + args + env —
-    своя схема, type/environment не нужны."""
-    command, args = _server_command()
-    return {
-        "command": command,
-        **({"args": args} if args else {}),
-        "env": _mcp_env(base_dir, existing_env),
-    }
-
-
-def _mcp_env(base_dir: str, existing_env: dict | None = None) -> dict:
-    env = dict(existing_env or {})
-    env.update({
-        "CURATOR_BASE_DIR": base_dir,
-        # MapRouter без карты молча = дефолт (session/{type}.md);
-        # карта появится в базе — маршрутизация по темам включится сама
-        "ROUTER_CLASS": "curator.routing.map_router.MapRouter",
-    })
-    return env
-
-
 def detect_harnesses() -> tuple[bool, bool]:
     """(opencode, claude) — что найдено на машине."""
     home = Path(os.environ.get("HOME", str(Path.home())))
@@ -318,33 +286,82 @@ def detect_harnesses() -> tuple[bool, bool]:
     return has_opencode, has_claude
 
 
-def _effective_base(config: dict, section: str, key: str, base_dir: str | None) -> str:
-    """База для записи в конфиг.
+def _effective_base(base_dir: str | None) -> str:
+    """База для state-конфига.
 
     Патч (повторный install) не имеет права сбрасывать существующую
-    настройку: без явного --base-dir сохраняем CURATOR_BASE_DIR из
-    установленной секции; флаг — осознанное переопределение; свежая
-    установка — дефолт.
+    настройку: без явного --base-dir сохраняем базу из state-конфига
+    (~/.curator/config.json); флаг — осознанное переопределение; свежая
+    установка — дефолт. Установка старой (MCP-эпохи) версии мигрируется:
+    её CURATOR_BASE_DIR переносится в state-конфиг, а не теряется.
     """
     if base_dir:
         return base_dir
-    try:
-        entry = config.get(section, {}).get(key, {})
-        # совместимость: старые ручные конфиги держали env, схема opencode — environment
-        env = entry.get("environment") or entry.get("env") or {}
-        existing = env.get("CURATOR_BASE_DIR")
-        if existing:
-            return str(existing)
-    except AttributeError:
-        pass
+    from curator.state import configured_base
+    existing = configured_base()
+    if existing:
+        return existing
+    legacy = _legacy_base_from_configs()
+    if legacy:
+        return legacy
     return default_base_dir()
+
+
+def _legacy_base_from_configs() -> str | None:
+    """База из MCP-секций установки старой версии (разовая миграция).
+
+    После ухода от MCP эти секции удаляются install'ом; чтобы апгрейд
+    не молча сбрасывал базу пользователя на дефолт, значение переносится
+    сюда до удаления записей.
+    """
+    home = Path(os.environ.get("HOME", str(Path.home())))
+    candidates = [
+        (home / ".config" / "opencode" / "opencode.json", ("mcp", "memory-curator")),
+        (Path.cwd() / ".mcp.json", ("mcpServers", "memory-curator")),
+    ]
+    for path, (section, key) in candidates:
+        config, error = _read_json_config(path)
+        if config is None:
+            continue
+        entry = (config.get(section) or {}).get(key) or {}
+        env = entry.get("environment") or entry.get("env") or {}
+        base = env.get("CURATOR_BASE_DIR")
+        if isinstance(base, str) and base.strip():
+            return base.strip()
+    return None
+
+
+_RETIRED_PLUGINS = ("curator-context.js", "curator-reminder.js")
+
+
+def _remove_our_mcp_entry(config: dict, section: str = "mcp") -> None:
+    """Удалить свою мёртвую MCP-запись (сервера больше нет).
+
+    Чужие записи секции не трогаем.
+    """
+    entries = config.get(section)
+    if isinstance(entries, dict) and "memory-curator" in entries:
+        entries.pop("memory-curator", None)
+
+
+def _remove_our_plugins(config: dict) -> None:
+    """Удалить свои мёртвые plugin[]-записи (плагинов больше нет)."""
+    plugins = config.get("plugin")
+    if not isinstance(plugins, list):
+        return
+    kept = [p for p in plugins
+            if not (isinstance(p, str) and any(p == n or p.endswith(f"/{n}")
+                                               for n in _RETIRED_PLUGINS))]
+    if kept != plugins:
+        config["plugin"] = kept
 
 
 def _install_footer() -> list[str]:
     return [
         "",
         "Готово. Перезапусти opencode / Claude Code — появятся команды /curator-*, "
-        "тулзы curator_*, скиллы, правила памяти и плагины (реминдер + proactive delivery).",
+        "скиллы и правила памяти. Фоновых процессов нет: capture — по желанию, "
+        "improve — вручную (`curator improve`).",
         "База: дефолт ~/memory-curator, существующая настройка сохраняется при обновлении.",
         "Где база сейчас: curator status · смена: попроси агента «смени базу знаний на <путь>»",
     ]
@@ -381,17 +398,24 @@ def install_all(
 
 
 def _install_opencode_steps(base_dir: str | None, skills_mode: str) -> list[str]:
-    """MCP + команды + скиллы + worker в ~/.config/opencode (без футера)."""
+    """Команды + скиллы + правила в ~/.config/opencode (без футера).
+
+    Решение 2026-10-03 «ноль фоновых процессов»: MCP-сервер, worker и
+    delivery-плагины не ставятся. База персистится в state-конфиг.
+    """
     home = Path(os.environ.get("HOME", str(Path.home())))
 
     config_path = home / ".config" / "opencode" / "opencode.json"
     config, error = _read_json_config(config_path)
     if config is None:
         return [f"⛔ opencode: {error}"]
-    base = _effective_base(config, "mcp", "memory-curator", base_dir)
-    previous = config.get("mcp", {}).get("memory-curator", {})
-    previous_env = previous.get("environment") or previous.get("env") or {}
-    config.setdefault("mcp", {})["memory-curator"] = _mcp_entry_opencode(base, previous_env)
+    base = _effective_base(base_dir)
+    from curator.state import write_configured_base
+    write_configured_base(base)
+    # Апгрейд: свои мёртвые MCP/plugin-записи от старых версий чистим
+    # (сервера и плагинов больше нет), чужие не трогаем.
+    _remove_our_mcp_entry(config)
+    _remove_our_plugins(config)
     commands = _commands_source()
     installed_commands = config.setdefault("command", {})
     for name in _RETIRED_COMMANDS:
@@ -399,45 +423,48 @@ def _install_opencode_steps(base_dir: str | None, skills_mode: str) -> list[str]
     if commands:
         installed_commands.update(commands)
     _write_json_config(config_path, config)
-    steps = [f"✅ opencode: MCP-сервер и {len(commands)} команд /curator-*: {config_path} (остальное не тронуто)",
+    steps = [f"✅ opencode: команды /curator-*: {config_path} (остальное не тронуто)",
              f"✅ opencode: база знаний: {base}"]
+    if _ensure_default_map(base):
+        steps.append("◦ opencode: дефолтная карта тем создана (настрой при желании: "
+                     f"{_routes_catalog_path(base).parent / 'knowledge-map.md'})")
 
     skills = _install_skills(home / ".config" / "opencode" / "skills", skills_mode)
     if skills:
         steps.append(f"✅ opencode: скиллы {', '.join(s.name for s in skills)} (mode={skills_mode})")
     else:
-        steps.append("⚠ скиллы не найдены в репо (wheel-установка?) — MCP и команды работают")
+        steps.append("⚠ скиллы не найдены в репо (wheel-установка?) — команды работают")
 
-    if _install_global_rules(home / ".config" / "opencode" / "AGENTS.md", _rules_section()):
-        steps.append("✅ opencode: правила памяти в глобальном AGENTS.md — база в контексте каждой сессии")
-    if _install_routes_pointer(home / ".config" / "opencode" / "AGENTS.md", base):
-        steps.append(f"✅ opencode: pointer каталога маршрутов в глобальном AGENTS.md: {_routes_catalog_path(base)}")
-    steps.extend(_install_plugin(home / ".config" / "opencode" / "plugins"))
-
-    try:
-        from curator.daemon import ensure_worker
-        steps.append(f"✅ Worker: {ensure_worker()}")
-    except Exception as e:
-        steps.append(f"⚠ worker не поднялся: {e} — запусти позже: curator start")
+    agents_md = home / ".config" / "opencode" / "AGENTS.md"
+    stale_removed = _remove_stale_routes_pointer(agents_md)
+    if _install_global_rules(agents_md, _rules_section(base)):
+        note = " (протухший routes-блок удалён)" if stale_removed else ""
+        steps.append(f"✅ opencode: единая секция Memory Curator (правила + каталог маршрутов) "
+                     f"в глобальном AGENTS.md{note}: {_routes_catalog_path(base)}")
     return steps
 
 
 def _install_claude_steps(base_dir: str | None, skills_mode: str) -> list[str]:
-    """.mcp.json в проекте (cwd) + слэш-команды ~/.claude/commands + скиллы (без футера)."""
-    home = Path(os.environ.get("HOME", str(Path.home())))
-    project = Path.cwd()
+    """Слэш-команды ~/.claude/commands + скиллы + правила (без футера).
 
-    mcp_path = project / ".mcp.json"
-    config, error = _read_json_config(mcp_path)
-    if config is None:
-        return [f"⛔ Claude Code: {error}"]
-    base = _effective_base(config, "mcpServers", "memory-curator", base_dir)
-    previous = config.get("mcpServers", {}).get("memory-curator", {})
-    previous_env = previous.get("env") or previous.get("environment") or {}
-    config.setdefault("mcpServers", {})["memory-curator"] = _mcp_entry_claude(base, previous_env)
-    _write_json_config(mcp_path, config)
-    steps = [f"✅ Claude Code: MCP-сервер: {mcp_path}",
-             f"✅ Claude Code: база знаний: {base}"]
+    MCP-конфиг (.mcp.json) больше не пишется: решение 2026-10-03 —
+    ноль фоновых процессов, вся механика в CLI.
+    """
+    home = Path(os.environ.get("HOME", str(Path.home())))
+    base = _effective_base(base_dir)
+    from curator.state import write_configured_base
+    write_configured_base(base)
+    steps = [f"✅ Claude Code: база знаний: {base}"]
+
+    # Апгрейд: мёртвая MCP-запись из старой установки в проектном .mcp.json
+    mcp_path = Path.cwd() / ".mcp.json"
+    if mcp_path.exists():
+        project_config, error = _read_json_config(mcp_path)
+        if project_config is not None:
+            _remove_our_mcp_entry(project_config, section="mcpServers")
+            _write_json_config(mcp_path, project_config)
+    if _ensure_default_map(base):
+        steps.append("◦ Claude Code: дефолтная карта тем создана")
 
     commands = _commands_source()
     commands_dir = home / ".claude" / "commands"
@@ -461,10 +488,11 @@ def _install_claude_steps(base_dir: str | None, skills_mode: str) -> list[str]:
     if skills:
         steps.append(f"✅ Claude Code: скиллы {', '.join(s.name for s in skills)}")
     else:
-        steps.append("⚠ скиллы не найдены в репо (wheel-установка?) — MCP и команды работают")
+        steps.append("⚠ скиллы не найдены в репо (wheel-установка?) — команды работают")
 
-    if _install_global_rules(home / ".claude" / "CLAUDE.md", _rules_section()):
-        steps.append("✅ Claude Code: правила памяти в ~/.claude/CLAUDE.md (хуков нет — правила вместо них)")
-    if _install_routes_pointer(home / ".claude" / "CLAUDE.md", base):
-        steps.append("✅ Claude Code: pointer каталога маршрутов в ~/.claude/CLAUDE.md")
+    claude_md = home / ".claude" / "CLAUDE.md"
+    stale_removed = _remove_stale_routes_pointer(claude_md)
+    if _install_global_rules(claude_md, _rules_section(base)):
+        note = " (протухший routes-блок удалён)" if stale_removed else ""
+        steps.append(f"✅ Claude Code: единая секция Memory Curator в ~/.claude/CLAUDE.md{note}")
     return steps

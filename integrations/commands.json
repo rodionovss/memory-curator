@@ -1,42 +1,18 @@
 {
   "curator-save": {
     "description": "Сохранить знания из текущей сессии в базу знаний",
-    "template": "Следуй skill curator-save и его playbook.md. Извлеки только подтверждённые переносимые знания, вызови curator_session_capture, покажи preview и запроси выбор через question. После выбора вызови curator_capture_approve с candidate_id. Если вернулся status=update_project_docs и next_action=curator-update-docs, загрузи curator-update-docs; успех сообщай только после status=completed. В plan/read-only режиме запись запрещена до переключения в режим исполнения."
+    "template": "Следуй скиллу curator-save (SKILL.md + playbook.md): извлеки из сессии только подтверждённые переносимые знания, покажи кандидатов пользователю и сохрани подтверждённые через CLI `curator save` (JSON-кандидаты в stdin; флаг --yes — без повторного вопроса, --session <id> — майнинг сессии). В plan/read-only режиме запись запрещена до переключения в режим исполнения."
   },
   "curator-create-map": {
     "description": "Построить карту документации проекта (вызов скилла mapping-documentation) и подключить маршрутизацию по ней",
-    "template": "Построй карту документации текущего проекта, следуя скиллу mapping-documentation (его SKILL.md): определи корпус документации, следуй его правилам исследования и синтеза. Границы поиска и путь сохранения карты спроси у пользователя — предложи файл DOCUMENTATION-MAP.md внутри базы знаний Memory Curator (путь базы — env CURATOR_BASE_DIR, посмотреть можно в конфиге mcp.memory-curator). После сохранения карты маршрутизация фактов по её темам включится автоматически (ROUTER_CLASS уже настроен)."
-  },
-  "curator-setup": {
-    "description": "Подключить Memory Curator к текущему репозиторию",
-    "template": "Настрой Memory Curator для текущего репозитория: найди карту документации, подготовь project-local MCP-конфиг с CURATOR_STATE_DIR, CURATOR_BASE_DIR и CURATOR_MAP, добавь локальные файлы в .gitignore, покажи preview и запроси подтверждение. Если карты нет, попроси сначала вызвать /curator-create-map. После подтверждения напомни полностью перезапустить клиент."
+    "template": "Построй карту документации текущего проекта, следуя скиллу mapping-documentation (его SKILL.md): определи корпус документации, следуй его правилам исследования и синтеза. Границы поиска и путь сохранения карты спроси у пользователя — предложи файл knowledge-map.md внутри базы знаний Memory Curator (путь базы — env CURATOR_BASE_DIR или `curator status`). После сохранения карты маршрутизация фактов по её темам включится автоматически."
   },
   "curator-status": {
     "description": "Статистика базы знаний: факты, типы, статусы",
-    "template": "Вызови memory-curator_curator_status и покажи результат"
-  },
-  "curator-report": {
-    "description": "Полный отчёт: факты + топ запросов",
-    "template": "Вызови memory-curator_curator_status, затем memory-curator_curator_feedback"
+    "template": "Запусти в терминале команду `curator status` (CLI memory-curator) и покажи результат."
   },
   "curator-query": {
     "description": "Поиск фактов в базе знаний по ключевым словам",
-    "template": "Вызови memory-curator_curator_query с параметром search='$ARGUMENTS' и покажи результат"
-  },
-  "curator-start": {
-    "description": "Запустить фоновый worker (улучшение памяти раз в сутки)",
-    "template": "Запусти в терминале команду `curator start` (CLI memory-curator) и покажи результат. Если `curator` не найдена — путь к CLI рядом с curator-mcp-server из конфига opencode (секция mcp.memory-curator)."
-  },
-  "curator-stop": {
-    "description": "Остановить фоновый worker",
-    "template": "Запусти в терминале команду `curator stop` (CLI memory-curator) и покажи результат. Если `curator` не найдена — путь к CLI рядом с curator-mcp-server из конфига opencode (секция mcp.memory-curator)."
-  },
-  "curator-worker": {
-    "description": "Статус worker + статистика базы (curator status)",
-    "template": "Запусти в терминале команду `curator status` (CLI memory-curator) и покажи результат. Если `curator` не найдена — путь к CLI рядом с curator-mcp-server из конфига opencode (секция mcp.memory-curator)."
-  },
-  "curator-full": {
-    "description": "Полный отчёт за всё время: факты + топ запросов + improve лог",
-    "template": "Запусти в терминале команду `curator report` (CLI memory-curator) и покажи результат. Если `curator` не найдена — путь к CLI рядом с curator-mcp-server из конфига opencode (секция mcp.memory-curator)."
+    "template": "Запусти в терминале команду `curator get '$ARGUMENTS'` (CLI memory-curator) и покажи результат."
   }
 }
