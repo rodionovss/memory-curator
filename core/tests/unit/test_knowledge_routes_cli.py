@@ -236,10 +236,11 @@ class TestWritePublishesPointer:
 
         assert rc == 0
         text = (home / ".config" / "opencode" / "AGENTS.md").read_text(encoding="utf-8")
-        assert "memory-curator-routes:begin" in text
+        assert "memory-curator:begin" in text, "единая секция Curator опубликована"
+        assert "memory-curator-routes:begin" not in text
         assert str(env / "knowledge-routes.md") in text
         assert "curator knowledge-routes --write" in text
-        assert "pointer" in capsys.readouterr().out.lower()
+        assert "секц" in capsys.readouterr().out.lower()
 
     def test_write_publishes_pointer_claude(self, env, tmp_path, monkeypatch):
         home = tmp_path / "home"
@@ -251,7 +252,8 @@ class TestWritePublishesPointer:
 
         assert rc == 0
         text = (home / ".claude" / "CLAUDE.md").read_text(encoding="utf-8")
-        assert "memory-curator-routes:begin" in text
+        assert "memory-curator:begin" in text
+        assert "memory-curator-routes:begin" not in text
         assert str(env / "knowledge-routes.md") in text
 
     def test_write_twice_pointer_not_duplicated(self, env, tmp_path, monkeypatch):
@@ -265,7 +267,7 @@ class TestWritePublishesPointer:
 
         assert rc == 0
         text = (home / ".config" / "opencode" / "AGENTS.md").read_text(encoding="utf-8")
-        assert text.count("memory-curator-routes:begin") == 1
+        assert text.count("memory-curator:begin") == 1
 
     def test_write_without_harnesses_publishes_nothing(self, env, tmp_path):
         store(make_fact("Alpha", source_file="a.md"))
@@ -285,14 +287,14 @@ class TestWritePublishesPointer:
         monkeypatch.setenv("HOME", str(home))
         store(make_fact("Alpha", source_file="a.md"))
 
-        real_install = installer._install_routes_pointer
+        real_install = installer._install_global_rules
 
-        def opencode_boom(rules_path, base):
+        def opencode_boom(rules_path, body):
             if rules_path.name == "AGENTS.md":
                 raise OSError("файл только для чтения")
-            return real_install(rules_path, base)
+            return real_install(rules_path, body)
 
-        monkeypatch.setattr(installer, "_install_routes_pointer", opencode_boom)
+        monkeypatch.setattr(installer, "_install_global_rules", opencode_boom)
 
         rc = control.cmd_knowledge_routes(["--write"])
 
@@ -301,7 +303,7 @@ class TestWritePublishesPointer:
         assert (env / "knowledge-routes.md").exists()
         assert "⚠" in captured.out  # сбой виден как предупреждение, не traceback
         text = (home / ".claude" / "CLAUDE.md").read_text(encoding="utf-8")
-        assert "memory-curator-routes:begin" in text, "второй харнес всё же опубликован"
+        assert "memory-curator:begin" in text, "второй харнес всё же опубликован"
         assert not (home / ".config" / "opencode" / "AGENTS.md").exists()
 
     def test_check_does_not_touch_rules_files(self, env, tmp_path, monkeypatch):

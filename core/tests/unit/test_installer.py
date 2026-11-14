@@ -216,9 +216,11 @@ class TestIdempotencyAndSafety:
 
 class TestKnowledgeRoutesPointer:
     """Placement M2 (эксперимент 05): каталог маршрутов живёт в базе,
-    в глобальном rules-файле — короткая pointer-секция (абсолютный путь
-    + инструкция + hint регенерации). instructions конфига не трогаем,
-    контент каталога в pointer не попадает."""
+    в глобальном rules-файле — единая секция Memory Curator (правила
+    памяти + pointer каталога + hint регенерации). Отдельной
+    routes-секции нет; протухший блок старых установок удаляется.
+    instructions конфига не трогаем, контент каталога в секцию не
+    попадает."""
 
     def _agents_md(self, tmp_path):
         return tmp_path / ".config" / "opencode" / "AGENTS.md"
@@ -244,20 +246,21 @@ class TestKnowledgeRoutesPointer:
         data = json.loads(config_path.read_text(encoding="utf-8"))
         assert "instructions" not in data, "M2: ничего не грузим в контекст через конфиг"
 
-    def test_pointer_in_rules_file_with_abs_path_and_hint(self, tmp_path):
+    def test_single_section_with_catalog_path_and_hint(self, tmp_path):
         base = tmp_path / "kb"
         base.mkdir()
         _opencode_dir(tmp_path)
 
-        steps = installer.install_all(base_dir=str(base))
+        installer.install_all(base_dir=str(base))
 
         text = self._agents_md(tmp_path).read_text(encoding="utf-8")
-        assert "memory-curator-routes:begin" in text
+        assert text.count("memory-curator:begin") == 1, "одна секция Curator"
+        assert "memory-curator-routes:begin" not in text, "отдельной routes-секции больше нет"
         assert str(base / "knowledge-routes.md") in text, "абсолютный путь каталога"
         assert "curator knowledge-routes --write" in text, "hint регенерации"
-        assert any("pointer" in s.lower() for s in steps)
+        assert "/curator-save" in text, "правило сохранения знаний — в той же секции"
 
-    def test_pointer_idempotent_no_duplicates(self, tmp_path):
+    def test_single_section_idempotent(self, tmp_path):
         base = tmp_path / "kb"
         base.mkdir()
         _opencode_dir(tmp_path)
@@ -266,10 +269,30 @@ class TestKnowledgeRoutesPointer:
         installer.install_all(base_dir=str(base))
 
         text = self._agents_md(tmp_path).read_text(encoding="utf-8")
-        assert text.count("memory-curator-routes:begin") == 1
+        assert text.count("memory-curator:begin") == 1
         assert text.count(str(base / "knowledge-routes.md")) == 1
 
-    def test_pointer_keeps_foreign_content(self, tmp_path):
+    def test_stale_routes_block_removed_on_reinstall(self, tmp_path):
+        base = tmp_path / "kb"
+        base.mkdir()
+        _opencode_dir(tmp_path)
+        agents = self._agents_md(tmp_path)
+        agents.write_text(
+            "# Мои правила\n\n"
+            "<!-- memory-curator-routes:begin -->\n"
+            "## Memory Curator — каталог маршрутов базы\n\nстарый дубль\n"
+            "<!-- memory-curator-routes:end -->\n",
+            encoding="utf-8")
+
+        installer.install_all(base_dir=str(base))
+
+        text = agents.read_text(encoding="utf-8")
+        assert "memory-curator-routes:begin" not in text, "протухший блок удалён"
+        assert "старый дубль" not in text
+        assert "# Мои правила" in text, "чужой контент не трогаем"
+        assert text.count("memory-curator:begin") == 1
+
+    def test_section_keeps_foreign_content(self, tmp_path):
         _opencode_dir(tmp_path)
         agents = self._agents_md(tmp_path)
         agents.write_text("# Мои личные правила\n\nНе делать лишнего.\n", encoding="utf-8")
@@ -278,9 +301,9 @@ class TestKnowledgeRoutesPointer:
 
         text = agents.read_text(encoding="utf-8")
         assert "Мои личные правила" in text, "чужой контент вне маркеров не трогаем"
-        assert "memory-curator-routes:begin" in text
+        assert "memory-curator:begin" in text
 
-    def test_no_catalog_content_in_pointer(self, tmp_path):
+    def test_no_catalog_content_in_section(self, tmp_path):
         base = tmp_path / "kb"
         base.mkdir()
         (base / "knowledge-routes.md").write_text(
@@ -291,11 +314,11 @@ class TestKnowledgeRoutesPointer:
         installer.install_all(base_dir=str(base))
 
         text = self._agents_md(tmp_path).read_text(encoding="utf-8")
-        assert "**When to use:**" not in text, "pointer несёт путь, не контент каталога"
+        assert "**When to use:**" not in text, "секция несёт путь, не контент каталога"
         assert "секретный маршрут" not in text
         assert str(base / "knowledge-routes.md") in text
 
-    def test_missing_catalog_file_install_still_writes_pointer(self, tmp_path):
+    def test_missing_catalog_file_section_still_written(self, tmp_path):
         base = tmp_path / "kb"
         base.mkdir()  # без knowledge-routes.md
         _opencode_dir(tmp_path)
@@ -303,10 +326,10 @@ class TestKnowledgeRoutesPointer:
         installer.install_all(base_dir=str(base))
 
         text = self._agents_md(tmp_path).read_text(encoding="utf-8")
-        assert "memory-curator-routes:begin" in text, \
-            "pointer пишется и без файла — hint регенерации в самом pointer"
+        assert "memory-curator:begin" in text, \
+            "секция пишется и без файла — hint регенерации в самой секции"
 
-    def test_claude_pointer_in_claude_md(self, tmp_path, monkeypatch):
+    def test_claude_single_section_in_claude_md(self, tmp_path, monkeypatch):
         _claude_dir(tmp_path)
         project = tmp_path / "proj"
         project.mkdir()
@@ -315,7 +338,8 @@ class TestKnowledgeRoutesPointer:
         installer.install_all(target="claude", base_dir=str(tmp_path / "kb"))
 
         text = (tmp_path / ".claude" / "CLAUDE.md").read_text(encoding="utf-8")
-        assert "memory-curator-routes:begin" in text
+        assert text.count("memory-curator:begin") == 1
+        assert "memory-curator-routes:begin" not in text
         assert str(tmp_path / "kb" / "knowledge-routes.md") in text
         assert "curator knowledge-routes --write" in text
 
@@ -592,4 +616,5 @@ class TestGlobalRules:
 
         text = (tmp_path / ".claude" / "CLAUDE.md").read_text(encoding="utf-8")
         assert "memory-curator:begin" in text
-        assert "/curator-query" in text
+        assert "/curator-save" in text, "правило сохранения знаний в секции"
+        assert "knowledge-routes.md" in text, "pointer каталога с подставленным путём"
