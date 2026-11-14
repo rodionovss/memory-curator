@@ -394,6 +394,75 @@ class TestStateConfigBase:
         assert (configured_base() or "").endswith("memory-curator")
 
 
+class TestUpgradeCleansOldInstall:
+    """Апгрейд установки старой версии (MCP-эпоха): свои мёртвые записи
+    чистятся, база мигрирует из MCP-env в state-конфиг, чужие не тронуты."""
+
+    def _old_opencode_config(self, tmp_path, base):
+        config_path = _opencode_dir(tmp_path) / "opencode.json"
+        config_path.write_text(json.dumps({
+            "mcp": {
+                "figma": {"type": "local", "command": ["node", "x"]},
+                "memory-curator": {"type": "local", "command": ["curator-mcp-server"],
+                                   "environment": {"CURATOR_BASE_DIR": base}},
+            },
+            "plugin": [
+                "superpowers@git+https://github.com/obra/superpowers.git",
+                str(tmp_path / ".config/opencode/plugins/curator-reminder.js"),
+                str(tmp_path / ".config/opencode/plugins/curator-context.js"),
+            ],
+        }), encoding="utf-8")
+        return config_path
+
+    def test_mcp_entry_and_plugins_removed_base_migrated(self, tmp_path):
+        self._old_opencode_config(tmp_path, "/home/user/old-kb")
+
+        steps = installer.install_all()
+
+        data = json.loads((_opencode_dir(tmp_path) / "opencode.json").read_text(encoding="utf-8"))
+        assert "memory-curator" not in data["mcp"], "мёртвая MCP-запись удалена"
+        assert data["mcp"]["figma"]["command"] == ["node", "x"], "чужой mcp цел"
+        plugins = data["plugin"]
+        assert all(not p.endswith((".js")) or "curator" not in p for p in plugins), \
+            "свои plugin[]-записи удалены"
+        assert any("superpowers" in p for p in plugins), "чужие plugin[] целы"
+        from curator.state import configured_base
+        assert configured_base() == "/home/user/old-kb", \
+            "база из старой MCP-записи мигрирована в state-конфиг, не сброшена на дефолт"
+
+    def test_claude_mcp_json_cleaned(self, tmp_path, monkeypatch):
+        _claude_dir(tmp_path)
+        project = tmp_path / "proj"
+        project.mkdir()
+        monkeypatch.chdir(project)
+        (project / ".mcp.json").write_text(json.dumps({
+            "mcpServers": {
+                "other": {"command": "x"},
+                "memory-curator": {"command": "curator-mcp-server",
+                                   "env": {"CURATOR_BASE_DIR": "/home/user/claude-kb"}},
+            },
+        }), encoding="utf-8")
+
+        installer.install_all(target="claude")
+
+        data = json.loads((project / ".mcp.json").read_text(encoding="utf-8"))
+        assert "memory-curator" not in data["mcpServers"], "мёртвая запись удалена"
+        assert data["mcpServers"]["other"] == {"command": "x"}, "чужие целы"
+        from curator.state import configured_base
+        assert configured_base() == "/home/user/claude-kb", "база мигрирована"
+
+    def test_state_config_wins_over_legacy(self, tmp_path):
+        from curator.state import write_configured_base
+        self._old_opencode_config(tmp_path, "/home/user/old-kb")
+        write_configured_base("/home/user/precious-kb")
+
+        installer.install_all()
+
+        from curator.state import configured_base
+        assert configured_base() == "/home/user/precious-kb", \
+            "state-конфиг новее legacy — он и есть истина"
+
+
 class TestNoBackgroundMachinery:
     """Решение 2026-10-03 «ноль фоновых процессов»: install не ставит
     MCP-сервер, worker-демон и delivery-плагины."""

@@ -82,6 +82,16 @@ def _configured_base_dir() -> str | None:
     return configured_base()
 
 
+def _resolve_base_dir() -> Path:
+    """База для write-путей (save / save --doc / improve): полная цепочка.
+
+    env CURATOR_BASE_DIR > state-конфиг > нейтральный дефолт. Единая
+    точка: смена цепочки меняется здесь, а не в каждом вызове.
+    """
+    from curator.state import default_base_dir
+    return Path(_configured_base_dir() or default_base_dir())
+
+
 def cmd_status():
     _header("Curator Status")
 
@@ -296,7 +306,7 @@ def cmd_save(auto_yes: bool = False, hypothesis: bool = False,
         if answer == "y":
             from curator.sync_engine import SyncEngine
             from curator.retrieval_feedback import RetrievalFeedback
-            base_dir = Path(os.getenv("CURATOR_BASE_DIR", os.path.expanduser("~/Documents/AI/personal/learnings")))
+            base_dir = _resolve_base_dir()
             sync = SyncEngine(backend, base_dir)
             fb = RetrievalFeedback()
             saved = 0
@@ -372,7 +382,7 @@ def _git_commit(base_dir: Path, message: str) -> bool:
         if status.returncode != 0 or not status.stdout.strip():
             return False
         subprocess.run(
-            ["git", "-C", str(base_dir), "add", "-A"],
+            ["git", "-C", str(base_dir), "add", "-A", "."],
             capture_output=True, text=True, timeout=15,
         )
         commit = subprocess.run(
@@ -392,8 +402,7 @@ def cmd_save_doc(path: str):
     В SQLite ничего не пишется: файл-знание сам себе единица.
     """
     _header("Curator Save — фиксация документа")
-    base_dir = Path(os.getenv("CURATOR_BASE_DIR",
-                              os.path.expanduser("~/Documents/AI/personal/learnings")))
+    base_dir = _resolve_base_dir()
 
     raw = Path(path).expanduser()
     resolved = raw.resolve() if raw.is_absolute() else (base_dir / raw).resolve()
@@ -492,6 +501,9 @@ def cmd_install():
         idx = args.index("--base-dir")
         if idx + 1 < len(args):
             base_dir = args[idx + 1]
+        else:
+            print("Ошибка: --base-dir требует путь", file=sys.stderr)
+            return
 
     skills_mode = None
     if "--skills-link" in args:
@@ -516,7 +528,7 @@ def cmd_improve():
     # сохраняем legacy lifecycle-синхронизацию Curator-секций.
     from curator.routing.map_router import find_map_path
     if find_map_path() is None:
-        base_dir = Path(os.getenv("CURATOR_BASE_DIR", os.path.expanduser("~/Documents/AI/personal/learnings")))
+        base_dir = _resolve_base_dir()
         from curator.sync_engine import SyncEngine
         sync = SyncEngine(backend, base_dir)
         for f in report.deprecated:
@@ -527,7 +539,6 @@ def cmd_improve():
 
     # Отчёт цикла (раньше писал worker): человек и curator status смотрят
     # историю improve по этим файлам.
-    from datetime import datetime
     report_file = _report_dir() / f"improve_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.json"
     report_data = {
         "timestamp": datetime.now().isoformat(),
@@ -661,7 +672,7 @@ def cmd_knowledge_routes(args: list[str] | None = None) -> int:
 
     base_dir = _resolve_knowledge_routes_base_dir(base_dir)
     if base_dir is None:
-        print("Ошибка: base dir не задан (--base-dir, CURATOR_BASE_DIR или конфиг opencode/.mcp)",
+        print("Ошибка: base dir не задан (--base-dir, env CURATOR_BASE_DIR или ~/.curator/config.json)",
               file=sys.stderr)
         return 2
     if not base_dir.exists():
@@ -677,7 +688,13 @@ def cmd_knowledge_routes(args: list[str] | None = None) -> int:
     # Карта тем — источник истины: есть карта → каталог её проекция
     # (маршруты из таргетов карты, contains — заголовки фактов DB).
     # Нет карты — каталог из самих фактов. Общая сборка с save-путём.
-    result = build_catalog(_make_backend(), base_dir)
+    # Битая карта — ошибка, не молчаливая деградация (см. build_catalog).
+    try:
+        result = build_catalog(_make_backend(), base_dir)
+    except ValueError as e:
+        print(f"Ошибка: {e} — почини карту или удали, каталог не перезаписан",
+              file=sys.stderr)
+        return 2
     routes = list(result.routes)
 
     exit_code = 0
@@ -696,7 +713,7 @@ def cmd_knowledge_routes(args: list[str] | None = None) -> int:
         # Placement M2: указатель на каталог — в rules-файлы найденных
         # харнесов (install-механизм, без дублирования логики)
         from curator import installer
-        for step in installer.publish_routes_pointers(str(base_dir)):
+        for step in installer.publish_rules_sections(str(base_dir)):
             print(f"  {step}")
     elif chosen == ["--check"]:
         target = base_dir / KNOWLEDGE_ROUTES_CATALOG_NAME
@@ -916,8 +933,8 @@ def main():
         session_id = None
         if "--session" in args:
             idx = args.index("--session")
-            if idx + 2 < len(sys.argv):
-                session_id = args[idx + 2]
+            if idx + 1 < len(args):
+                session_id = args[idx + 1]
         cmd_save(auto_yes=auto_yes, hypothesis=hypothesis, session_id=session_id)
     elif cmd == "improve":
         cmd_improve()

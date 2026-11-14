@@ -49,6 +49,11 @@ def find_map_path() -> Path | None:
     if env:
         return Path(env).expanduser()
     base = os.getenv("CURATOR_BASE_DIR", "").strip()
+    if not base:
+        # state-конфиг (пишет curator install) — тот же источник, что у CLI:
+        # дефолтная карта свежей установки видна без ручных env
+        from curator.state import configured_base
+        base = configured_base() or ""
     if base:
         root = Path(base).expanduser()
         for filename in MAP_FILENAMES:

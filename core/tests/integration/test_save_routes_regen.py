@@ -68,6 +68,25 @@ class TestSaveRegeneratesRoutes:
         text = catalog.read_text(encoding="utf-8")
         assert "Cursor-based пагинация" in text
 
+    def test_save_survives_broken_map(self, env, capsys):
+        """Битая карта (YAML-мусор): save успешен, ⚠ в stdout, существующий
+        каталог НЕ затирается деградировавшим рендером."""
+        learnings = env / "learnings"
+        (learnings / "knowledge-map.md").write_text(
+            "---\ntitle: битая\n  - ??? [\n", encoding="utf-8")
+        (learnings / "knowledge-routes.md").write_text(
+            "## compose\n\nстарый каталог\n", encoding="utf-8")
+
+        control.cmd_save(auto_yes=True, raw=json.dumps(CANDIDATES))
+
+        out = capsys.readouterr().out
+        assert "⚠" in out, "битая карта видна как предупреждение, не молчание"
+        backend = LocalBackend(str(env / "knowledge.db"))
+        facts = backend.query_facts(FactQuery(search="Cursor-based"))
+        assert len(facts) == 1, "факт сохранён, несмотря на битую карту"
+        text = (learnings / "knowledge-routes.md").read_text(encoding="utf-8")
+        assert "старый каталог" in text, "каталог не затёрт пустым рендером"
+
     def test_save_survives_regen_failure(self, env, capsys, monkeypatch):
         (env / "learnings" / "knowledge-map.md").write_text(MAP, encoding="utf-8")
 

@@ -86,7 +86,8 @@ def _ensure_default_map(base: str) -> bool:
 
 def default_base_dir() -> str:
     """Дефолт базы знаний — нейтральный путь (не привязан к машине автора)."""
-    return os.path.expanduser("~/memory-curator")
+    from curator.state import default_base_dir as _default
+    return _default()
 
 
 def _repo_root() -> Path:
@@ -206,7 +207,7 @@ def _remove_stale_routes_pointer(rules_path: Path) -> bool:
         rules_path, _ROUTES_POINTER_BEGIN, _ROUTES_POINTER_END)
 
 
-def publish_routes_pointers(base: str) -> list[str]:
+def publish_rules_sections(base: str) -> list[str]:
     """Единая секция Memory Curator (правила + pointer каталога) во все
     обнаруженные харнесы (publish шаг).
 
@@ -290,8 +291,8 @@ def _effective_base(base_dir: str | None) -> str:
     Патч (повторный install) не имеет права сбрасывать существующую
     настройку: без явного --base-dir сохраняем базу из state-конфига
     (~/.curator/config.json); флаг — осознанное переопределение; свежая
-    установка — дефолт. env CURATOR_BASE_DIR установку не связывает —
-    источник истины install'а это state-конфиг.
+    установка — дефолт. Установка старой (MCP-эпохи) версии мигрируется:
+    её CURATOR_BASE_DIR переносится в state-конфиг, а не теряется.
     """
     if base_dir:
         return base_dir
@@ -299,7 +300,59 @@ def _effective_base(base_dir: str | None) -> str:
     existing = configured_base()
     if existing:
         return existing
+    legacy = _legacy_base_from_configs()
+    if legacy:
+        return legacy
     return default_base_dir()
+
+
+def _legacy_base_from_configs() -> str | None:
+    """База из MCP-секций установки старой версии (разовая миграция).
+
+    После ухода от MCP эти секции удаляются install'ом; чтобы апгрейд
+    не молча сбрасывал базу пользователя на дефолт, значение переносится
+    сюда до удаления записей.
+    """
+    home = Path(os.environ.get("HOME", str(Path.home())))
+    candidates = [
+        (home / ".config" / "opencode" / "opencode.json", ("mcp", "memory-curator")),
+        (Path.cwd() / ".mcp.json", ("mcpServers", "memory-curator")),
+    ]
+    for path, (section, key) in candidates:
+        config, error = _read_json_config(path)
+        if config is None:
+            continue
+        entry = (config.get(section) or {}).get(key) or {}
+        env = entry.get("environment") or entry.get("env") or {}
+        base = env.get("CURATOR_BASE_DIR")
+        if isinstance(base, str) and base.strip():
+            return base.strip()
+    return None
+
+
+_RETIRED_PLUGINS = ("curator-context.js", "curator-reminder.js")
+
+
+def _remove_our_mcp_entry(config: dict, section: str = "mcp") -> None:
+    """Удалить свою мёртвую MCP-запись (сервера больше нет).
+
+    Чужие записи секции не трогаем.
+    """
+    entries = config.get(section)
+    if isinstance(entries, dict) and "memory-curator" in entries:
+        entries.pop("memory-curator", None)
+
+
+def _remove_our_plugins(config: dict) -> None:
+    """Удалить свои мёртвые plugin[]-записи (плагинов больше нет)."""
+    plugins = config.get("plugin")
+    if not isinstance(plugins, list):
+        return
+    kept = [p for p in plugins
+            if not (isinstance(p, str) and any(p == n or p.endswith(f"/{n}")
+                                               for n in _RETIRED_PLUGINS))]
+    if kept != plugins:
+        config["plugin"] = kept
 
 
 def _install_footer() -> list[str]:
@@ -358,6 +411,10 @@ def _install_opencode_steps(base_dir: str | None, skills_mode: str) -> list[str]
     base = _effective_base(base_dir)
     from curator.state import write_configured_base
     write_configured_base(base)
+    # Апгрейд: свои мёртвые MCP/plugin-записи от старых версий чистим
+    # (сервера и плагинов больше нет), чужие не трогаем.
+    _remove_our_mcp_entry(config)
+    _remove_our_plugins(config)
     commands = _commands_source()
     installed_commands = config.setdefault("command", {})
     for name in _RETIRED_COMMANDS:
@@ -397,6 +454,14 @@ def _install_claude_steps(base_dir: str | None, skills_mode: str) -> list[str]:
     from curator.state import write_configured_base
     write_configured_base(base)
     steps = [f"✅ Claude Code: база знаний: {base}"]
+
+    # Апгрейд: мёртвая MCP-запись из старой установки в проектном .mcp.json
+    mcp_path = Path.cwd() / ".mcp.json"
+    if mcp_path.exists():
+        project_config, error = _read_json_config(mcp_path)
+        if project_config is not None:
+            _remove_our_mcp_entry(project_config, section="mcpServers")
+            _write_json_config(mcp_path, project_config)
     if _ensure_default_map(base):
         steps.append("◦ Claude Code: дефолтная карта тем создана")
 

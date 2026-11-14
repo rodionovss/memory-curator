@@ -47,3 +47,25 @@ class TestDispatch:
         out = capsys.readouterr().out
         assert "worker" not in out.lower()
         assert "install" in out
+
+    def test_session_flag_passes_id(self, monkeypatch):
+        """`curator save --session <id>` передаёт id, а не литерал флага.
+
+        Регрессия ревью 2026-11-14: sys.argv[idx+2] возвращал сам
+        '--session' — мусорный session_id в журнале аналитики.
+        """
+        captured = {}
+        monkeypatch.setattr(control, "cmd_save", lambda **kw: captured.update(kw))
+        monkeypatch.setattr("sys.argv", ["curator", "save", "--yes", "--session", "ses_123"])
+
+        control.main()
+
+        assert captured["session_id"] == "ses_123"
+        assert captured["auto_yes"] is True
+
+    def test_install_base_dir_without_value_rejected(self, monkeypatch, capsys):
+        monkeypatch.setattr("sys.argv", ["curator", "install", "--base-dir"])
+
+        control.main()
+
+        assert "требует путь" in capsys.readouterr().err

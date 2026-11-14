@@ -124,23 +124,6 @@ curator demo     # полный цикл жизни знания
 .venv/bin/python -m pytest tests/ -v --ignore=tests/smoke
 ```
 
-## MCP конфигурация
-
-```json
-{
-  "mcpServers": {
-    "memory-curator": {
-      "command": "curator-mcp-server",
-      "env": {
-        "CURATOR_STATE_DIR": "/path/to/project/.curator",
-        "CURATOR_BASE_DIR": "/path/to/project",
-        "CURATOR_MAP": "/path/to/project/docs/documentation-map.md"
-      }
-    }
-  }
-}
-```
-
 ## Конфигурация
 
 ```bash

@@ -452,7 +452,12 @@ def run_opencode_demo(n_sessions: int = 3):
 
 def run_ingest_demo(learnings_dir: str | None = None):
     header("DEMO: Ingest реальных .md файлов из learnings/")
-    dir_path = Path(learnings_dir or os.path.expanduser("~/Documents/AI/personal/learnings"))
+    if learnings_dir is None:
+        from curator.state import default_base_dir
+        import os as _os
+        configured = _os.getenv("CURATOR_BASE_DIR", "").strip()
+        learnings_dir = configured or default_base_dir()
+    dir_path = Path(learnings_dir)
     if not dir_path.exists():
         print(f"  Директория не найдена: {dir_path}")
         return

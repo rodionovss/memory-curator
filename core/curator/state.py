@@ -55,3 +55,12 @@ def write_configured_base(base_dir: str) -> None:
         data = {}
     data["base_dir"] = str(base_dir)
     atomic_write_text(path, json.dumps(data, ensure_ascii=False, indent=2) + "\n")
+
+
+def default_base_dir() -> str:
+    """Нейтральный дефолт базы знаний (не привязан к машине автора).
+
+    Цепочка резолва везде одна: env CURATOR_BASE_DIR >
+    configured_base() (state-конфиг) > default_base_dir().
+    """
+    return os.path.expanduser("~/memory-curator")

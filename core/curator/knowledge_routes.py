@@ -179,6 +179,11 @@ def build_catalog(backend, base_dir: Path) -> RouteBuildResult:
 
     Единая точка для CLI (`curator knowledge-routes`) и авто-регенерации
     после `curator save` — пути не расходятся.
+
+    Карта, которая есть на диске, но не парсится (или без тем) — ошибка:
+    молчаливая деградация MapRouter выкатила бы каталог без тем карты и
+    затёрла бы существующие маршруты. ValueError ловят оба потребителя:
+    save деградирует в ⚠ (факты важнее), CLI честно выходит с ошибкой.
     """
     from curator.models import FactQuery
     from curator.routing.map_router import MapRouter, find_map_path
@@ -187,6 +192,10 @@ def build_catalog(backend, base_dir: Path) -> RouteBuildResult:
     map_path = find_map_path()
     if map_path is not None and map_path.exists():
         router = MapRouter(map_path)
+        errors = router.validation_errors()
+        if errors or not router._topics:
+            detail = "; ".join(errors[:3]) if errors else "тем нет"
+            raise ValueError(f"карта {map_path.name} невалидна: {detail}")
         topics = [
             {"name": t.name, "tokens": t.tokens,
              "targets": [tg.path for tg in t.targets]}
