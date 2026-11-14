@@ -2,77 +2,129 @@
 
 # Memory Curator
 
-Библиотекарь для базы знаний AI-агента.
+A librarian for your AI agent's knowledge base.
 
-Знания из сессий не умирают вместе с чатом: модель пишет, куратор решает
-«куда», ловит дубликаты, фиксирует git-коммит и ведёт журнал аналитики.
+Knowledge from sessions doesn't die with the chat: the model writes,
+the curator decides **where it goes**, catches duplicates, commits to
+git and keeps an analytics journal.
 
 </div>
 
-> **Статус: stable, build for myself, use it if you want.**
-> Работающий инструмент: CLI + скилл curator-save, детерминированные
-> проверки (без LLM в бэкенде), оффлайн. История решений -
+> **Status: stable, built for myself, use it if you want.**
+> A working tool: CLI + `curator-save` skill, deterministic checks (no
+> LLM in the backend), fully offline. Decision history (in Russian):
 > [decision-log.md](decision-log.md).
 
 ---
 
-## Установка
+## What it is
+
+A **session-to-knowledge curation layer**: when a session produces a
+verified, reusable insight, the agent proposes it, you confirm, and
+Memory Curator files it into *your* existing Markdown knowledge base —
+the right thematic file, deduplicated, committed.
+
+It is deliberately **not** a memory platform:
+
+| | Claude Auto Memory / OpenCode Supermemory | Basic Memory | **Memory Curator** |
+|---|---|---|---|
+| What gets saved | Model decides automatically | Session checkpoints + notes | **You confirm every save** |
+| Where it goes | The tool's own store | Its knowledge graph | **Your existing Markdown files** |
+| How it returns | Injected into context (search/recall) | Briefings + MCP search | **Pulled on demand via a routes catalog** |
+| Background processes | Capture hooks | Sync service | **None. Zero.** |
+
+If you want an agent that "remembers everything automatically", use
+those. Memory Curator is for the other half of the problem: durable,
+human-owned knowledge that lands where *you* would have put it.
+
+## Install
 
 ```bash
 git clone https://github.com/rodionovss/memory-curator.git
 cd memory-curator
-uv tool install --force ./core   # CLI `curator` в PATH
+uv tool install --force ./core   # puts `curator` CLI on PATH
+curator install                  # detects opencode / Claude Code: commands, skills, rules
 ```
 
-Проверка:
+`curator install` requires no configuration: it creates a starter
+knowledge base (`~/memory-curator`), a default topic map, `/curator-*`
+commands and one memory-rules section in your harness config. No MCP
+server, no daemon, no plugins.
+
+Verify:
 
 ```bash
 cd core && python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
-.venv/bin/python -m pytest tests/ -q --ignore=tests/smoke   # все зелёные
-.venv/bin/curator demo                                      # полный цикл жизни знания
+.venv/bin/python -m pytest tests/ -q    # all green
+.venv/bin/curator demo                  # full life cycle of one knowledge item
 ```
 
-База знаний задаётся `CURATOR_BASE_DIR` (по умолчанию
-`~/Documents/AI/personal/learnings`).
+## How it works
 
-## Что делает
+Content is always written by the model — the curator owns placement and
+discipline:
 
-Контент всегда пишет модель - куратор отвечает за размещение и дисциплину:
+- **Topic map** (`knowledge-map.md`) — the single hand-written source of
+  "topic → file" routes. Routing is deterministic: candidate tags ∩
+  topic tokens. The routes catalog (`knowledge-routes.md`) is a
+  generated read projection of the map — how the agent finds knowledge
+  in later sessions.
+- **Fact cards**: `curator save --yes` — format validation, dedup
+  (word-overlap title match → rejection with a hint), routing,
+  write to `.md` + SQLite, git commit. The routes catalog regenerates
+  in the same commit, so the read path never goes stale.
+- **Knowledge files**: the model writes a topical file (theory +
+  pitfalls), then `curator save --doc <path>` checks the path against
+  the map, commits and logs the event.
+- **Analytics journal** (`analytics.jsonl`) — every event: what was
+  proposed, saved, rejected and why.
+- **Hygiene**: `curator improve` — duplicates, contradictions, stale
+  hypotheses (rules over the base, no LLM).
 
-- **Карта тем** (`knowledge-map.md`) - единственный рукописный источник
-  «тема → файл». Маршрутизация детерминированная: теги кандидата ∩
-  токены темы. Каталог `knowledge-routes.md` - генеримая проекция карты
-  для навигации (чтение).
-- **Карточки**: `curator save --yes` - валидация формата, дедуп
-  (совпадение заголовков по словам → отказ с подсказкой), маршрутизация,
-  запись в `.md` + SQLite, git-коммит.
-- **Файлы-знания**: модель пишет файл темы (теория + грабли), затем
-  `curator save --doc <path>` - проверка пути по карте, git-коммит,
-  событие в журнале аналитики.
-- **Журнал аналитики** (`analytics.jsonl`) - каждое событие: что
-  предлагалось, что сохранено, что отклонено и почему.
-- **Гигиена**: `curator improve` - дубликаты, противоречия, устаревшее
-  (правила над базой, без LLM).
+The knowledge base is plain `.md` files (human-readable, lives in git)
+plus a local SQLite copy for search. Offline by design.
 
-База - обычные `.md`-файлы (человекочитаемы, живут в гите) + локальная
-SQLite-копия для поиска. Работает офлайн.
+Knowledge base location: `CURATOR_BASE_DIR` env → `~/.curator/config.json`
+(written by `curator install`) → default `~/memory-curator`.
 
-## Измерено
+## Measured
 
-10 кодинговых задач со спрятанными правилами, 48 прогонов чистых агентов:
-без памяти - 8/10 (ловушки 0/6), с Memory Curator - **10/10 (ловушки 6/6)**,
-Fisher exact p = 0.0011. Методология: [benchmark/application/](benchmark/application/),
-протокол экспериментов: [benchmark/experiments/](benchmark/experiments/).
+10 coding tasks with hidden rules, 48 clean-agent runs: without memory
+8/10 (traps 0/6), with Memory Curator **10/10 (traps 6/6)**, Fisher
+exact p = 0.0011. Methodology: [benchmark/application/](benchmark/application/),
+experiment protocols: [benchmark/experiments/](benchmark/experiments/).
 
-## Структура
+## Repository layout
 
-| Папка | Что |
-|-------|-----|
-| `core/` | ядро (Python): backend, gatekeeper, improve loop, routing, CLI, harness-чеки |
-| `core/tests/requirements/` | тесты требований - имя теста = ID требования |
-| `design/` | контракты (Router, Knowledge Route Metadata), ADR, backlog |
-| `benchmark/` | эксперименты: применение знаний, extraction eval, retrieval |
-| `docs/` | гайды: getting-started, self-improvement-loop |
+| Path | What |
+|------|------|
+| `core/` | the Python core: backend, gatekeeper, improve loop, routing, CLI, harness checks |
+| `core/tests/requirements/` | requirement tests — test name = requirement ID |
+| `.agents/skills/` | harness-agnostic skills (`curator-save`, `mapping-documentation`) |
+| `integrations/` | what `curator install` ships: commands, rules section |
+| `design/` | contracts (Router, Knowledge Route Metadata), ADRs, backlog |
+| `benchmark/` | experiments: knowledge application, extraction eval, retrieval |
+| `docs/` | guides: getting-started, self-improvement-loop |
 
-Решения и их причины - [decision-log.md](decision-log.md).
-Будущее - [design/backlog.md](design/backlog.md).
+Decisions and their reasons — [decision-log.md](decision-log.md) (RU).
+What's next — [design/backlog.md](design/backlog.md) (RU).
+
+## FAQ
+
+**Why not just let the agent remember?** Auto-memory optimizes for "the
+agent recalls"; Curator optimizes for "the human still owns a clean,
+navigable base in five years". Different jobs — they compose.
+
+**Does it inject knowledge into every session?** No. One short rules
+section points at the routes catalog; the agent reads the catalog when
+a task touches a known topic, then opens the source file. Pull, not
+push (placement validated by experiment M2 — see
+`benchmark/experiments/05-route-placement.md`).
+
+**Which harnesses?** Any agent that can run shell commands and load a
+skill: OpenCode and Claude Code are wired out of the box
+(`curator install`); the skill is plain Markdown + CLI calls.
+
+**What about project-local docs?** `save --doc` and the
+`mapping-documentation` skill route project knowledge into a project
+map; deeper project write-back is on the backlog.

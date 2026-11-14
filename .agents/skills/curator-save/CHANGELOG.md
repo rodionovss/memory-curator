@@ -33,8 +33,8 @@
 - Пивот 2026-10-03 (см. ../../decision-log.md): MCP-церемония
   (`curator_session_capture` → approve → `curator-update-docs` → complete)
   заменена одним вызовом CLI `curator save --auto-yes`.
-- Кандидаты в первую очередь берутся из леджера задачи
-  `.opencode/features/<task-id>/progress.md`, контекст сессии - fallback.
+- Кандидаты в первую очередь берутся из леджера задачи харнесса
+  (у OpenCode: `.opencode/features/<task-id>/progress.md`), контекст сессии - fallback.
 - Контент-контракт усилен: Rule + Why + условие применения (было 1-2
   предложения - контекста не хватало).
 - Корректировки: повторный вызов с тем же title = upsert секции, не дубль.
