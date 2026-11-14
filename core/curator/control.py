@@ -15,9 +15,8 @@
 import os
 import sys
 import json
-import time
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from curator.fs import atomic_write_text
 

@@ -56,7 +56,6 @@ Verify:
 ```bash
 cd core && python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 .venv/bin/python -m pytest tests/ -q    # all green
-.venv/bin/curator demo                  # full life cycle of one knowledge item
 ```
 
 ## How it works
@@ -78,8 +77,6 @@ discipline:
   the map, commits and logs the event.
 - **Analytics journal** (`analytics.jsonl`) — every event: what was
   proposed, saved, rejected and why.
-- **Hygiene**: `curator improve` — duplicates, contradictions, stale
-  hypotheses (rules over the base, no LLM).
 
 The knowledge base is plain `.md` files (human-readable, lives in git)
 plus a local SQLite copy for search. Offline by design.
@@ -98,13 +95,13 @@ experiment protocols: [benchmark/experiments/](benchmark/experiments/).
 
 | Path | What |
 |------|------|
-| `core/` | the Python core: backend, gatekeeper, improve loop, routing, CLI, harness checks |
+| `core/` | the Python core: backend, gatekeeper, routing, CLI, installer |
 | `core/tests/requirements/` | requirement tests — test name = requirement ID |
 | `.agents/skills/` | harness-agnostic skills (`curator-save`, `mapping-documentation`) |
 | `integrations/` | what `curator install` ships: commands, rules section |
 | `design/` | contracts (Router, Knowledge Route Metadata), ADRs, backlog |
 | `benchmark/` | experiments: knowledge application, extraction eval, retrieval |
-| `docs/` | guides: getting-started, self-improvement-loop |
+| `docs/` | guides: getting-started |
 
 Decisions and their reasons — [decision-log.md](decision-log.md) (RU).
 What's next — [design/backlog.md](design/backlog.md) (RU).

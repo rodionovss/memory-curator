@@ -11,16 +11,8 @@
     "description": "Статистика базы знаний: факты, типы, статусы",
     "template": "Запусти в терминале команду `curator status` (CLI memory-curator) и покажи результат."
   },
-  "curator-report": {
-    "description": "Полный отчёт: факты + топ запросов",
-    "template": "Запусти в терминале команду `curator report` (CLI memory-curator) и покажи результат."
-  },
   "curator-query": {
     "description": "Поиск фактов в базе знаний по ключевым словам",
     "template": "Запусти в терминале команду `curator get '$ARGUMENTS'` (CLI memory-curator) и покажи результат."
-  },
-  "curator-full": {
-    "description": "Полный отчёт за всё время: факты + топ запросов + improve лог",
-    "template": "Запусти в терминале команду `curator report` (CLI memory-curator) и покажи результат."
   }
 }

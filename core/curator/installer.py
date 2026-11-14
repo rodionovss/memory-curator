@@ -23,7 +23,8 @@ from curator.fs import atomic_write_text
 
 
 _RETIRED_COMMANDS = ("curator-project-save", "curator-setup",
-                     "curator-start", "curator-stop", "curator-worker")
+                     "curator-start", "curator-stop", "curator-worker",
+                     "curator-report", "curator-full")
 _RETIRED_SKILLS = ("curator-project-save",)
 # Синхронен control.KNOWLEDGE_ROUTES_CATALOG_NAME (локальная копия — без импорта control)
 _ROUTES_CATALOG_NAME = "knowledge-routes.md"

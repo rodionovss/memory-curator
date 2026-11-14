@@ -122,6 +122,8 @@ class TestIdempotencyAndSafety:
         assert "curator-start" not in data["command"], "ноль фоновых процессов"
         assert "curator-stop" not in data["command"]
         assert "curator-worker" not in data["command"]
+        assert "curator-report" not in data["command"], "report снесён (2026-11-14)"
+        assert "curator-full" not in data["command"]
 
     def test_curator_save_command_points_to_skill(self):
         command = installer._commands_source()["curator-save"]

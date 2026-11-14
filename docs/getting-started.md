@@ -2,10 +2,10 @@
 
 > Начать использовать сегодня. Без погружения в кишки.
 
-> **CLI-only (решение 2026-10-03, доведено до кода):** MCP-сервер,
-> worker-демон и delivery-плагины удалены. Единственный вход — CLI
-> `curator` + скиллы; фоновых процессов нет, improve запускается
-> вручную.
+> **CLI-only (решение 2026-10-03):** MCP-сервер, worker-демон и
+> delivery-плагины удалены; минимизация 2026-11-14 снесла также
+> improve-контур и demo. Единственный вход — CLI `curator` + скиллы;
+> фоновых процессов нет.
 
 ## 0. Установка
 
@@ -35,12 +35,7 @@ opencode / Claude Code — готово.
 ## 1. Первый запуск (TERMINAL)
 
 ```bash
-# Тур: полный цикл жизни знания за 1 минуту
-# (gatekeeper → write-back → query → improve → телеметрия, всё на изолированной базе)
-curator demo            # посмотреть и удалить
-curator demo --keep     # оставить файлы для осмотра
-
-# Статус базы: где база, сколько фактов, последний improve
+# Статус базы: где база, сколько фактов, capture-сводка
 curator status
 ```
 
@@ -52,7 +47,6 @@ curator status
 | `/curator-create-map` | Построить карту документации проекта и подключить маршрутизацию |
 | `/curator-status` | Сколько фактов, по типам и статусам, где база |
 | `/curator-query "kotlin"` | Поиск фактов перед работой |
-| `/curator-report` | Статус + топ запросов + improve-лог |
 
 Извлечение делает сам агент (он LLM), CLI управляет данными —
 LLM-вызовов в бэкенде нет.
@@ -102,17 +96,13 @@ topics:
 
 | Команда | Что делает |
 |---------|-----------|
-| `curator status` | Где база, сколько фактов, последний improve |
+| `curator status` | Где база, сколько фактов, capture-сводка |
 | `curator save` | Кандидаты (JSON из stdin, извлекает агент) → gatekeeper → подтверждение → сохранить |
 | `curator save -y` | То же без подтверждения (скрипты/бенчмарки) |
 | `curator save --doc <путь>` | Зафиксировать файл-знание (проверка по карте + коммит) |
 | `curator get "kotlin"` | Поиск фактов |
-| `curator report` | Сводка за всё время: топ запросов, improve события, забытые факты |
-| `curator report -d 3` | Сводка за последние 3 дня |
-| `curator improve` | Ручной improve-цикл (дубликаты, противоречия, устаревшее) + отчёт |
 | `curator knowledge-routes --write` | Регенерация каталога маршрутов (после save не нужна — он обновляется сам) |
 | `curator install` | Установка без вопросов: автодетект opencode / Claude Code (флаги `--opencode/--claude/--base-dir` — только для скриптов) |
-| `curator demo` | Тур: полный жизненный цикл знания на изолированной базе |
 
 ## 4. Ритм использования
 
@@ -120,22 +110,12 @@ topics:
 |-------|-----------|---------|
 | **В течение дня** | Сохранять знания из сессий | `/curator-save` в OpenCode |
 | **Перед задачей** | Свериться с базой (агент делает сам по правилам) | `/curator-query "kotlin"` |
-| **Раз в 3 дня** | Гигиена базы | `curator improve` |
-| **Пятница** | Итоги недели | `curator report` |
+| **Иногда** | Проверить сводку | `curator status` |
 
-Фоновых процессов нет: improve запускаешь ты, когда удобно.
+Аналитика сохранений (предложено/сохранено/отклонено) — в `curator status`
+и журнале `analytics.jsonl`; историю базы показывает `git log` базы.
 
-## 5. Что делает improve (по команде)
-
-1. **Дубликаты** — находит → consolidation (с eval-проверкой)
-2. **Устаревшие** — hypothesis → deprecation (с eval-проверкой)
-3. **Противоречия** — детект + авто-разрешение (verified > hypothesis > deprecated)
-4. **Телеметрия** — usage-статистика (`curator report`): какие знания
-   читают, какие забыты — совет человеку, автоматика не казнит
-   (таймерного decay нет: время не делает факт ложным)
-5. **Observability** — JSONL запись всех действий с метриками до/после
-
-## 6. Конфигурация
+## 5. Конфигурация
 
 ```bash
 # Все служебные файлы в одном каталоге (default: ~/.curator)
@@ -148,15 +128,12 @@ export CURATOR_BASE_DIR=/path/to/kb
 export CURATOR_MAP=/path/to/kb/knowledge-map.md
 ```
 
-## 7. Где что лежит
+## 6. Где что лежит
 
 | Что | Где |
 |-----|-----|
 | `curator` CLI | `uv tool` / `.venv/bin/curator` |
-| Improve-лог | `$CURATOR_STATE_DIR/improve_events.jsonl` |
-| Usage-статистика | `$CURATOR_STATE_DIR/usage.json` |
-| Improve-отчёты | `$CURATOR_STATE_DIR/reports/improve_*.json` |
-| База SQLite | `$CURATOR_STATE_DIR/knowledge.db` |
+| База SQLite (картотека дедупа) | `$CURATOR_STATE_DIR/knowledge.db` |
 | Журнал аналитики | `$CURATOR_STATE_DIR/analytics.jsonl` |
 
 Сгенерированный каталог маршрутов уровня файла (`knowledge-routes.md`):
@@ -166,7 +143,7 @@ Placement (M2, [ADR 003](../design/decisions/003-delivery-decision.md)):
 каталог живёт в базе; `curator install` публикует в rules-файлы
 харнессов одну секцию-указатель, агент читает каталог по требованию.
 
-## 8. История и эксперименты
+## 7. История и эксперименты
 
 - Решения и их причины: [decision-log.md](../decision-log.md)
 - A/B скиллов curator-save vs save-knowledge завершён 14.11.2026:
