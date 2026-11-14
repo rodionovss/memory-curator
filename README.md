@@ -79,7 +79,8 @@ discipline:
   proposed, saved, rejected and why.
 
 The knowledge base is plain `.md` files (human-readable, lives in git)
-plus a local SQLite copy for search. Offline by design.
+plus a local SQLite card index of titles that powers the dedup check.
+Offline by design.
 
 Knowledge base location: `CURATOR_BASE_DIR` env → `~/.curator/config.json`
 (written by `curator install`) → default `~/memory-curator`.
@@ -96,7 +97,6 @@ experiment protocols: [benchmark/experiments/](benchmark/experiments/).
 | Path | What |
 |------|------|
 | `core/` | the Python core: backend, gatekeeper, routing, CLI, installer |
-| `core/tests/requirements/` | requirement tests — test name = requirement ID |
 | `.agents/skills/` | harness-agnostic skills (`curator-save`, `mapping-documentation`) |
 | `integrations/` | what `curator install` ships: commands, rules section |
 | `design/` | contracts (Router, Knowledge Route Metadata), ADRs, backlog |
