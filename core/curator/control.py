@@ -369,6 +369,16 @@ def cmd_save(auto_yes: bool = False, hypothesis: bool = False,
                 fb.record_save(fact.title)
                 saved += 1
             print(f"  ✅ Сохранено: {saved} фактов (статус: {status})")
+            # Петля чтения не протухает: каталог регенерируется тем же
+            # ходом, что и факты (детерминированный рендер). Сбой каталога
+            # не валит save — факты важнее, предупреждение видно.
+            try:
+                from curator.knowledge_routes import render_catalog
+                catalog_path = base_dir / "knowledge-routes.md"
+                atomic_write_text(catalog_path, render_catalog(backend, base_dir))
+                print(f"  ✅ Каталог маршрутов обновлён: {catalog_path}")
+            except Exception as e:
+                print(f"    ⚠ каталог маршрутов не перегенерирован: {e}")
             if saved:
                 first_title = result.approved[0].title
                 if saved == 1:
@@ -764,30 +774,15 @@ def cmd_knowledge_routes(args: list[str] | None = None) -> int:
         return 2
 
     from curator.knowledge_routes import (
-        build_routes,
-        build_routes_from_map,
+        build_catalog,
         render_routes_json,
         render_routes_markdown,
     )
-    from curator.models import FactQuery
-
-    facts = _make_backend().query_facts(FactQuery())
 
     # Карта тем — источник истины: есть карта → каталог её проекция
     # (маршруты из таргетов карты, contains — заголовки фактов DB).
-    # Нет карты — старое поведение: каталог из самих фактов.
-    from curator.routing.map_router import MapRouter, find_map_path
-    map_path = find_map_path()
-    if map_path is not None and map_path.exists():
-        router = MapRouter(map_path)
-        topics = [
-            {"name": t.name, "tokens": t.tokens,
-             "targets": [tg.path for tg in t.targets]}
-            for t in router._topics
-        ]
-        result = build_routes_from_map(topics, facts, base_dir)
-    else:
-        result = build_routes(facts, base_dir)
+    # Нет карты — каталог из самих фактов. Общая сборка с save-путём.
+    result = build_catalog(_make_backend(), base_dir)
     routes = list(result.routes)
 
     exit_code = 0
