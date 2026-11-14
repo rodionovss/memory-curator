@@ -4,7 +4,6 @@ version = "0.1.0"
 description = "Self-improving knowledge base agent for AI agents"
 requires-python = ">=3.12"
 dependencies = [
-    "mcp>=1.0",
     "pydantic>=2.0",
     "rich>=13.0",
     "pyyaml>=6.0",
@@ -16,8 +15,6 @@ dev = [
 ]
 
 [project.scripts]
-curator-mcp-server = "curator.server:main"
-curator-worker = "curator.worker:main"
 curator = "curator.control:main"
 
 [build-system]

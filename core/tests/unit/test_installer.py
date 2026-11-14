@@ -16,12 +16,6 @@ def isolated_home(tmp_path, monkeypatch):
     return tmp_path
 
 
-@pytest.fixture(autouse=True)
-def no_worker(monkeypatch):
-    from curator import daemon
-    monkeypatch.setattr(daemon, "ensure_worker", lambda: "Worker уже запущен (pid 1)")
-
-
 def _opencode_dir(home):
     d = home / ".config" / "opencode"
     d.mkdir(parents=True, exist_ok=True)
@@ -38,10 +32,12 @@ class TestAutoDetect:
     def test_opencode_only(self, tmp_path):
         _opencode_dir(tmp_path)
         steps = installer.install_all()
-        assert any("opencode: MCP" in s for s in steps)
-        assert not any("Claude Code: MCP" in s for s in steps)
+        assert any("opencode: команды" in s for s in steps)
+        assert not any("Claude Code:" in s for s in steps), \
+            "футер упоминает Claude Code — шагов его установки быть не должно"
         config = json.loads((tmp_path / ".config" / "opencode" / "opencode.json").read_text(encoding="utf-8"))
-        assert config["mcp"]["memory-curator"]["environment"]["ROUTER_CLASS"] == "curator.routing.map_router.MapRouter"
+        assert "curator-save" in config["command"], \
+            "MCP-машинерии нет: ставим команды, скиллы и правила"
 
     def test_claude_only(self, tmp_path, monkeypatch):
         _claude_dir(tmp_path)
@@ -51,10 +47,10 @@ class TestAutoDetect:
 
         steps = installer.install_all()
 
-        assert any("Claude Code: MCP" in s for s in steps)
+        assert any("Claude Code" in s for s in steps)
         assert not (tmp_path / ".config" / "opencode" / "opencode.json").exists(), \
             "opencode не найден — его конфиг не создаём"
-        assert (project / ".mcp.json").exists()
+        assert not (project / ".mcp.json").exists(), "MCP-конфиг не пишется"
         assert (tmp_path / ".claude" / "commands" / "curator-create-map.md").exists()
 
     def test_both_detected_installed_both(self, tmp_path, monkeypatch):
@@ -67,7 +63,7 @@ class TestAutoDetect:
         installer.install_all()
 
         assert (tmp_path / ".config" / "opencode" / "opencode.json").exists()
-        assert (project / ".mcp.json").exists()
+        assert (tmp_path / ".claude" / "CLAUDE.md").exists()
 
     def test_nothing_detected_opencode_layout_with_hint(self, tmp_path):
         steps = installer.install_all()
@@ -82,7 +78,7 @@ class TestAutoDetect:
 
         installer.install_all(target="claude")
 
-        assert (project / ".mcp.json").exists()
+        assert (tmp_path / ".claude" / "CLAUDE.md").exists()
         assert not (tmp_path / ".config" / "opencode").exists()
 
 
@@ -97,8 +93,8 @@ class TestZeroQuestions:
     def test_base_dir_flag_silent_override(self, tmp_path):
         _opencode_dir(tmp_path)
         installer.install_all(base_dir=str(tmp_path / "custom-kb"))
-        config = json.loads((tmp_path / ".config" / "opencode" / "opencode.json").read_text(encoding="utf-8"))
-        assert config["mcp"]["memory-curator"]["environment"]["CURATOR_BASE_DIR"] == str(tmp_path / "custom-kb")
+        from curator.state import configured_base
+        assert configured_base() == str(tmp_path / "custom-kb")
 
     def test_default_base_neutral(self):
         assert installer.default_base_dir().endswith("memory-curator")
@@ -110,7 +106,6 @@ class TestIdempotencyAndSafety:
         config_path = _opencode_dir(tmp_path) / "opencode.json"
         config_path.write_text(json.dumps({
             "model": "gpt-test",
-            "mcp": {"other": {"command": "x"}},
             "command": {"my-command": {"description": "моя", "template": "т"}},
         }), encoding="utf-8")
 
@@ -118,30 +113,31 @@ class TestIdempotencyAndSafety:
 
         data = json.loads(config_path.read_text(encoding="utf-8"))
         assert data["model"] == "gpt-test"
-        assert data["mcp"]["other"] == {"command": "x"}
         assert data["command"]["my-command"]["description"] == "моя"
         assert "curator-save" in data["command"]
         assert "curator-create-map" in data["command"]
         assert "curator-project-save" not in data["command"]
-        assert "curator-setup" in data["command"]
+        assert "curator-setup" not in data["command"], \
+            "project-local setup отложен до редизайна без MCP"
+        assert "curator-start" not in data["command"], "ноль фоновых процессов"
+        assert "curator-stop" not in data["command"]
+        assert "curator-worker" not in data["command"]
 
     def test_curator_save_command_points_to_skill(self):
         command = installer._commands_source()["curator-save"]
         assert "curator-save" in command["template"]
-        assert "status=update_project_docs" in command["template"]
-        assert "next_action=curator-update-docs" in command["template"]
-        assert "CURATOR_MAP" not in command["template"]
-        assert "curator_session_capture" in command["template"]
-        assert "curator_capture_approve" in command["template"]
-        assert "auto_approve" not in command["template"]
+        assert "curator save" in command["template"], \
+            "команда ведёт к CLI-флоу скилла, не к MCP-тулам"
+        assert "curator_session_capture" not in command["template"]
+        assert "curator_capture_approve" not in command["template"]
         assert "curator-project-save" not in installer._commands_source()
 
-    def test_project_setup_command_documents_project_paths(self):
-        setup = installer._commands_source()["curator-setup"]["template"]
-        assert "CURATOR_STATE_DIR" in setup
-        assert "CURATOR_BASE_DIR" in setup
-        assert "CURATOR_MAP" in setup
-        assert "/curator-create-map" in setup
+    def test_commands_reference_cli_not_mcp(self):
+        for name, spec in installer._commands_source().items():
+            assert "memory-curator_" not in spec["template"], \
+                f"команда {name} ссылается на MCP-тулы, которых больше нет"
+            assert "mcp.memory-curator" not in spec["template"], \
+                f"команда {name} ссылается на MCP-конфиг, которого больше нет"
 
     def test_idempotent_rerun(self, tmp_path):
         _opencode_dir(tmp_path)
@@ -355,65 +351,80 @@ class TestConfiguredBaseDir:
         out = capsys.readouterr().out
         assert str(tmp_path / "kb") in out, "curator status показывает, где лежит база"
 
-    def test_server_status_shows_base(self, tmp_path):
-        import curator.server as server_mod
-        from curator.backend.local import LocalBackend
-        from curator.improve_loop import ImproveLoop
-        server_mod.backend = LocalBackend(":memory:")
-        server_mod.improve = ImproveLoop(server_mod.backend)
-        out = server_mod._status()
-        assert "База знаний:" in out
-        assert "Состояние:" in out
 
+class TestStateConfigBase:
+    """База персистится в state-конфиге (~/.curator/config.json), не в
+    MCP-секциях: env > state-конфиг > дефолт. Патч не сбрасывает базу."""
 
-class TestServerCommand:
-    def test_returns_command_and_args(self):
-        command, args = installer._server_command()
-        assert Path(command).exists()
-        assert isinstance(args, list)
+    def test_install_writes_state_config(self, tmp_path):
+        _opencode_dir(tmp_path)
 
+        installer.install_all(base_dir=str(tmp_path / "kb"))
 
-class TestPatchPreservesBase:
-    """Патч (повторный install) не имеет права сбрасывать существующую
-    базу: без --base-dir сохраняем CURATOR_BASE_DIR из установленной
-    секции; флаг — осознанное переопределение; свежая установка — дефолт."""
-
-    def _existing_config(self, tmp_path, base):
-        config_path = _opencode_dir(tmp_path) / "opencode.json"
-        config_path.write_text(json.dumps({
-            "mcp": {"memory-curator": {
-                "command": "old-server",
-                "env": {
-                    "CURATOR_BASE_DIR": base,
-                    "CURATOR_STATE_DIR": "/home/user/project/.curator",
-                    "CURATOR_MAP": "/home/user/project/DOCUMENTATION-MAP.md",
-                },
-            }},
-        }), encoding="utf-8")
-        return config_path
+        from curator.state import configured_base
+        assert configured_base() == str(tmp_path / "kb")
 
     def test_existing_base_preserved_on_patch(self, tmp_path):
-        self._existing_config(tmp_path, "/home/user/precious-kb")
+        from curator.state import write_configured_base
+        _opencode_dir(tmp_path)
+        write_configured_base("/home/user/precious-kb")
+
         installer.install_all()
-        data = json.loads((_opencode_dir(tmp_path) / "opencode.json").read_text(encoding="utf-8"))
-        assert data["mcp"]["memory-curator"]["environment"]["CURATOR_BASE_DIR"] == "/home/user/precious-kb", \
+
+        from curator.state import configured_base
+        assert configured_base() == "/home/user/precious-kb", \
             "патч обязан сохранять существующую базу — молчаливый сброс = потеря базы"
-        assert "ROUTER_CLASS" in data["mcp"]["memory-curator"]["environment"], \
-            "остальное при патче обновляется"
-        assert data["mcp"]["memory-curator"]["environment"]["CURATOR_STATE_DIR"] == "/home/user/project/.curator"
-        assert data["mcp"]["memory-curator"]["environment"]["CURATOR_MAP"] == "/home/user/project/DOCUMENTATION-MAP.md"
 
     def test_base_dir_flag_overrides_existing(self, tmp_path):
-        self._existing_config(tmp_path, "/home/user/old-kb")
+        from curator.state import write_configured_base
+        _opencode_dir(tmp_path)
+        write_configured_base("/home/user/old-kb")
+
         installer.install_all(base_dir="/home/user/new-kb")
-        data = json.loads((_opencode_dir(tmp_path) / "opencode.json").read_text(encoding="utf-8"))
-        assert data["mcp"]["memory-curator"]["environment"]["CURATOR_BASE_DIR"] == "/home/user/new-kb"
+
+        from curator.state import configured_base
+        assert configured_base() == "/home/user/new-kb"
 
     def test_fresh_install_gets_default(self, tmp_path):
         _opencode_dir(tmp_path)
+
         installer.install_all()
-        data = json.loads((_opencode_dir(tmp_path) / "opencode.json").read_text(encoding="utf-8"))
-        assert data["mcp"]["memory-curator"]["environment"]["CURATOR_BASE_DIR"].endswith("memory-curator")
+
+        from curator.state import configured_base
+        assert (configured_base() or "").endswith("memory-curator")
+
+
+class TestNoBackgroundMachinery:
+    """Решение 2026-10-03 «ноль фоновых процессов»: install не ставит
+    MCP-сервер, worker-демон и delivery-плагины."""
+
+    def test_no_mcp_section_written(self, tmp_path):
+        config_path = _opencode_dir(tmp_path) / "opencode.json"
+        config_path.write_text('{"mcp": {"other": {"command": "x"}}}', encoding="utf-8")
+
+        installer.install_all()
+
+        data = json.loads(config_path.read_text(encoding="utf-8"))
+        assert "memory-curator" not in data.get("mcp", {}), \
+            "MCP-сервер Curator не регистрируется"
+        assert data["mcp"]["other"] == {"command": "x"}, "чужие mcp не трогаем"
+
+    def test_no_plugins_installed(self, tmp_path):
+        _opencode_dir(tmp_path)
+
+        installer.install_all()
+
+        assert not (tmp_path / ".config" / "opencode" / "plugins" / "curator-reminder.js").exists()
+        assert not (tmp_path / ".config" / "opencode" / "plugins" / "curator-context.js").exists()
+
+    def test_no_worker_step(self, tmp_path):
+        _opencode_dir(tmp_path)
+
+        steps = installer.install_all()
+
+        assert not any("Worker:" in s or "worker не поднялся" in s for s in steps), \
+            "worker-демон не поднимается установкой"
+        assert not (tmp_path / ".curator" / "worker.pid").exists()
 
 
 class TestSkillSymlinkDest:
@@ -456,38 +467,6 @@ def _repo_root_for_test():
     return _repo_root()
 
 
-class TestOpencodeMcpSchema:
-    """Регрессия живых инцидентов. Официальная схема opencode
-    (opencode.ai/docs/mcp-servers):
-      1) без type=local+enabled — старт падает (ConfigInvalidError)
-      2) command — МАССИВ, переменные — ключ environment (не env):
-         отклонение = сервер молча не стартует, его нет в списке MCP
-    """
-
-    def test_opencode_entry_matches_official_schema(self, tmp_path):
-        _opencode_dir(tmp_path)
-        installer.install_all()
-        entry = json.loads((_opencode_dir(tmp_path) / "opencode.json").read_text(encoding="utf-8"))["mcp"]["memory-curator"]
-        assert entry["type"] == "local"
-        assert entry["enabled"] is True
-        assert isinstance(entry["command"], list) and entry["command"], \
-            "command обязан быть массивом (команда и аргументы) — строка = сервер молча не стартует"
-        assert "environment" in entry and "env" not in entry, \
-            "переменные окружения в opencode живут под ключом environment"
-        assert entry["environment"]["CURATOR_BASE_DIR"]
-
-    def test_claude_entry_own_schema(self, tmp_path, monkeypatch):
-        _claude_dir(tmp_path)
-        project = tmp_path / "proj"
-        project.mkdir()
-        monkeypatch.chdir(project)
-        installer.install_all()
-        entry = json.loads((project / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"]["memory-curator"]
-        assert "type" not in entry and "environment" not in entry, \
-            "у Claude Code своя схема: command (строка) + env"
-        assert isinstance(entry["command"], str) and entry["env"]["CURATOR_BASE_DIR"]
-
-
 class TestJsoncTolerance:
     """Конфиги правят руками — jsonc-хвосты (запятая перед } или ]) не должны
     ломать установку; записываем обратно чистым JSON (лечим конфиг)."""
@@ -502,7 +481,7 @@ class TestJsoncTolerance:
         text = config_path.read_text(encoding="utf-8")
         data = json.loads(text)  # записанное обязано быть строгим JSON
         assert data["model"] == "x"
-        assert "memory-curator" in data["mcp"]
+        assert "curator-save" in data["command"], "команды установлены в вылеченном конфиге"
 
     def test_real_user_scenario_after_manual_removal(self, tmp_path):
         """Инцидент: пользователь руками вырезал секцию и оставил запятую."""
@@ -517,10 +496,37 @@ class TestJsoncTolerance:
 
         data = json.loads(config_path.read_text(encoding="utf-8"))
         assert data["mcp"]["gitlab"]["url"] == "https://x", "чужой mcp цел"
-        entry = data["mcp"]["memory-curator"]
-        assert entry["type"] == "local" and entry["enabled"] is True
-        assert entry["environment"]["CURATOR_BASE_DIR"] == "/home/user/kb"
+        assert "memory-curator" not in data["mcp"], "своих MCP-записей не пишем"
         assert data["command"]["skill-creator"]["description"] == "d"
+        assert "curator-save" in data["command"]
+        from curator.state import configured_base
+        assert configured_base() == "/home/user/kb"
+
+
+class TestDefaultMap:
+    """Новому пользователю нечего настраивать: install создаёт дефолтную
+    knowledge-map.md, существующую карту не трогает."""
+
+    def test_install_creates_default_map(self, tmp_path):
+        _opencode_dir(tmp_path)
+
+        installer.install_all(base_dir=str(tmp_path / "kb"))
+
+        from curator.routing.map_router import MapRouter
+        router = MapRouter(tmp_path / "kb" / "knowledge-map.md")
+        assert router._topics, "дефолтная карта валидна и непуста"
+        assert not router.validation_errors()
+
+    def test_existing_map_not_overwritten(self, tmp_path):
+        _opencode_dir(tmp_path)
+        kb = tmp_path / "kb"
+        kb.mkdir()
+        (kb / "knowledge-map.md").write_text("Моя карта", encoding="utf-8")
+
+        installer.install_all(base_dir=str(kb))
+
+        assert (kb / "knowledge-map.md").read_text(encoding="utf-8") == "Моя карта", \
+            "существующая карта — источник истины, дефолт её не заменяет"
 
 
 class TestGlobalRules:
@@ -552,59 +558,6 @@ class TestGlobalRules:
         installer.install_all()
         text = (tmp_path / ".config" / "opencode" / "AGENTS.md").read_text(encoding="utf-8")
         assert text.count("memory-curator:begin") == 1, "повторный install не дублирует секцию"
-
-    def test_plugin_installed(self, tmp_path):
-        _opencode_dir(tmp_path)
-        installer.install_all()
-        plugin = tmp_path / ".config" / "opencode" / "plugins" / "curator-reminder.js"
-        assert plugin.exists()
-        assert "session.idle" in plugin.read_text(encoding="utf-8")
-
-    def test_context_plugin_installed_and_refreshed(self, tmp_path):
-        """Task 10: установщик копирует/обновляет curator-context.js, не трогая чужие."""
-        _opencode_dir(tmp_path)
-        plugins = tmp_path / ".config" / "opencode" / "plugins"
-        plugins.mkdir(parents=True)
-        stale = plugins / "curator-context.js"
-        stale.write_text("// старая копия", encoding="utf-8")
-        (plugins / "my-plugin.js").write_text("// пользовательский", encoding="utf-8")
-
-        installer.install_all()
-
-        assert "chat.message" in stale.read_text(encoding="utf-8"), \
-            "своя копия обновляется до версии репо (idемпотентный refresh)"
-        assert (plugins / "curator-reminder.js").exists()
-        assert (plugins / "my-plugin.js").read_text(encoding="utf-8") == "// пользовательский", \
-            "пользовательские плагины не трогаем"
-
-    def test_plugins_registered_in_config_plugin_array(self, tmp_path):
-        """Desktop OpenCode 1.18 не автозагружает ~/.config/opencode/plugins/ —
-        плагины обязаны быть прописаны в plugin[] абсолютными путями
-        (дебаг 2026-09-18)."""
-        import json
-        _opencode_dir(tmp_path)
-        cfg = tmp_path / ".config" / "opencode" / "opencode.json"
-        cfg.write_text(json.dumps({"plugin": ["superpowers@git+https://github.com/obra/superpowers.git"]}), encoding="utf-8")
-
-        installer.install_all()
-
-        config = json.loads(cfg.read_text(encoding="utf-8"))
-        plugin = config["plugin"]
-        assert "superpowers@git+https://github.com/obra/superpowers.git" in plugin, \
-            "чужие записи plugin[] не трогаем"
-        assert str(tmp_path / ".config" / "opencode" / "plugins" / "curator-context.js") in plugin
-        assert str(tmp_path / ".config" / "opencode" / "plugins" / "curator-reminder.js") in plugin
-
-    def test_plugins_registration_idempotent(self, tmp_path):
-        """Повторный install не дублирует записи plugin[]."""
-        import json
-        _opencode_dir(tmp_path)
-        installer.install_all()
-        installer.install_all()
-        cfg = tmp_path / ".config" / "opencode" / "opencode.json"
-        config = json.loads(cfg.read_text(encoding="utf-8"))
-        ctx_entries = [p for p in config["plugin"] if p.endswith("curator-context.js")]
-        assert len(ctx_entries) == 1, "повторный install не дублирует plugin[]"
 
     def test_claude_rules_in_claude_md(self, tmp_path, monkeypatch):
         _claude_dir(tmp_path)

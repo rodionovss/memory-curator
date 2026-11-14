@@ -38,20 +38,18 @@ def iso_feedback(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def server_memory(tmp_path, monkeypatch):
-    """MCP-функции сервера на :memory: бэкенде — без записи в реальную базу."""
-    import curator.server as server_mod
+def cli_memory(tmp_path, monkeypatch):
+    """CLI-флоу (cmd_save) на изолированной базе — без записи в реальную.
 
-    be = LocalBackend(":memory:")
-    monkeypatch.setattr(server_mod, "backend", be)
-    monkeypatch.setattr(server_mod, "gatekeeper", Gatekeeper(be))
-    monkeypatch.setattr(server_mod, "feedback", RetrievalFeedback(storage_path=str(tmp_path / "usage.json")))
-    monkeypatch.setattr(server_mod, "base_dir", tmp_path)
-    monkeypatch.setenv("CURATOR_BASE_DIR", str(tmp_path))
+    После ухода от MCP-сервера (решение 2026-10-03) единственный вход
+    записи — `curator save`; тесты требований идут через него же.
+    """
+    monkeypatch.setenv("CURATOR_DB_PATH", str(tmp_path / "knowledge.db"))
+    monkeypatch.setenv("CURATOR_BASE_DIR", str(tmp_path / "kb"))
+    monkeypatch.setenv("CURATOR_USAGE_PATH", str(tmp_path / "usage.json"))
     monkeypatch.delenv("CURATOR_MAP", raising=False)
-    monkeypatch.delenv("AUTO_MODE", raising=False)
-    with server_mod._captures_lock:
-        server_mod._pending_captures.clear()
+    (tmp_path / "kb").mkdir()
+    be = LocalBackend(str(tmp_path / "knowledge.db"))
     return be
 
 

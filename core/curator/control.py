@@ -12,11 +12,8 @@
     curator knowledge-routes   — каталог маршрутов базы (Markdown/JSON/write/check)
 
 Конфигурация:
-    CURATOR_STATE_DIR: SQLite, логи и worker state (default: ~/.curator)
-    IMPROVE_INTERVAL_MINUTES: интервал daemon (default: 1440 = сутки)
-    CURATOR_DELIVERY_MODE: режим `curator context` — off (default) | shadow | inject
-    CURATOR_SESSION_ID: id сессии OpenCode в shadow/inject событиях (форвардит плагин)
-    CURATOR_SHADOW_LOG_PATH: лог событий доставки (default: <state>/delivery-shadow.jsonl)
+    CURATOR_STATE_DIR: SQLite, логи и state (default: ~/.curator)
+
 """
 
 import os
@@ -41,35 +38,6 @@ def _improve_log() -> Path:
 def _usage_json() -> Path:
     from curator.state import env_path
     return env_path("CURATOR_USAGE_PATH", "usage.json")
-
-
-def _project_root() -> Path:
-    current = Path.cwd().resolve()
-    return next((path for path in (current, *current.parents) if (path / ".git").exists()), current)
-
-
-def _project_mcp_env() -> dict:
-    root = _project_root()
-    candidates = [
-        (root / ".opencode" / "opencode.json", "mcp"),
-        (root / "opencode.json", "mcp"),
-        (root / ".mcp.json", "mcpServers"),
-    ]
-    for path, section in candidates:
-        try:
-            config = json.loads(path.read_text(encoding="utf-8"))
-            entry = config.get(section, {}).get("memory-curator", {})
-            environment = entry.get("environment") or entry.get("env") or {}
-            if environment:
-                return environment
-        except (OSError, json.JSONDecodeError, AttributeError):
-            continue
-    return {}
-
-
-def _apply_project_mcp_env() -> None:
-    for name, value in _project_mcp_env().items():
-        os.environ.setdefault(str(name), str(value))
 
 
 def _header(title: str):
@@ -102,38 +70,20 @@ def _table(headers: list[str], rows: list[list], title: str = ""):
 
 
 def _configured_base_dir() -> str | None:
-    """База из установленного конфига (opencode.json / .mcp.json), env или None."""
-    import json
-    home = Path(os.environ.get("HOME") or Path.home())
+    """База из env или state-конфига (~/.curator/config.json), иначе None.
+
+    MCP-секции больше не источник истины (решение 2026-10-03):
+    env CURATOR_BASE_DIR > state-конфиг, записанный `curator install`.
+    """
     configured = os.getenv("CURATOR_BASE_DIR")
     if configured:
         return configured
-    candidates = [
-        (home / ".config" / "opencode" / "opencode.json", ("mcp", "memory-curator")),
-        (Path.cwd() / ".mcp.json", ("mcpServers", "memory-curator")),
-    ]
-    for path, (section, key) in candidates:
-        try:
-            cfg = json.loads(path.read_text(encoding="utf-8"))
-            entry = cfg.get(section, {}).get(key, {})
-            env = entry.get("environment") or entry.get("env") or {}
-            base = env.get("CURATOR_BASE_DIR")
-            if base:
-                return base
-        except (OSError, json.JSONDecodeError, AttributeError):
-            continue
-    return None
+    from curator.state import configured_base
+    return configured_base()
 
 
 def cmd_status():
     _header("Curator Status")
-
-    from curator.daemon import read_pid, is_running, pid_is_curator_worker
-    pid = read_pid()
-    if pid and is_running(pid) and pid_is_curator_worker(pid):
-        print(f"  Worker: ✅ запущен (pid {pid})")
-    else:
-        print("  Worker: ⛔ остановлен")
 
     base = _configured_base_dir()
     if base:
@@ -166,9 +116,6 @@ def cmd_status():
         applied = sum(1 for e in today if e.get("applied"))
         skipped = sum(1 for e in today if not e.get("applied"))
         print(f"  Событий сегодня: {len(today)} (применено: {applied}, отклонено: {skipped})")
-
-    interval = os.getenv("IMPROVE_INTERVAL_MINUTES", "1440")
-    print(f"\n  Интервал improve: {interval} мин ({_human_interval(int(interval))})")
 
     try:
         from curator import candidates_log
@@ -521,87 +468,6 @@ def cmd_get(query: str = ""):
     _table(["Факт", "Тип", "Статус", "Теги"], rows)
 
 
-def _delivery_mode() -> str:
-    """CURATOR_DELIVERY_MODE: off | shadow | inject. Опечатка → off (fail-safe)."""
-    mode = (os.getenv("CURATOR_DELIVERY_MODE") or "").strip().lower()
-    return mode if mode in ("off", "shadow", "inject") else "off"
-
-
-def cmd_context(args: list[str] | None = None):
-    """curator context '<текст задачи>' — ranked context cards (стабильный JSON).
-
-    Транспорт плагина OpenCode (ADR 002). Режим CURATOR_DELIVERY_MODE:
-    off (default) — пустой контракт без retrieval; shadow — retrieval и
-    локальное shadow-событие, карточки не возвращаются; inject — событие
-    и возврат карточек. Retrieval всегда с feedback=None: proactive
-    доставка не считается ручным доступом пользователя.
-    """
-    import json as json_mod
-
-    args = list(args if args is not None else sys.argv[2:] if len(sys.argv) > 2 else [])
-    flags = ("-j", "--json")
-    pretty = any(a in ("-t", "--text") for a in args)
-    rest = [a for a in args if a not in flags + ("-t", "--text")]
-
-    options = {"limit": 3, "token_budget": 500, "relevance_threshold": 0.4}
-    for i, a in enumerate(rest):
-        if a in ("--limit", "--budget", "--threshold") and i + 1 < len(rest):
-            options[{"--limit": "limit", "--budget": "token_budget", "--threshold": "relevance_threshold"}[a]] = (
-                int(rest[i + 1]) if a != "--threshold" else float(rest[i + 1])
-            )
-        elif a == "--types" and i + 1 < len(rest):
-            options["types"] = [t.strip() for t in rest[i + 1].split(",") if t.strip()]
-
-    trigger = " ".join(a for a in rest if not a.startswith("--"))
-    mode = _delivery_mode()
-    result = {"cards": [], "count": 0}
-    if trigger and mode != "off":
-        from curator import shadow_log
-        from curator.delivery import fetch_context
-
-        session_id = os.getenv("CURATOR_SESSION_ID") or None
-        started = time.perf_counter()
-        near_misses: list[tuple[str, float]] = []
-        try:
-            cards = fetch_context(trigger, _make_backend(), None, near_misses=near_misses, **options)
-        except Exception as e:
-            # Сбой retrieval — не наблюдение: событие не пишется, CLI жив
-            print(f"curator: context delivery недоступен: {e}", file=sys.stderr, flush=True)
-            cards = None
-        if cards is not None:
-            latency_ms = int((time.perf_counter() - started) * 1000)
-            shadow_log.log_event(
-                trigger, cards, mode=mode, session_id=session_id,
-                delivered=(mode == "inject" and bool(cards)),
-                latency_ms=latency_ms,
-                near_miss_titles=[t for t, _ in near_misses],
-                near_miss_scores=[s for _, s in near_misses],
-            )
-            if mode == "inject":
-                result = {"cards": [card.__dict__ for card in cards], "count": len(cards)}
-
-    if pretty:
-        if result["cards"]:
-            for c in result["cards"]:
-                print(f"{c['score']:.2f} {c['title']} ({c['type']}, {', '.join(c['tags'])})")
-                print(f"  {c['summary'][:300]}")
-                print(f"  → {c['source_file'] or '(нет файла)'} | {c['reason']}\n")
-        else:
-            print("  Релевантных фактов нет (silent).")
-    else:
-        print(json_mod.dumps(result, ensure_ascii=False, indent=2))
-
-
-def cmd_start():
-    from curator.daemon import ensure_worker
-    print(ensure_worker())
-
-
-def cmd_stop():
-    from curator.daemon import stop_worker
-    print(stop_worker())
-
-
 def cmd_demo():
     args = sys.argv[2:]
     keep = "--keep" in args
@@ -658,6 +524,35 @@ def cmd_improve():
                 sync.rewrite_status(f)
             except Exception as e:
                 print(f"  ⚠ write-back в .md не удался для '{f.title[:50]}': {e}")
+
+    # Отчёт цикла (раньше писал worker): человек и curator status смотрят
+    # историю improve по этим файлам.
+    from datetime import datetime
+    report_file = _report_dir() / f"improve_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.json"
+    report_data = {
+        "timestamp": datetime.now().isoformat(),
+        "stats": report.stats,
+        "duplicates": [
+            {"title1": f1.title, "title2": f2.title}
+            for f1, f2 in report.duplicates
+        ],
+        "stale": [
+            {"title": f.title, "status": f.status}
+            for f in report.stale
+        ],
+    }
+    if report.metrics_before and report.metrics_after:
+        report_data["metrics"] = {
+            "before": {"query_coverage": report.metrics_before.query_coverage,
+                       "total_facts": report.metrics_before.total_facts},
+            "after": {"query_coverage": report.metrics_after.query_coverage,
+                      "total_facts": report.metrics_after.total_facts},
+        }
+    try:
+        report_file.parent.mkdir(parents=True, exist_ok=True)
+        report_file.write_text(json.dumps(report_data, ensure_ascii=False, indent=2), encoding="utf-8")
+    except OSError as e:
+        print(f"  ⚠ отчёт improve не записан: {e}")
 
     print(f"  Фактов: {report.stats['total_facts']}")
     print(f"  Дубликатов: {report.stats['duplicates_found']}")
@@ -974,7 +869,6 @@ def _human_interval(minutes: int) -> str:
 
 
 def main():
-    _apply_project_mcp_env()
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(errors="replace")
@@ -983,18 +877,31 @@ def main():
         print("curator — Memory Curator CLI")
         print("Использование:")
         print("  curator save              — сохранить кандидатов (JSON из stdin, извлекает агент)")
-        print("  curator start             — запустить worker daemon")
-        print("  curator stop              — остановить worker")
-        print("  curator status            — worker + факты + improve + capture-сводка")
+        print("  curator status            — база + факты + improve + capture-сводка")
         print("  curator improve           — ручной improve цикл")
+        print("  curator install           — установка в opencode / Claude Code")
+        print("  curator get '<запрос>'    — поиск фактов по ключевым словам")
+        print("  curator report            — отчёт: факты + топ запросов")
+        print("  curator demo              — полный цикл жизни знания (тур)")
         print()
-        print("Служебные: knowledge-routes (каталог маршрутов базы)")
-        print("Конфигурация: IMPROVE_INTERVAL_MINUTES")
+        print("Служебные: knowledge-routes (каталог маршрутов базы), sessions, candidates")
         return
 
     cmd = sys.argv[1].lower()
     if cmd == "status":
         cmd_status()
+    elif cmd == "install":
+        cmd_install()
+    elif cmd == "demo":
+        cmd_demo()
+    elif cmd == "get":
+        cmd_get(" ".join(sys.argv[2:]) if len(sys.argv) > 2 else "")
+    elif cmd == "report":
+        cmd_report()
+    elif cmd == "sessions":
+        cmd_sessions()
+    elif cmd == "candidates":
+        cmd_candidates()
     elif cmd == "save":
         args = sys.argv[2:]
         if "--doc" in args:
@@ -1012,17 +919,14 @@ def main():
             if idx + 2 < len(sys.argv):
                 session_id = args[idx + 2]
         cmd_save(auto_yes=auto_yes, hypothesis=hypothesis, session_id=session_id)
-    elif cmd == "start":
-        cmd_start()
-    elif cmd == "stop":
-        cmd_stop()
     elif cmd == "improve":
         cmd_improve()
     elif cmd == "knowledge-routes":
         sys.exit(cmd_knowledge_routes(sys.argv[2:]))
     else:
         print(f"Неизвестная команда: {cmd}")
-        print("Доступные: save, start, stop, status, improve (+ служебная knowledge-routes)")
+        print("Доступные: save, status, improve, install, get, report, demo "
+              "(+ служебные knowledge-routes, sessions, candidates)")
 
 
 if __name__ == "__main__":

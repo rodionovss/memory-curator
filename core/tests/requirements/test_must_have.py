@@ -21,7 +21,6 @@ from curator.demo import run_demo
 from curator.gatekeeper import Gatekeeper
 from curator.improve_loop import ImproveLoop
 from curator.models import StructuredFact, FactQuery
-import curator.server as server_mod
 
 CANDIDATE = {
     "type": "Reference",
@@ -46,19 +45,23 @@ class TestMustHave:
         assert len(found) == 1
         assert found[0].source_file == "kotlin.md", "факт обязан знать свой источник"
 
-    def test_R2_цикл_выполнил_оценил_извлёк_урок(self, server_memory, tmp_path, monkeypatch):
-        """R2: review → human approval → semantic docs → backend; шум отсечён."""
+    def test_R2_цикл_выполнил_оценил_извлёк_урок(self, cli_memory, tmp_path, monkeypatch, capsys):
+        """R2: gatekeeper-ревью → подтверждение → write-back по карте →
+        backend; шум отсечён. Вход — CLI `curator save` (MCP-сервера нет)."""
+        import curator.control as control
+
         noise = {
             "type": "Reference",
             "title": "Поправить верстку кнопки на экране входа",
             "content_summary": "Мелкая правка интерфейса в рамках задачи.",
             "tags": ["ui"],
         }
-        map_path = tmp_path / "DOCUMENTATION-MAP.md"
+        map_path = tmp_path / "knowledge-map.md"
         map_path.write_text(
             """---
 topics:
   - name: mcp
+    watch_for: mcp, python
     targets:
       - path: docs/mcp.md
         captures: [knowledge]
@@ -69,30 +72,15 @@ topics:
         )
         monkeypatch.setenv("CURATOR_MAP", str(map_path))
 
-        reviewed = json.loads(server_mod._session_capture({"candidates": [CANDIDATE, noise]}))
-        assert len(reviewed["eligible"]) == 1
-        assert len(reviewed["rejected"]) == 1, "шум-кандидат обязан быть отклонён gatekeeper-ом"
-        assert server_memory.query_facts(FactQuery()) == []
+        control.cmd_save(auto_yes=True,
+                         raw=json.dumps({"candidates": [CANDIDATE, noise]}))
+        out = capsys.readouterr().out
 
-        approved = json.loads(server_mod._capture_approve({
-            "capture_id": reviewed["capture_id"],
-            "selected_candidate_ids": ["1"],
-        }))
-        assert approved["status"] == "update_project_docs"
-        target = tmp_path / "docs" / "mcp.md"
-        target.parent.mkdir()
-        target.write_text("# MCP\n\nХендлеры принимают ctx и request.\n", encoding="utf-8")
-        completed = json.loads(server_mod._capture_complete({
-            "capture_id": reviewed["capture_id"],
-            "placements": [{
-                "candidate_id": "1", "topic": "mcp", "target": "docs/mcp.md",
-                "capture": "knowledge", "canonical_file": "docs/mcp.md",
-                "changed_files": ["docs/mcp.md"],
-            }],
-        }))
-        assert completed["status"] == "completed"
-        assert len(server_memory.query_facts(FactQuery(search="MCP"))) == 1
-        assert not (tmp_path / "session").exists()
+        assert "Одобрено: 1" in out
+        assert "Отклонено: 1" in out, "шум-кандидат обязан быть отклонён gatekeeper-ом"
+        assert len(cli_memory.query_facts(FactQuery(search="MCP"))) == 1
+        assert (tmp_path / "kb" / "docs" / "mcp.md").exists(), \
+            "write-back идёт в таргет карты, не в session/"
 
     def test_R3_поведение_меняется_на_основе_опыта(self, iso_observability):
         """R3: improve loop сам находит дубликаты и консолидирует их."""

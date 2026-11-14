@@ -16,8 +16,6 @@ from curator.backend.local import LocalBackend
 from curator.eval_runner import EvalRunner
 from curator.improve_loop import ImproveLoop
 from curator.models import StructuredFact, FactQuery
-import curator.server as server_mod
-import curator.worker as worker_mod
 
 CANDIDATE = {
     "type": "Reference",
@@ -50,7 +48,8 @@ class TestNiceToHave:
             "Неподтверждённая гипотеза про docker деплой": {"count": 0, "last_access": now - 100 * 86400},
         }), encoding="utf-8")
 
-        worker_mod.run_improve_cycle(be, tmp_path / "reports")
+        worker_cycle = ImproveLoop(be)
+        worker_cycle.run()
 
         statuses = {f.title: f.status for f in be.query_facts(FactQuery())}
         assert statuses["Правило про использование Retrofit в сетевом модуле"] == "verified", \
@@ -89,12 +88,18 @@ class TestNiceToHave:
         allowing = runner.evaluate_deprecation([valuable, junk], [junk])
         assert allowing.improved, "удаление мусора не роняет метрики — gate обязан разрешить"
 
-    def test_N4_human_in_the_loop(self, server_memory):
-        """N4: review требует явного human approval и ничего не сохраняет."""
-        out = json.loads(server_mod._session_capture({"candidates": [CANDIDATE]}))
-        assert out["status"] == "needs_human_approval"
-        assert len(out["eligible"]) == 1
-        assert len(server_memory.query_facts(FactQuery())) == 0, "база обязана остаться пустой без approve"
+    def test_N4_human_in_the_loop(self, cli_memory, monkeypatch, capsys):
+        """N4: без явного подтверждения человека (y) ничего не сохраняется."""
+        import curator.control as control
+
+        monkeypatch.setattr("builtins.input", lambda: "n")
+
+        control.cmd_save(auto_yes=False, raw=json.dumps({"candidates": [CANDIDATE]}))
+        out = capsys.readouterr().out
+
+        assert "Сохранение отменено" in out
+        assert len(cli_memory.query_facts(FactQuery())) == 0, \
+            "база обязана остаться пустой без подтверждения человека"
 
     def test_N5_observability_логирует_улучшения(self, iso_observability):
         """N5: каждое improve-действие попадает в JSONL-лог с трейсом."""
