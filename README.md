@@ -10,10 +10,11 @@ git and keeps an analytics journal.
 
 </div>
 
-> **Status: stable, built for myself, use it if you want.**
-> A working tool: CLI + `curator-save` skill, deterministic checks (no
-> LLM in the backend), fully offline. Decision history (in Russian):
-> [decision-log.md](decision-log.md).
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+> **Status: stable.** A working tool: CLI + `curator-save` skill,
+> deterministic checks (no LLM in the backend), fully offline.
+> Decision history (in Russian): [decision-log.md](decision-log.md).
 
 ---
 
@@ -37,14 +38,41 @@ If you want an agent that "remembers everything automatically", use
 those. Memory Curator is for the other half of the problem: durable,
 human-owned knowledge that lands where *you* would have put it.
 
+The whole loop, one picture:
+
+```mermaid
+flowchart LR
+    s["Agent session"] -->|"verified insight + your confirm"| save["curator save"]
+    save --> gk["gatekeeper\nformat check + dedup"]
+    gk --> map["knowledge-map.md\n(single source of truth)"]
+    map --> md["thematic .md file\n+ git commit"]
+    md --> routes["routes catalog\n(knowledge-routes.md)"]
+    routes -->|"pull: a later session reads the catalog"| s
+```
+
+## Why
+
+| Pain | Curator answer |
+|---|---|
+| A hard-won insight dies with the chat — the next session hits the same wall again | The save flow runs *before* the session closes: skill → `curator save` |
+| Auto-memory `MEMORY.md` fills with session noise nobody curated | Every save is confirmed by you; the gatekeeper rejects duplicates with a hint |
+| Six months in, nobody remembers which file a fact lives in | The topic map routes each fact into the right thematic file — deterministically |
+| Knowledge-base edits pile up uncommitted, forever "almost done" | Every save is a git commit; the routes catalog regenerates in the same commit |
+
 ## Install
 
 ```bash
 git clone https://github.com/rodionovss/memory-curator.git
 cd memory-curator
-uv tool install --force ./core   # puts `curator` CLI on PATH
-curator install                  # detects opencode / Claude Code: commands, skills, rules
+uv tool install --force -e ./core   # `curator` CLI on PATH; repo edits apply live
+curator install                     # detects opencode / Claude Code: commands, skills, rules
 ```
+
+The clone is not optional: `curator install` ships commands and rules
+from the repo's `integrations/`, and an editable install (`-e`) is what
+keeps them reachable. A wheel-only install (`uv tool install ./core`
+without `-e`) puts just the CLI on PATH — `curator install` will refuse
+to run and tell you so, instead of half-installing silently.
 
 `curator install` requires no configuration: it creates a starter
 knowledge base (`~/memory-curator`), a default topic map, `/curator-*`
@@ -99,12 +127,11 @@ experiment protocols: [benchmark/experiments/](benchmark/experiments/).
 | `core/` | the Python core: backend, gatekeeper, routing, CLI, installer |
 | `.agents/skills/` | harness-agnostic skills (`curator-save`, `mapping-documentation`) |
 | `integrations/` | what `curator install` ships: commands, rules section |
-| `design/` | contracts (Router, Knowledge Route Metadata), ADRs, backlog |
+| `design/` | contracts (Router, Knowledge Route Metadata), ADRs |
 | `benchmark/` | experiments: knowledge application, extraction eval, retrieval |
 | `docs/` | guides: getting-started |
 
 Decisions and their reasons — [decision-log.md](decision-log.md) (RU).
-What's next — [design/backlog.md](design/backlog.md) (RU).
 
 ## FAQ
 
@@ -124,4 +151,8 @@ skill: OpenCode and Claude Code are wired out of the box
 
 **What about project-local docs?** `save --doc` and the
 `mapping-documentation` skill route project knowledge into a project
-map; deeper project write-back is on the backlog.
+map.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
