@@ -27,8 +27,6 @@ cd core
 |------|-----|
 | `core/curator/` | код: `backend/` (SQLite), `gatekeeper.py`, `sync_engine.py`, `knowledge_routes.py` (каталог чтения), `routing/` (карта тем), `control.py` (CLI), `installer.py` |
 | `core/tests/requirements/` | **главный suite**: 1 тест = 1 требование (R1-R6, N1-N5, UC2), трассировочная матрица в README там же |
-| `design/` | архитектура: `requirements.md`, `spec.md`, `decision-log.md` (история решений), `decisions/` (ADR) |
-| `docs/getting-started.md` | установка, CLI, карта тем, ритм использования |
 | `integrations/` | что ставит `curator install`: команды, rules-секция, контракт харнесс-адаптеров |
 | `.agents/skills/` | канонический source of truth product skills; workflow — в `playbook.md` |
 
@@ -39,4 +37,3 @@ cd core
 - Факты: natural key `title`, UPSERT; статусы `verified / hypothesis / deprecated`
 - Коммиты в репо — только с `CURATOR_MAINTAINER=1` (гард от автокоммитов агентов)
 - Не коммитить: `.venv`, `*.db`, `.env` — закрыто `.gitignore`
-- Полный бэклог: `design/backlog.md`

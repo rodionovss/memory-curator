@@ -1,6 +1,6 @@
 """Тесты CLI curator knowledge-routes: render/json/write/check + exit-коды.
 
-Контракт: design/knowledge-route-format.md + task-3 brief. Тестируют реальное
+Тестируют реальное
 поведение CLI (парсинг → выполнение → exit code), stdout машинных режимов
 остаётся чистым (ошибки — в stderr).
 """

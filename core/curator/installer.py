@@ -29,6 +29,12 @@ _RETIRED_SKILLS = ("curator-project-save",)
 # Синхронен control.KNOWLEDGE_ROUTES_CATALOG_NAME (локальная копия — без импорта control)
 _ROUTES_CATALOG_NAME = "knowledge-routes.md"
 
+_REPO_ASSETS = ("integrations/commands.json", "integrations/curator-rules.md")
+
+
+class RepoAssetsMissingError(RuntimeError):
+    pass
+
 # Дефолтная карта для нового пользователя: стандартная структура базы,
 # правка опциональна. Формат — скилл mapping-documentation (MapRouter).
 _DEFAULT_MAP_TEMPLATE = """---
@@ -93,6 +99,22 @@ def default_base_dir() -> str:
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
+
+
+def _check_repo_assets() -> None:
+    root = _repo_root()
+    missing = [rel for rel in _REPO_ASSETS if not (root / rel).exists()]
+    if missing:
+        raise RepoAssetsMissingError(
+            "Установка невозможна: нет ресурсов репо — " + ", ".join(missing)
+            + f" (искал в {root}).\n"
+            "  Похоже, curator установлен не из клона: site-packages не содержит integrations/.\n"
+            "  Рабочий путь:\n"
+            "    git clone https://github.com/rodionovss/memory-curator.git\n"
+            "    cd memory-curator\n"
+            "    uv tool install --force -e ./core\n"
+            "    curator install"
+        )
 
 
 def _install_skills(dest_root: Path, mode: str = "preserve") -> list[Path]:
@@ -373,6 +395,7 @@ def install_all(
     skills_mode: str | None = None,
 ) -> list[str]:
     """Установка без вопросов: автодетект → ставим во всё найденное."""
+    _check_repo_assets()
     skills_mode = skills_mode or os.getenv("CURATOR_SKILLS_MODE", "preserve")
     do_opencode, do_claude = detect_harnesses()
     steps: list[str] = []

@@ -30,7 +30,7 @@
 
 ## 0.3.0
 
-- Пивот 2026-10-03 (см. ../../decision-log.md): MCP-церемония
+- Пивот 2026-10-03: MCP-церемония
   (`curator_session_capture` → approve → `curator-update-docs` → complete)
   заменена одним вызовом CLI `curator save --auto-yes`.
 - Кандидаты в первую очередь берутся из леджера задачи харнесса
