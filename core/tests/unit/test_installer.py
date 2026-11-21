@@ -642,3 +642,34 @@ class TestGlobalRules:
         assert "memory-curator:begin" in text
         assert "/curator-save" in text, "правило сохранения знаний в секции"
         assert "knowledge-routes.md" in text, "pointer каталога с подставленным путём"
+
+
+class TestRepoAssetsGuard:
+    def test_missing_integrations_raises_with_fix_hint(self, tmp_path, monkeypatch):
+        _opencode_dir(tmp_path)
+        fake_root = tmp_path / "site-packages"
+        fake_root.mkdir()
+        monkeypatch.setattr(installer, "_repo_root", lambda: fake_root)
+
+        with pytest.raises(installer.RepoAssetsMissingError) as exc:
+            installer.install_all()
+
+        message = str(exc.value)
+        assert "integrations/commands.json" in message, "называем отсутствующий файл"
+        assert "uv tool install" in message, "подсказка рабочего пути установки"
+        assert "cd memory-curator" in message, "подсказка синхронна с README-флоу (clone → cd → -e ./core)"
+
+    def test_cli_refusal_exits_nonzero(self, tmp_path, monkeypatch, capsys):
+        import sys
+
+        from curator import control
+        _opencode_dir(tmp_path)
+        fake_root = tmp_path / "site-packages"
+        fake_root.mkdir()
+        monkeypatch.setattr(installer, "_repo_root", lambda: fake_root)
+        monkeypatch.setattr(sys, "argv", ["curator", "install"])
+
+        with pytest.raises(SystemExit) as exc:
+            control.cmd_install()
+
+        assert exc.value.code == 1, "отказ установки ≠ успех для вызывающего скрипта"

@@ -119,8 +119,6 @@ class TestSavePreviewShowsTarget:
 
 
 class TestGitCommit:
-    """0.4.0: после save — локальный git-коммит базы (без push)."""
-
     @staticmethod
     def _init_repo(path):
         import subprocess
@@ -135,7 +133,7 @@ class TestGitCommit:
         self._init_repo(tmp_path)
         (tmp_path / "base.md").write_text("знание", encoding="utf-8")
 
-        assert control._git_commit(tmp_path, "curator: тест") is True
+        assert control._git_commit(tmp_path, "curator: тест") == "committed"
         log = subprocess.run(
             ["git", "-C", str(tmp_path), "log", "-1", "--format=%s"],
             capture_output=True, text=True).stdout
@@ -149,11 +147,49 @@ class TestGitCommit:
         subprocess.run(["git", "-C", str(tmp_path), "commit", "-qm", "init"],
                        check=True)
 
-        assert control._git_commit(tmp_path, "curator: тест") is False
+        assert control._git_commit(tmp_path, "curator: тест") == "noop"
 
-    def test_dir_without_repo_is_silent_false(self, tmp_path):
-        # нет git-репо — save не должен падать
-        assert control._git_commit(tmp_path, "curator: тест") is False
+    def test_fresh_dir_becomes_repo_and_commits(self, tmp_path, monkeypatch):
+        import subprocess
+        monkeypatch.setenv("GIT_AUTHOR_NAME", "curator-test")
+        monkeypatch.setenv("GIT_AUTHOR_EMAIL", "test@curator.local")
+        monkeypatch.setenv("GIT_COMMITTER_NAME", "curator-test")
+        monkeypatch.setenv("GIT_COMMITTER_EMAIL", "test@curator.local")
+        (tmp_path / "base.md").write_text("знание", encoding="utf-8")
+
+        assert control._git_commit(tmp_path, "curator: тест") == "committed"
+        log = subprocess.run(
+            ["git", "-C", str(tmp_path), "log", "-1", "--format=%s"],
+            capture_output=True, text=True).stdout
+        assert "curator: тест" in log, "свежая база получает историю сама"
+
+
+class TestGitHistoryEndToEnd:
+    @staticmethod
+    def _identity(monkeypatch, name="curator-test", email="test@curator.local"):
+        monkeypatch.setenv("GIT_AUTHOR_NAME", name)
+        monkeypatch.setenv("GIT_AUTHOR_EMAIL", email)
+        monkeypatch.setenv("GIT_COMMITTER_NAME", name)
+        monkeypatch.setenv("GIT_COMMITTER_EMAIL", email)
+
+    def test_fresh_base_gets_commit(self, env, capsys, monkeypatch):
+        self._identity(monkeypatch)
+
+        control.cmd_save(auto_yes=True, raw=json.dumps(CANDIDATES))
+
+        out = capsys.readouterr().out
+        assert "git: локальный коммит" in out, "save обязан закоммитить свежую базу"
+
+    def test_commit_failure_is_visible_warning(self, env, capsys, monkeypatch):
+        monkeypatch.setenv("GIT_CONFIG_GLOBAL", "/dev/null")
+        monkeypatch.setenv("GIT_CONFIG_SYSTEM", "/dev/null")
+        self._identity(monkeypatch, name="", email="")
+
+        control.cmd_save(auto_yes=True, raw=json.dumps(CANDIDATES))
+
+        out = capsys.readouterr().out
+        assert "git-коммит не прошёл" in out, "провал коммита не должен молчать"
+        assert "git: локальный коммит" not in out
 
 
 class TestAutoYesFlag:

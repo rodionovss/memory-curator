@@ -234,8 +234,12 @@ def cmd_save(auto_yes: bool = False, hypothesis: bool = False,
                     message = f"curator: {first_title}"
                 else:
                     message = f"curator: {saved} фактов ({first_title[:50]})"
-                if _git_commit(base_dir, message):
+                outcome = _git_commit(base_dir, message)
+                if outcome == "committed":
                     print(f"  git: локальный коммит — {message}")
+                elif outcome == "failed":
+                    print("  ⚠ git-коммит не прошёл (git недоступен или identity не настроен)"
+                          " — данные сохранены, история базы не ведётся")
             _log_candidates("mining" if session_id else "cli", result, saved, status,
                             session_id, declined_by_human=False)
         else:
@@ -258,21 +262,37 @@ def _log_candidates(source: str, result, saved: int, status: str,
                                session_id=session_id, declined_by_human=declined_by_human)
 
 
-def _git_commit(base_dir: Path, message: str) -> bool:
-    """Локальный git-коммит базы после save. Push не делается никогда.
-
-    База пишется автоматами без ревью - git даёт diff и откат точечно.
-    Любая ошибка (нет git, нет репо, нет identity) глотается: коммит -
-    страховка, save важнее.
-    """
+def _ensure_git_repo(base_dir: Path) -> bool:
     import subprocess
     try:
+        probe = subprocess.run(
+            ["git", "-C", str(base_dir), "rev-parse", "--git-common-dir"],
+            capture_output=True, text=True, timeout=15,
+        )
+        if probe.returncode == 0:
+            return True
+        init = subprocess.run(
+            ["git", "-C", str(base_dir), "init", "--quiet"],
+            capture_output=True, text=True, timeout=15,
+        )
+        return init.returncode == 0
+    except Exception:
+        return False
+
+
+def _git_commit(base_dir: Path, message: str) -> str:
+    import subprocess
+    try:
+        if not _ensure_git_repo(base_dir):
+            return "failed"
         status = subprocess.run(
             ["git", "-C", str(base_dir), "status", "--porcelain"],
             capture_output=True, text=True, timeout=15,
         )
-        if status.returncode != 0 or not status.stdout.strip():
-            return False
+        if status.returncode != 0:
+            return "failed"
+        if not status.stdout.strip():
+            return "noop"
         subprocess.run(
             ["git", "-C", str(base_dir), "add", "-A", "."],
             capture_output=True, text=True, timeout=15,
@@ -281,9 +301,9 @@ def _git_commit(base_dir: Path, message: str) -> bool:
             ["git", "-C", str(base_dir), "commit", "-m", message, "--no-verify"],
             capture_output=True, text=True, timeout=30,
         )
-        return commit.returncode == 0
+        return "committed" if commit.returncode == 0 else "failed"
     except Exception:
-        return False
+        return "failed"
 
 
 def cmd_save_doc(path: str):
@@ -329,12 +349,16 @@ def cmd_save_doc(path: str):
         _log_doc(relative, saved=0, reason="путь вне карты")
         return
 
-    if _git_commit(base_dir, f"curator: doc {relative}"):
+    outcome = _git_commit(base_dir, f"curator: doc {relative}")
+    if outcome == "committed":
         print(f"  ✅ Документ зафиксирован: {relative}")
         print(f"  git: локальный коммит — curator: doc {relative}")
+    elif outcome == "noop":
+        print(f"  ✅ Документ зафиксирован: {relative} (изменений в git нет)")
     else:
-        print(f"  ✅ Документ зафиксирован: {relative}"
-              f" (без git-коммита: изменений нет или репо недоступно)")
+        print(f"  ✅ Документ зафиксирован: {relative}")
+        print("  ⚠ git-коммит не прошёл (git недоступен или identity не настроен)"
+              " — история базы не ведётся")
     _log_doc(relative, saved=1, reason="")
 
 
@@ -396,7 +420,12 @@ def cmd_install():
     elif "--skills-copy" in args:
         skills_mode = "copy"
 
-    steps = installer.install_all(target=target, base_dir=base_dir, skills_mode=skills_mode)
+    try:
+        steps = installer.install_all(
+            target=target, base_dir=base_dir, skills_mode=skills_mode)
+    except installer.RepoAssetsMissingError as e:
+        print(f"\n⛔ {e}", file=sys.stderr)
+        sys.exit(1)
     print()
     for step in steps:
         print(f"  {step}")

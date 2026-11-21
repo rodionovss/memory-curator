@@ -1,6 +1,6 @@
 """Детерминированная генерация Knowledge Routes — метаданные уровня файла.
 
-Контракт: design/knowledge-route-format.md. Один route entry = один
+Один route entry = один
 source_file; каталог содержит только метаданные для маршрутизации,
 никогда — содержимое фактов (content_summary, тела).
 """
@@ -209,7 +209,7 @@ def render_catalog(backend, base_dir: Path) -> str:
     """Полный Markdown-каталог маршрутов (общая сборка для save и CLI).
 
     Детерминированный рендер уровня файла; только метаданные, без
-    содержимого фактов (контракт design/knowledge-route-format.md).
+    содержимого фактов.
     """
     return render_routes_markdown(list(build_catalog(backend, base_dir).routes))
 
